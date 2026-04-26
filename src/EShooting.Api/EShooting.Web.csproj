@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>EShooting.Web</AssemblyName>
+    <RootNamespace>EShooting.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EShooting.Application\EShooting.Application.csproj" />
+    <ProjectReference Include="..\EShooting.Infrastructure\EShooting.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

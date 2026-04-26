@@ -1,0 +1,1851 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    Antiforgery.GetAndStoreTokens(Context);
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EShooting — İdarə paneli</title>
+    <style>
+        :root {
+            --bg-a: #fff3e8;
+            --bg-b: #f7f4ff;
+            --bg-c: #ecf8ff;
+            --panel: rgba(255, 255, 255, 0.78);
+            --panel-strong: rgba(255, 255, 255, 0.9);
+            --text: #1d2440;
+            --text-muted: #657296;
+            --primary: #6c5cff;
+            --primary-strong: #5543f3;
+            --success: #0f9d77;
+            --warning: #d68a00;
+            --danger: #d1435f;
+            --border: rgba(122, 138, 178, 0.28);
+            --ring: rgba(108, 92, 255, 0.28);
+            --shadow: 0 18px 45px rgba(65, 45, 120, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
+            background:
+                radial-gradient(circle at 0% 0%, #ffd7be 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, #dacdff 0%, transparent 36%),
+                radial-gradient(circle at 100% 100%, #cbe8ff 0%, transparent 45%),
+                linear-gradient(145deg, var(--bg-a), var(--bg-b) 46%, var(--bg-c));
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 28px 24px 34px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .logout-form {
+            margin: 0;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            color: #1b2140;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .header-clock {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--panel-strong);
+            box-shadow: 0 10px 26px rgba(101, 102, 160, 0.16);
+            backdrop-filter: blur(10px);
+        }
+
+        .header-clock__label {
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #6b7394;
+        }
+
+        .header-clock__value {
+            font-size: 26px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.06em;
+            color: #2d3260;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(108, 92, 255, 0.4);
+            box-shadow: 0 22px 48px rgba(65, 45, 120, 0.2);
+        }
+
+        .card--spaced {
+            margin-bottom: 16px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(12, 1fr);
+        }
+
+        .col-6 {
+            grid-column: span 6;
+        }
+
+        .col-12 {
+            grid-column: span 12;
+        }
+
+        @@media (max-width: 900px) {
+            .col-6 {
+                grid-column: span 12;
+            }
+        }
+
+        h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            font-weight: 800;
+            color: #253060;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .row > * {
+            min-width: 140px;
+        }
+
+        input,
+        select,
+        textarea,
+        button {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            color: var(--text);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease, filter 0.2s ease;
+        }
+
+        input,
+        textarea,
+        select {
+            min-height: 42px;
+            background: #fff;
+        }
+
+        input::placeholder {
+            color: #8b97b9;
+        }
+
+        input:focus,
+        select:focus,
+        button:focus-visible {
+            outline: none;
+            border-color: #7668ff;
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        button {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .btn {
+            min-height: 42px;
+            border-radius: 12px;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-primary {
+            border: none;
+            color: #fff;
+            background: linear-gradient(120deg, var(--primary), #8a57ff);
+            box-shadow: 0 10px 22px rgba(108, 92, 255, 0.32);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(120deg, var(--primary-strong), #7a4df0);
+        }
+
+        .btn-secondary {
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #25a2d7, #1f86d8);
+            box-shadow: 0 10px 22px rgba(36, 137, 214, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.75);
+            color: #37426e;
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: rgba(108, 92, 255, 0.38);
+            background: #fff;
+        }
+
+        .btn-sm {
+            min-height: 38px;
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        @@media (max-width: 900px) {
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .stat {
+            border-radius: 15px;
+            padding: 14px;
+            border: 1px solid rgba(122, 138, 178, 0.23);
+            background: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 10px 24px rgba(104, 93, 161, 0.14);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .stat-value {
+            margin-top: 6px;
+            font-size: 28px;
+            line-height: 1;
+            font-weight: 800;
+            color: #222d58;
+        }
+
+        .notice {
+            margin-top: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .status-pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(86, 103, 148, 0.18);
+            color: #52618f;
+        }
+
+        .status-pill.Active {
+            background: rgba(15, 157, 119, 0.16);
+            color: #0b8a69;
+        }
+
+        .status-pill.Completed {
+            background: rgba(78, 102, 255, 0.16);
+            color: #445fd4;
+        }
+
+        .status-pill.Scheduled {
+            background: rgba(214, 138, 0, 0.2);
+            color: #b57100;
+        }
+
+        .lane-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        @@media (max-width: 1100px) {
+            .lane-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @@media (max-width: 700px) {
+            .lane-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .lane-card {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(122, 138, 178, 0.25);
+            border-radius: 16px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            box-shadow: 0 14px 24px rgba(96, 87, 157, 0.12);
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+
+        .lane-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 30px rgba(96, 87, 157, 0.16);
+        }
+
+        .lane-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .lane-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 800;
+            color: #202c56;
+        }
+
+        .lane-type {
+            font-size: 11px;
+            color: #7b86a7;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .lane-meta {
+            margin: 4px 0;
+            color: #667395;
+            font-size: 13px;
+        }
+
+        .lane-meta--compact {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .score {
+            margin-top: 10px;
+            font-weight: 800;
+            font-size: 22px;
+            color: #24305f;
+        }
+
+        .countdown-ring-wrap {
+            --ring-track: rgba(62, 77, 130, 0.14);
+            --ring-accent: #17ad80;
+            --ring-glow: rgba(23, 173, 128, 0.25);
+            position: relative;
+            width: 132px;
+            height: 132px;
+            margin: 12px auto 4px;
+        }
+
+        .countdown-ring-wrap--compact {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto;
+        }
+
+        .countdown-ring__svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 0 10px var(--ring-glow));
+        }
+
+        .countdown-ring__track {
+            fill: none;
+            stroke: var(--ring-track);
+            stroke-width: 7;
+        }
+
+        .countdown-ring__progress {
+            fill: none;
+            stroke: var(--ring-accent);
+            stroke-width: 7;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease, filter 0.3s ease;
+        }
+
+        .countdown-ring__center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 8px;
+            pointer-events: none;
+        }
+
+        .countdown-ring__timer {
+            font-size: 22px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.04em;
+            line-height: 1.1;
+            color: #26325f;
+        }
+
+        .countdown-ring-wrap--compact .countdown-ring__timer {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .countdown-ring__caption {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #7a86a8;
+        }
+
+        .countdown-ring-wrap.is-pending {
+            --ring-accent: #d68a00;
+            --ring-glow: rgba(214, 138, 0, 0.24);
+        }
+
+        .countdown-ring-wrap.is-live.is-warn:not(.is-critical) {
+            --ring-accent: #ef8f1f;
+            --ring-glow: rgba(239, 143, 31, 0.3);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical {
+            --ring-accent: #d1435f;
+            --ring-glow: rgba(209, 67, 95, 0.34);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer {
+            color: #b63852;
+        }
+
+        .countdown-ring-wrap.is-done,
+        .countdown-ring-wrap.is-idle {
+            --ring-accent: rgba(120, 132, 168, 0.55);
+            --ring-glow: transparent;
+        }
+
+        .countdown-ring-wrap.is-live.is-critical .countdown-ring__svg {
+            animation: ring-pulse 0.95s ease-in-out infinite;
+        }
+
+        @@keyframes ring-pulse {
+            0%, 100% { filter: drop-shadow(0 0 6px var(--ring-glow)); }
+            50% { filter: drop-shadow(0 0 16px var(--ring-glow)); }
+        }
+
+        .table-countdown-cell {
+            vertical-align: middle;
+            min-width: 64px;
+        }
+
+        .lane-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .lane-score-input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .lane-score-btn {
+            min-width: 86px;
+            padding: 8px 10px;
+            font-size: 12px;
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #25a2d7, #1f86d8);
+        }
+
+        .pick-session {
+            margin-top: 10px;
+            width: 100%;
+            min-height: 38px;
+            padding: 8px 12px;
+            font-size: 12px;
+            border: 1px solid rgba(108, 92, 255, 0.28);
+            background: rgba(108, 92, 255, 0.12);
+            color: #403a97;
+            font-weight: 700;
+        }
+
+        .pick-session:hover {
+            border-color: rgba(108, 92, 255, 0.55);
+            background: rgba(108, 92, 255, 0.17);
+        }
+
+        .stop-session-btn {
+            margin-top: 8px;
+            width: 100%;
+            min-height: 38px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(209, 67, 95, 0.4);
+            background: rgba(209, 67, 95, 0.14);
+            color: #a72d48;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .stop-session-btn:hover {
+            border-color: rgba(209, 67, 95, 0.72);
+            background: rgba(209, 67, 95, 0.2);
+        }
+
+        .warn {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .warn.ok {
+            color: #128461;
+        }
+
+        .warn.alert {
+            color: #b26d00;
+        }
+
+        .warn.danger {
+            color: #b83854;
+        }
+
+        .table-wrap {
+            margin-top: 12px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.75);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid rgba(122, 138, 178, 0.2);
+            padding: 11px 10px;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            color: #586892;
+            font-weight: 700;
+            background: rgba(108, 92, 255, 0.06);
+        }
+
+        tr:hover td {
+            background: rgba(108, 92, 255, 0.04);
+        }
+
+        .tv-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tv-link {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 11px;
+            border: 1px solid rgba(108, 92, 255, 0.25);
+            background: rgba(108, 92, 255, 0.1);
+            color: #413c9a;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+            transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .tv-link:hover {
+            transform: translateY(-1px);
+            border-color: rgba(108, 92, 255, 0.52);
+            background: rgba(108, 92, 255, 0.16);
+        }
+
+        .subscription-table td,
+        .subscription-table th {
+            white-space: nowrap;
+        }
+
+        .upcoming-list {
+            margin: 10px 0 0;
+            padding-left: 18px;
+        }
+
+        .upcoming-list li {
+            margin: 6px 0;
+            color: #33406d;
+        }
+
+        .upcoming-tag {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(214, 138, 0, 0.18);
+            color: #9a6100;
+        }
+
+        .checkbox-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.76);
+            color: #475483;
+            font-size: 13px;
+            font-weight: 700;
+            user-select: none;
+        }
+
+        .checkbox-chip input[type="checkbox"] {
+            accent-color: var(--primary);
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
+        .group-athletes-input {
+            min-height: 94px;
+            width: min(420px, 100%);
+            resize: vertical;
+            line-height: 1.35;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header class="header">
+        <div>
+            <h1 class="title">EShooting idarə paneli</h1>
+            <p class="subtitle">Planlama, planşetdə xal və canlı monitor.</p>
+        </div>
+        <div class="header-actions">
+            <div class="header-clock" title="Brauzerin yerli vaxtı">
+                <span class="header-clock__label">Canlı saat</span>
+                <span class="header-clock__value" id="wallClock">--:--:--</span>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-ghost btn-sm">Çıxış</button>
+            </form>
+            <span class="status-pill" id="connectionBadge">SignalR: Qoşulur...</span>
+        </div>
+    </header>
+
+    <section class="stats">
+        <article class="stat">
+            <div class="stat-label">Zolaqlar (cəmi)</div>
+            <div class="stat-value" id="totalLanes">11</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Aktiv sessiyalar</div>
+            <div class="stat-value" id="activeSessions">0</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Planlaşdırılmış</div>
+            <div class="stat-value" id="scheduledSessions">0</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Bitmiş sessiyalar</div>
+            <div class="stat-value" id="completedSessions">0</div>
+        </article>
+    </section>
+
+    <section class="card card--spaced">
+        <h2>TV — ayrı zolaq ekranları</h2>
+        <p class="notice">Hər televizorda bir keçid açın (tam ekran). Nümunə: <code>/zolaq/3</code></p>
+        <div class="tv-links">
+            @for (var i = 1; i <= 11; i++)
+            {
+                <a href="/zolaq/@i" target="_blank" rel="noopener" class="tv-link">
+                    Zolaq @i
+                </a>
+            }
+        </div>
+    </section>
+
+    <section class="grid">
+        <article class="card col-6">
+            <h2>Reception — qeydiyyat</h2>
+            <div class="row">
+                <input id="athleteName" placeholder="İdmançının adı, soyadı" />
+                <label class="checkbox-chip">
+                    <input id="isSubscriber" type="checkbox" />
+                    Abunəçi
+                </label>
+            </div>
+            <div class="row">
+                <select id="laneNumber">
+                    <option value="1">Zolaq 1 (Həvəskar)</option>
+                    <option value="2">Zolaq 2 (Həvəskar)</option>
+                    <option value="3">Zolaq 3 (Həvəskar)</option>
+                    <option value="4">Zolaq 4 (Həvəskar)</option>
+                    <option value="5">Zolaq 5 (Həvəskar)</option>
+                    <option value="6">Zolaq 6 (Həvəskar)</option>
+                    <option value="7">Zolaq 7 (Həvəskar)</option>
+                    <option value="8">Zolaq 8 (Həvəskar)</option>
+                    <option value="9">Zolaq 9 (Peşəkar)</option>
+                    <option value="10">Zolaq 10 (Peşəkar)</option>
+                    <option value="11">Zolaq 11 (Peşəkar)</option>
+                </select>
+                <input id="durationMinutes" type="number" min="1" max="240" value="3" />
+                <label class="checkbox-chip">
+                    <input id="isOpenEnded" type="checkbox" />
+                    Vaxtsız (Stop ilə bitir)
+                </label>
+                <button id="scheduleBtn" class="btn btn-primary">Qeydiyyat və planlama</button>
+            </div>
+            <div class="notice" id="sessionInfo">Hələ seçim yoxdur. Müddət dəqiqə ilədir (məs. 3 = 180 saniyə), vaxtsız üçün checkbox seçin.</div>
+        </article>
+
+        <article class="card col-6">
+            <h2>Planşet — xal</h2>
+            <div class="row">
+                <input id="sessionId" placeholder="Sessiya ID" />
+                <input id="roundNumber" type="number" min="1" value="1" />
+                <input id="scoreValue" type="number" min="0" max="10" value="10" />
+                <button id="submitScoreBtn" class="btn btn-secondary">Xalı göndər</button>
+            </div>
+            <div class="notice">Xal 0–10 aralığında olmalıdır.</div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Qrup qeydiyyatı (bir zolaq)</h2>
+            <div class="row">
+                <textarea id="groupAthleteNames"
+                          class="group-athletes-input"
+                          placeholder="Dostların adlarını yazın (hər sətirdə bir nəfər)"></textarea>
+                <select id="groupLaneNumber">
+                    @for (var i = 1; i <= 11; i++)
+                    {
+                        <option value="@i">Zolaq @i</option>
+                    }
+                </select>
+                <input id="groupDurationMinutes" type="number" min="1" max="240" value="60" />
+                <button id="groupRegisterBtn" class="btn btn-primary">Qrupu qeydiyyata al</button>
+            </div>
+            <div class="notice" id="groupInfo">Bir zolaq üçün dostların hamısını eyni vaxtda bir sessiyada qeydiyyatdan keçirir.</div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Aylıq abunə planlama</h2>
+            <div class="row">
+                <input id="subscriptionAthleteName" placeholder="Abunəçinin adı, soyadı" />
+                <select id="subscriptionDayPattern">
+                    <option value="1-3-5">1-3-5 (B.e, Ç, C)</option>
+                    <option value="2-4-6">2-4-6 (Ç.a, C.a, Ş)</option>
+                </select>
+                <input id="subscriptionVisitsCount" type="number" min="1" max="100" value="12" />
+                <input id="subscriptionStartTime" type="text" value="19:00" placeholder="HH:mm" maxlength="5" />
+                <input id="subscriptionDurationMinutes" type="number" min="1" max="6" value="1" />
+                <input id="subscriptionStartDate" type="date" />
+                <button id="createSubscriptionBtn" class="btn btn-primary">Paket yarat</button>
+            </div>
+            <div class="notice" id="subscriptionInfo">Məsələn: 12 gediş, 1 və ya daha çox saat, 1-3-5 və ya 2-4-6 pattern ilə yaradın.</div>
+            <h3 style="margin:12px 0 6px; font-size:16px; color:#2c396a;">Vaxtı yaxınlaşan abunəçilər</h3>
+            <div class="notice" id="upcomingSubscriptionInfo">Yüklənir...</div>
+            <ol class="upcoming-list" id="upcomingSubscriptionRows"></ol>
+            <div class="table-wrap" style="margin-top:10px;">
+                <table class="subscription-table">
+                    <thead>
+                    <tr>
+                        <th>İdmançı</th>
+                        <th>Gün</th>
+                        <th>Saat</th>
+                        <th>Müddət</th>
+                        <th>Tarix</th>
+                        <th>Son təyin edilən zolaq</th>
+                        <th>Son auto-start</th>
+                    </tr>
+                    </thead>
+                    <tbody id="subscriptionRows"></tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Zolaq monitoru</h2>
+            <div class="lane-grid" id="laneGrid"></div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Ətraflı cədvəl</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Zolaq</th>
+                        <th>Növ</th>
+                        <th>İdmançı</th>
+                        <th>Status</th>
+                        <th>Qalan</th>
+                        <th>Cəmi</th>
+                        <th>Xəbərdarlıq</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dashboardRows"></tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    const athleteNameInput = document.getElementById("athleteName");
+    const isSubscriberInput = document.getElementById("isSubscriber");
+    const laneNumberInput = document.getElementById("laneNumber");
+    const durationMinutesInput = document.getElementById("durationMinutes");
+    const isOpenEndedInput = document.getElementById("isOpenEnded");
+    const sessionIdInput = document.getElementById("sessionId");
+    const roundNumberInput = document.getElementById("roundNumber");
+    const scoreValueInput = document.getElementById("scoreValue");
+    const dashboardRows = document.getElementById("dashboardRows");
+    const sessionInfo = document.getElementById("sessionInfo");
+    const laneGrid = document.getElementById("laneGrid");
+    const connectionBadge = document.getElementById("connectionBadge");
+    const subscriptionAthleteNameInput = document.getElementById("subscriptionAthleteName");
+    const subscriptionDayPatternInput = document.getElementById("subscriptionDayPattern");
+    const subscriptionVisitsCountInput = document.getElementById("subscriptionVisitsCount");
+    const subscriptionStartTimeInput = document.getElementById("subscriptionStartTime");
+    const subscriptionDurationMinutesInput = document.getElementById("subscriptionDurationMinutes");
+    const subscriptionStartDateInput = document.getElementById("subscriptionStartDate");
+    const subscriptionRows = document.getElementById("subscriptionRows");
+    const subscriptionInfo = document.getElementById("subscriptionInfo");
+    const upcomingSubscriptionRows = document.getElementById("upcomingSubscriptionRows");
+    const upcomingSubscriptionInfo = document.getElementById("upcomingSubscriptionInfo");
+    const groupAthleteNamesInput = document.getElementById("groupAthleteNames");
+    const groupLaneNumberInput = document.getElementById("groupLaneNumber");
+    const groupDurationMinutesInput = document.getElementById("groupDurationMinutes");
+    const groupInfo = document.getElementById("groupInfo");
+
+    const totalLanesEl = document.getElementById("totalLanes");
+    const activeSessionsEl = document.getElementById("activeSessions");
+    const scheduledSessionsEl = document.getElementById("scheduledSessions");
+    const completedSessionsEl = document.getElementById("completedSessions");
+    let latestLanes = [];
+    const laneScoreDraft = {};
+    let countdownTimerId = null;
+    let upcomingCountdownTimerId = null;
+    let subscriptionSchedulesCache = [];
+    const dayNames = ["Bazar", "Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə"];
+
+    function refreshStats(lanes) {
+        totalLanesEl.textContent = String(lanes.length);
+        activeSessionsEl.textContent = String(lanes.filter(x => x.status === "Active").length);
+        scheduledSessionsEl.textContent = String(lanes.filter(x => x.status === "Scheduled").length);
+        completedSessionsEl.textContent = String(lanes.filter(x => x.status === "Completed").length);
+    }
+
+    const COUNTDOWN_WARN_SEC = 60;
+    const COUNTDOWN_CRIT_SEC = 10;
+    function applyRingRemaining(circle, fractionRemaining) {
+        const f = Math.max(0, Math.min(1, fractionRemaining));
+        const r = circle instanceof SVGCircleElement ? circle.r.baseVal.value : 42;
+        const len = 2 * Math.PI * r;
+        circle.style.strokeDasharray = String(len);
+        circle.style.strokeDashoffset = String(len * (1 - f));
+    }
+
+    function formatSeconds(milliseconds) {
+        const totalSeconds = Math.floor(milliseconds / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        }
+
+        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function parseApiDate(value) {
+        if (!value) {
+            return new Date(0);
+        }
+
+        const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
+        return new Date(needsUtcSuffix ? `${value}Z` : value);
+    }
+
+    function hasValidTimeWindow(startMs, endMs) {
+        return Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
+    }
+
+    function syncOpenEndedMode() {
+        if (!(durationMinutesInput instanceof HTMLInputElement) || !(isOpenEndedInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (isOpenEndedInput.checked) {
+            durationMinutesInput.dataset.prevValue = durationMinutesInput.value;
+            durationMinutesInput.value = "0";
+            durationMinutesInput.disabled = true;
+            sessionInfo.textContent = "Vaxtsız sessiya seçildi: sayğac 00:01-dən başlayıb Stop-a qədər artır.";
+            return;
+        }
+
+        durationMinutesInput.disabled = false;
+        const prev = durationMinutesInput.dataset.prevValue;
+        durationMinutesInput.value = prev && Number(prev) > 0 ? prev : "3";
+    }
+
+    async function apiFetch(input, init = {}) {
+        const response = await fetch(input, { ...init, credentials: "same-origin" });
+        if (response.status === 401) {
+            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+            throw new Error("İcazə yoxdur");
+        }
+
+        return response;
+    }
+
+    async function readErrorMessage(response) {
+        const raw = await response.text();
+        if (!raw) {
+            return "Naməlum xəta";
+        }
+
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed?.error ?? parsed?.title ?? raw;
+        } catch {
+            return raw;
+        }
+    }
+
+    function getExceptionMessage(error) {
+        if (error instanceof Error && error.message) {
+            return error.message;
+        }
+
+        return "Naməlum xəta";
+    }
+
+    function updateCountdownRings() {
+        document.querySelectorAll("[data-countdown-ring]").forEach(el => {
+            if (!(el instanceof HTMLElement)) {
+                return;
+            }
+
+            const start = el.dataset.start ?? "";
+            const end = el.dataset.end ?? "";
+            const status = el.dataset.status ?? "";
+            const timerEl = el.querySelector("[data-role=\"timer\"]");
+            const captionEl = el.querySelector("[data-role=\"caption\"]");
+            const progressEl = el.querySelector(".countdown-ring__progress");
+            if (!timerEl || !(progressEl instanceof SVGGraphicsElement)) {
+                return;
+            }
+
+            el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle");
+
+            const startMs = parseApiDate(start).getTime();
+            const endMs = parseApiDate(end).getTime();
+            const nowMs = Date.now();
+            const timedSession = hasValidTimeWindow(startMs, endMs);
+            const totalMs = timedSession ? endMs - startMs : 0;
+
+            if (!start || !end || !timedSession) {
+                if (status === "Completed") {
+                    el.classList.add("is-done");
+                    timerEl.textContent = "Bitib";
+                    if (captionEl) {
+                        captionEl.textContent = "Sessiya";
+                    }
+                    applyRingRemaining(progressEl, 0);
+                    return;
+                }
+
+                if (status === "Scheduled") {
+                    el.classList.add("is-pending");
+                    const untilStartMs = Number.isFinite(startMs) ? Math.max(0, startMs - nowMs) : 0;
+                    timerEl.textContent = untilStartMs > 0 ? formatSeconds(untilStartMs) : "—";
+                    if (captionEl) {
+                        captionEl.textContent = untilStartMs > 0 ? "Başlayır" : "Planlı";
+                    }
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                if (status === "Active") {
+                    el.classList.add("is-live");
+                    const elapsedMs = Number.isFinite(startMs)
+                        ? Math.max(1000, nowMs - startMs)
+                        : 1000;
+                    timerEl.textContent = formatSeconds(elapsedMs);
+                    if (captionEl) {
+                        captionEl.textContent = "Keçən vaxt";
+                    }
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                el.classList.add("is-idle");
+                timerEl.textContent = "—";
+                if (captionEl) {
+                    captionEl.textContent = "Boş";
+                }
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            if (status === "Completed") {
+                el.classList.add("is-done");
+                timerEl.textContent = "Bitib";
+                if (captionEl) {
+                    captionEl.textContent = "Sessiya";
+                }
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            if (nowMs < startMs) {
+                el.classList.add("is-pending");
+                timerEl.textContent = formatSeconds(startMs - nowMs);
+                if (captionEl) {
+                    captionEl.textContent = "Başlayır";
+                }
+                applyRingRemaining(progressEl, 1);
+                return;
+            }
+
+            if (nowMs >= endMs) {
+                el.classList.add("is-done");
+                timerEl.textContent = "00:00";
+                if (captionEl) {
+                    captionEl.textContent = "Vaxt bitib";
+                }
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            const remainingMs = endMs - nowMs;
+            const remainingSec = Math.floor(remainingMs / 1000);
+            const frac = totalMs > 0 ? remainingMs / totalMs : 0;
+            el.classList.add("is-live");
+            if (remainingSec <= COUNTDOWN_CRIT_SEC) {
+                el.classList.add("is-critical");
+            } else if (remainingSec <= COUNTDOWN_WARN_SEC) {
+                el.classList.add("is-warn");
+            }
+
+            timerEl.textContent = formatSeconds(remainingMs);
+            if (captionEl) {
+                captionEl.textContent = "Qalan vaxt";
+            }
+            applyRingRemaining(progressEl, frac);
+        });
+    }
+
+    function restoreLaneDrafts() {
+        document.querySelectorAll(".lane-score-input").forEach(input => {
+            const sid = input.getAttribute("data-session-id");
+            if (!sid) {
+                return;
+            }
+
+            const key = `session-${sid}`;
+            if (Object.prototype.hasOwnProperty.call(laneScoreDraft, key)) {
+                input.value = laneScoreDraft[key];
+            }
+        });
+    }
+
+    function bindLaneEvents() {
+        document.querySelectorAll(".lane-score-input").forEach(input => {
+            input.addEventListener("input", event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLInputElement)) {
+                    return;
+                }
+
+                const laneNumber = target.getAttribute("data-lane-number");
+                const sessionId = target.getAttribute("data-session-id");
+                if (!laneNumber && !sessionId) {
+                    return;
+                }
+
+                const key = sessionId ? `session-${sessionId}` : `lane-${laneNumber}`;
+                laneScoreDraft[key] = target.value;
+            });
+        });
+
+        document.querySelectorAll("[data-submit-lane-score]").forEach(button => {
+            button.addEventListener("click", async event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const sessionId = target.getAttribute("data-session-id");
+                const laneNumber = Number(target.getAttribute("data-lane-number"));
+                const nextRound = Number(target.getAttribute("data-next-round"));
+
+                if (!sessionId) {
+                    alert("Bu zolaqda aktiv sessiya yoxdur.");
+                    return;
+                }
+
+                const key = `session-${sessionId}`;
+                const rawValue = laneScoreDraft[key] ?? "";
+                const value = Number(rawValue);
+
+                if (!Number.isFinite(value) || value < 0 || value > 10) {
+                    alert("Xal 0 ilə 10 arasında olmalıdır.");
+                    return;
+                }
+
+                await submitLaneScore(sessionId, laneNumber, nextRound, value);
+            });
+        });
+
+        document.querySelectorAll(".pick-session").forEach(button => {
+            button.addEventListener("click", event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                const selected = target.getAttribute("data-session-id");
+                if (!selected) {
+                    return;
+                }
+
+                sessionIdInput.value = selected;
+                sessionInfo.textContent = `Seçilmiş sessiya: ${selected}`;
+            });
+        });
+
+        document.querySelectorAll("[data-stop-session]").forEach(button => {
+            button.addEventListener("click", async event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                const selected = target.getAttribute("data-stop-session");
+                if (!selected) {
+                    return;
+                }
+
+                await stopSession(selected);
+            });
+        });
+    }
+
+    function startCountdownTicker() {
+        if (countdownTimerId) {
+            clearInterval(countdownTimerId);
+        }
+
+        const tick = () => {
+            const wall = document.getElementById("wallClock");
+            if (wall) {
+                wall.textContent = new Date().toLocaleTimeString("az-AZ", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                });
+            }
+            updateCountdownRings();
+        };
+
+        tick();
+        countdownTimerId = setInterval(tick, 250);
+    }
+
+    async function loadDashboard() {
+        const response = await apiFetch("/dashboard/lanes");
+        if (!response.ok) {
+            return;
+        }
+
+        const lanes = await response.json();
+        latestLanes = lanes;
+        refreshStats(lanes);
+
+        const gridResponse = await apiFetch("/dashboard/lanes/partial/grid");
+        if (!gridResponse.ok) {
+            return;
+        }
+
+        laneGrid.innerHTML = await gridResponse.text();
+
+        const tableResponse = await apiFetch("/dashboard/lanes/partial/table");
+        if (!tableResponse.ok) {
+            return;
+        }
+
+        dashboardRows.innerHTML = await tableResponse.text();
+
+        bindLaneEvents();
+        restoreLaneDrafts();
+    }
+
+    function formatDateOnly(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) {
+            return "—";
+        }
+
+        return dt.toLocaleDateString("az-AZ");
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) {
+            return "—";
+        }
+
+        return dt.toLocaleString("az-AZ", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    }
+
+    function parseLocalTimeParts(rawTimeValue) {
+        const rawTime = (rawTimeValue ?? "").toString();
+        const timeMatch = /(\d{1,2}):(\d{2})/.exec(rawTime);
+        if (!timeMatch) {
+            return null;
+        }
+
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2]);
+        if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            return null;
+        }
+
+        return { hour, minute };
+    }
+
+    function parseScheduleStartLocal(item, nowLocal) {
+        const timeParts = parseLocalTimeParts(item.startTimeLocal);
+        if (timeParts === null) {
+            return null;
+        }
+
+        const fromRaw = new Date(item.activeFromDateLocal);
+        const toRaw = new Date(item.activeToDateLocal ?? item.activeFromDateLocal);
+        if (Number.isNaN(fromRaw.getTime()) || Number.isNaN(toRaw.getTime())) {
+            return null;
+        }
+
+        const fromDate = new Date(fromRaw.getFullYear(), fromRaw.getMonth(), fromRaw.getDate());
+        const toDate = new Date(toRaw.getFullYear(), toRaw.getMonth(), toRaw.getDate());
+        if (toDate.getTime() < fromDate.getTime()) {
+            return null;
+        }
+
+        const dayOfWeek = Number(item.dayOfWeek);
+        if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+            return null;
+        }
+
+        const today = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+        const baseDate = today.getTime() > fromDate.getTime() ? today : fromDate;
+        const dayOffset = (dayOfWeek - baseDate.getDay() + 7) % 7;
+        const candidateDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + dayOffset);
+
+        let candidate = new Date(
+            candidateDate.getFullYear(),
+            candidateDate.getMonth(),
+            candidateDate.getDate(),
+            timeParts.hour,
+            timeParts.minute,
+            0,
+            0
+        );
+
+        if (candidate.getTime() < nowLocal.getTime()) {
+            candidate = new Date(
+                candidate.getFullYear(),
+                candidate.getMonth(),
+                candidate.getDate() + 7,
+                timeParts.hour,
+                timeParts.minute,
+                0,
+                0
+            );
+        }
+
+        if (candidate.getTime() < fromDate.getTime() || candidate.getTime() > toDate.getTime() + (24 * 60 * 60 * 1000) - 1) {
+            return null;
+        }
+
+        return candidate;
+    }
+
+    function renderUpcomingSubscriptions(schedules) {
+        if (!(upcomingSubscriptionRows instanceof HTMLElement) || !(upcomingSubscriptionInfo instanceof HTMLElement)) {
+            return;
+        }
+
+        const now = new Date();
+        const upcoming = (Array.isArray(schedules) ? schedules : [])
+            .map(item => ({ item, startLocal: parseScheduleStartLocal(item, now) }))
+            .filter(x => x.startLocal instanceof Date && x.startLocal.getTime() >= now.getTime())
+            .sort((a, b) => a.startLocal.getTime() - b.startLocal.getTime())
+            .slice(0, 8);
+
+        if (upcoming.length === 0) {
+            upcomingSubscriptionInfo.textContent = "Yaxın saatlarda planlı abunəçi görünmür.";
+            upcomingSubscriptionRows.innerHTML = "";
+            return;
+        }
+
+        const soonThresholdMinutes = 120;
+        const soonCount = upcoming.filter(x => ((x.startLocal.getTime() - now.getTime()) / 60000) <= soonThresholdMinutes).length;
+        upcomingSubscriptionInfo.textContent = `Növbəti abunəçilər sıralandı. ${soonCount} nəfər yaxın 2 saat içindədir.`;
+
+        upcomingSubscriptionRows.innerHTML = upcoming.map(({ item, startLocal }) => {
+            const diffMinutes = Math.max(0, Math.round((startLocal.getTime() - now.getTime()) / 60000));
+            const whenText = startLocal.toLocaleString("az-AZ", {
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+            const nearTag = diffMinutes <= soonThresholdMinutes
+                ? `<span class="upcoming-tag">${diffMinutes} dəq sonra</span>`
+                : "";
+            return `<li><strong>${escapeHtml(item.athleteName ?? "—")}</strong> — ${whenText}${nearTag}</li>`;
+        }).join("");
+    }
+
+    function startUpcomingCountdownTicker() {
+        if (upcomingCountdownTimerId) {
+            clearInterval(upcomingCountdownTimerId);
+        }
+
+        upcomingCountdownTimerId = setInterval(() => {
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+        }, 60000);
+    }
+
+    function normalizeSubscriptionTimeInput() {
+        if (!(subscriptionStartTimeInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        const raw = subscriptionStartTimeInput.value.trim();
+        const match = /^(\d{1,2}):(\d{1,2})$/.exec(raw);
+        if (!match) {
+            return;
+        }
+
+        const hour = Number(match[1]);
+        const minute = Number(match[2]);
+        if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            return;
+        }
+
+        subscriptionStartTimeInput.value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    }
+
+    function formatDurationMinutes(minutes) {
+        const value = Number(minutes);
+        if (!Number.isFinite(value) || value <= 0) {
+            return "—";
+        }
+
+        if (value % 60 === 0) {
+            const hours = value / 60;
+            return `${hours} saat`;
+        }
+
+        return `${value} dəq`;
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll("\"", "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
+    async function loadSubscriptionSchedules() {
+        if (!(subscriptionRows instanceof HTMLElement)) {
+            return;
+        }
+
+        const response = await apiFetch("/subscriptions/schedules");
+        if (!response.ok) {
+            subscriptionSchedulesCache = [];
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            return;
+        }
+
+        const schedules = await response.json();
+        if (!Array.isArray(schedules)) {
+            subscriptionSchedulesCache = [];
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            return;
+        }
+
+        subscriptionSchedulesCache = schedules;
+        if (subscriptionSchedulesCache.length === 0) {
+            subscriptionRows.innerHTML = "<tr><td colspan=\"7\">Hələ aylıq abunə planı yoxdur.</td></tr>";
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            return;
+        }
+
+        subscriptionRows.innerHTML = subscriptionSchedulesCache.map(item => {
+            const dayLabel = dayNames[item.dayOfWeek] ?? String(item.dayOfWeek);
+            const singleDate = formatDateOnly(item.activeFromDateLocal);
+            const last = formatDateTime(item.lastAutoStartedAtUtc);
+            const time = (item.startTimeLocal ?? "").toString().slice(0, 5) || "—";
+            const lastLane = Number.isFinite(item.lastAssignedLaneNumber)
+                ? `<a href="/zolaq/${item.lastAssignedLaneNumber}" target="_blank" rel="noopener">Zolaq ${item.lastAssignedLaneNumber}</a>`
+                : "Sistem təyin edəcək";
+            return `<tr>
+                <td>${item.athleteName ?? "—"}</td>
+                <td>${dayLabel}</td>
+                <td>${time}</td>
+                <td>${formatDurationMinutes(item.durationMinutes)}</td>
+                <td>${singleDate}</td>
+                <td>${lastLane}</td>
+                <td>${last}</td>
+            </tr>`;
+        }).join("");
+
+        renderUpcomingSubscriptions(subscriptionSchedulesCache);
+    }
+
+    async function createSubscriptionSchedule() {
+        try {
+            const athleteFullName = subscriptionAthleteNameInput?.value?.trim() ?? "";
+            if (!athleteFullName) {
+                alert("Abunəçinin adını daxil edin.");
+                return;
+            }
+
+            const visitsCount = Number(subscriptionVisitsCountInput?.value ?? "0");
+            if (!Number.isInteger(visitsCount) || visitsCount <= 0) {
+                alert("Gediş sayı müsbət tam ədəd olmalıdır.");
+                return;
+            }
+
+            const durationHours = Number(subscriptionDurationMinutesInput?.value ?? "0");
+            if (!Number.isInteger(durationHours) || durationHours <= 0) {
+                alert("Abunə müddəti ən az 1 saat olmalıdır.");
+                return;
+            }
+            const durationMinutes = durationHours * 60;
+
+            const startDate = subscriptionStartDateInput?.value;
+            if (!startDate) {
+                alert("Paketin başlanğıc tarixini seçin.");
+                return;
+            }
+
+            const startTimeRaw = subscriptionStartTimeInput?.value?.trim() ?? "";
+            const timeMatch = /^(\d{2}):(\d{2})$/.exec(startTimeRaw);
+            if (!timeMatch) {
+                alert("Saat HH:mm formatında olmalıdır (məs. 19:20).");
+                return;
+            }
+
+            const hourValue = Number(timeMatch[1]);
+            const minuteValue = Number(timeMatch[2]);
+            if (!Number.isInteger(hourValue) || hourValue < 0 || hourValue > 23 || minuteValue < 0 || minuteValue > 59) {
+                alert("Saat 00:00 - 23:59 aralığında olmalıdır.");
+                return;
+            }
+
+            if (minuteValue % 10 !== 0) {
+                alert("Saat seçimi 10 dəqiqə aralığı ilə olmalıdır (məs. 19:00, 19:10, 19:20).");
+                return;
+            }
+
+            const response = await apiFetch("/subscriptions/packages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteFullName,
+                    dayPattern: subscriptionDayPatternInput?.value ?? "1-3-5",
+                    visitsCount,
+                    startTimeLocal: startTimeRaw,
+                    durationMinutes,
+                    startDateLocal: new Date(`${startDate}T00:00:00`).toISOString()
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Abunə planı yaradılmadı. ${message}`);
+                return;
+            }
+
+            const data = await response.json();
+            const firstDate = formatDateOnly(data.firstSessionDateLocal);
+            const lastDate = formatDateOnly(data.lastSessionDateLocal);
+            subscriptionInfo.textContent = `Paket yaradıldı: ${data.createdCount} gediş, ${durationHours} saat (${firstDate} - ${lastDate}).`;
+            if (subscriptionAthleteNameInput instanceof HTMLInputElement) {
+                subscriptionAthleteNameInput.value = "";
+            }
+            await loadSubscriptionSchedules();
+        } catch (error) {
+            alert(`Abunə planı yaradılmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function registerGroupOnLane() {
+        try {
+            const rawNames = groupAthleteNamesInput?.value ?? "";
+            const names = rawNames
+                .split(/\r?\n|,|;/)
+                .map(x => x.trim())
+                .filter(Boolean);
+
+            if (names.length === 0) {
+                alert("Qrup üçün ən az bir ad daxil edin.");
+                return;
+            }
+
+            const durationMinutes = Number(groupDurationMinutesInput?.value ?? "0");
+            if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+                alert("Qrup sessiyası üçün müddət müsbət dəqiqə olmalıdır.");
+                return;
+            }
+
+            const response = await apiFetch("/sessions/batch-lane", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteNames: names,
+                    laneNumber: Number(groupLaneNumberInput?.value ?? "1"),
+                    startTimeUtc: new Date().toISOString(),
+                    durationMinutes
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Qrup qeydiyyatı alınmadı. ${message}`);
+                return;
+            }
+
+            const data = await response.json();
+            const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+            if (sessions.length > 0) {
+                const list = sessions
+                    .map(item => {
+                        const name = escapeHtml(item.athleteName ?? item.AthleteName ?? "—");
+                        const start = formatDateTime(item.startTimeUtc ?? item.StartTimeUtc);
+                        const end = formatDateTime(item.endTimeUtc ?? item.EndTimeUtc);
+                        return `<li>${name}: ${start} - ${end}</li>`;
+                    })
+                    .join("");
+
+                groupInfo.innerHTML = `${data.createdCount} nəfər ardıcıl qeydiyyata alındı. <br/>Bu zolaqda ekranda yalnız aktiv olan görünür, növbə:<ul style="margin:6px 0 0 18px;">${list}</ul>`;
+            } else {
+                groupInfo.textContent = `${data.createdCount} nəfər ardıcıl qeydiyyata alındı.`;
+            }
+            if (groupAthleteNamesInput instanceof HTMLTextAreaElement) {
+                groupAthleteNamesInput.value = "";
+            }
+            await loadDashboard();
+        } catch (error) {
+            alert(`Qrup qeydiyyatı alınmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function registerAndSchedule() {
+        try {
+            const fullName = athleteNameInput.value.trim();
+            if (!fullName) {
+                alert("İdmançının adını daxil edin.");
+                return;
+            }
+
+            const isOpenEnded = isOpenEndedInput instanceof HTMLInputElement && isOpenEndedInput.checked;
+            const durationValue = isOpenEnded ? 0 : Number(durationMinutesInput.value);
+            if (!Number.isInteger(durationValue) || durationValue < 0) {
+                alert("Müddət mənfi ola bilməz.");
+                return;
+            }
+
+            if (!isOpenEnded && durationValue === 0) {
+                alert("Müddət 1 və ya daha böyük olmalıdır, yaxud vaxtsız checkbox seçin.");
+                return;
+            }
+
+            const athleteResponse = await apiFetch("/athletes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fullName,
+                    isSubscriber: isSubscriberInput.checked
+                })
+            });
+
+            if (!athleteResponse.ok) {
+                alert("İdmançı qeydiyyatı alınmadı.");
+                return;
+            }
+
+            const athleteData = await athleteResponse.json();
+            const sessionResponse = await apiFetch("/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteId: athleteData.id,
+                    laneNumber: Number(laneNumberInput.value),
+                    startTimeUtc: new Date().toISOString(),
+                    durationMinutes: durationValue
+                })
+            });
+
+            if (!sessionResponse.ok) {
+                const message = await readErrorMessage(sessionResponse);
+                alert(`Sessiya planlanmadı. ${message}`);
+                return;
+            }
+
+            const sessionData = await sessionResponse.json();
+            sessionIdInput.value = sessionData.sessionId;
+            sessionInfo.textContent = `Son sessiya ID: ${sessionData.sessionId}`;
+            await loadDashboard();
+        } catch (error) {
+            alert(`Sessiya planlanmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function submitScore() {
+        try {
+            let sessionId = sessionIdInput.value.trim();
+            if (!sessionId) {
+                const selectedLane = Number(laneNumberInput.value);
+                const laneSession = latestLanes.find(x =>
+                    x.laneNumber === selectedLane &&
+                    x.sessionId &&
+                    x.status !== "Completed");
+
+                if (laneSession?.sessionId) {
+                    sessionId = laneSession.sessionId;
+                    sessionIdInput.value = sessionId;
+                }
+            }
+
+            if (!sessionId) {
+                alert("Sessiya ID daxil edin və ya əvvəlcə zolaq sessiyasını seçin.");
+                return;
+            }
+
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber: Number(roundNumberInput.value),
+                    value: Number(scoreValueInput.value)
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Xal göndərilmədi. ${message}`);
+                return;
+            }
+
+            await loadDashboard();
+        } catch (error) {
+            alert(`Xal göndərilmədi. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function submitLaneScore(sessionId, laneNumber, roundNumber, value) {
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber,
+                    value
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Zolaq ${laneNumber}: xal göndərilmədi. ${message}`);
+                return;
+            }
+
+            laneScoreDraft[`session-${sessionId}`] = "";
+            sessionInfo.textContent = `Zolaq ${laneNumber}: xal göndərildi (tur ${roundNumber}).`;
+            await loadDashboard();
+        } catch (error) {
+            alert(`Zolaq ${laneNumber}: xal göndərilmədi. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function stopSession(sessionId) {
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/complete`, {
+                method: "POST"
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Sessiya dayandırılmadı. ${message}`);
+                return;
+            }
+
+            sessionInfo.textContent = `Sessiya dayandırıldı: ${sessionId}`;
+            await loadDashboard();
+        } catch (error) {
+            alert(`Sessiya dayandırılmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function startSignalR() {
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/lane")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.onreconnecting(() => {
+            connectionBadge.textContent = "SignalR: Yenidən qoşulur...";
+            connectionBadge.className = "status-pill Scheduled";
+        });
+
+        connection.onreconnected(() => {
+            connectionBadge.textContent = "SignalR: Qoşuldu";
+            connectionBadge.className = "status-pill Active";
+        });
+
+        connection.on("lane-updated", async () => {
+            await loadDashboard();
+            await loadSubscriptionSchedules();
+        });
+
+        connection.on("score-updated", async () => {
+            await loadDashboard();
+            await loadSubscriptionSchedules();
+        });
+
+        await connection.start();
+        connectionBadge.textContent = "SignalR: Qoşuldu";
+        connectionBadge.className = "status-pill Active";
+    }
+
+    document.getElementById("scheduleBtn").addEventListener("click", registerAndSchedule);
+    document.getElementById("submitScoreBtn").addEventListener("click", submitScore);
+    document.getElementById("groupRegisterBtn").addEventListener("click", registerGroupOnLane);
+    document.getElementById("createSubscriptionBtn").addEventListener("click", createSubscriptionSchedule);
+    isOpenEndedInput?.addEventListener("change", syncOpenEndedMode);
+    subscriptionStartTimeInput?.addEventListener("blur", normalizeSubscriptionTimeInput);
+    syncOpenEndedMode();
+    normalizeSubscriptionTimeInput();
+
+    if (subscriptionStartDateInput instanceof HTMLInputElement) {
+        const today = new Date();
+        subscriptionStartDateInput.value = today.toISOString().slice(0, 10);
+    }
+
+    startCountdownTicker();
+    startUpcomingCountdownTicker();
+    loadDashboard();
+    loadSubscriptionSchedules();
+    startSignalR();
+</script>
+</body>
+</html>

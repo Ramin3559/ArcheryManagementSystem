@@ -1,0 +1,207 @@
+@model EShooting.Web.Controllers.MonitorController.ScoreboardViewModel
+@{
+    Layout = null;
+    var laneNumber = Model.LaneNumber;
+    var hasSession = Model.HasSession;
+    var initialTotal = Model.TotalScore;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EShooting — Scoreboard</title>
+    <style>
+        :root {
+            --bg: #000000;
+            --score-green: #00FF00;
+            --score-yellow: #FFFF00;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        /* CSS təmizliyi: default boşluqlar olmasın */
+        html, body, main, div, img { margin: 0; padding: 0; }
+
+        .wrap {
+            height: 100vh;
+            width: 100vw;
+            display: grid;
+            place-items: center;
+        }
+
+        .score-frame {
+            width: min(90vw, 1600px);
+            height: min(78vh, 900px);
+            display: grid;
+            place-items: center;
+            padding: min(4vw, 56px);
+            border-radius: 10px;
+            border: 12px solid rgba(0, 255, 0, 0.70);
+            box-shadow:
+                0 0 28px rgba(0, 255, 0, 0.22),
+                0 0 90px rgba(0, 255, 0, 0.10);
+        }
+
+        .frame-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score {
+            font-family: "Segoe UI", Arial, sans-serif;
+            font-weight: 900;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            /* Yenidən daha nəhəng və uzaqdan oxunaqlı */
+            font-size: min(78vh, 92vw);
+            color: var(--score-green);
+            text-shadow: 0 0 16px rgba(0, 255, 0, 0.45);
+            user-select: none;
+            letter-spacing: 0;
+            transform: translateZ(0);
+            display: block;
+            margin: 0;
+            /* Optik mərkəzləmə: rəqəmlər aşağı "oturmasın" */
+            transform: translate3d(0, -0.20em, 0);
+        }
+
+        .pulse {
+            animation: pulse 0.55s ease-in-out;
+        }
+
+        @@keyframes pulse {
+            0% { transform: scale(1); filter: brightness(1); }
+            45% { transform: scale(1.05); filter: brightness(1.25); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* Boş rejim loqosu: çərçivəsiz, tam ekran mərkəzində */
+        .logo-full {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            object-fit: cover;
+            object-position: center;
+            filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.10));
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+<main class="wrap">
+    <!-- Boş rejim: çərçivəsiz loqo -->
+    <img id="logoEl" class="logo-full @(hasSession ? "hidden" : "")" src="/images/placeholder-logo.jpg" alt="" />
+
+    <!-- Dolu rejim: çərçivə + xal -->
+    <div id="scoreFrameEl" class="score-frame @(hasSession ? "" : "hidden")">
+        <div class="frame-inner">
+            <div id="scoreEl" class="score">@initialTotal</div>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    const laneNumber = @laneNumber;
+    const scoreEl = document.getElementById("scoreEl");
+    const scoreFrameEl = document.getElementById("scoreFrameEl");
+    const logoEl = document.getElementById("logoEl");
+    let latestScoreText = "";
+    let latestLanes = [];
+    const initialHasSession = @hasSession.ToString().ToLowerInvariant();
+
+    if (initialHasSession && scoreEl instanceof HTMLElement) {
+        latestScoreText = scoreEl.textContent ?? "";
+    }
+
+    async function apiFetch(input, init = {}) {
+        const response = await fetch(input, { ...init, credentials: "same-origin" });
+        if (response.status === 401) {
+            // Monitorlar adətən login-lə qorunur
+            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+            throw new Error("İcazə yoxdur");
+        }
+        return response;
+    }
+
+    function showScore(value) {
+        const text = String(value ?? 0);
+        if (!(scoreEl instanceof HTMLElement) || !(scoreFrameEl instanceof HTMLElement) || !(logoEl instanceof HTMLImageElement)) return;
+
+        // Dolu oldu: loqo tam itir, frame görünsün
+        if (!logoEl.classList.contains("hidden")) {
+            // Optimization: loqo ekrandadırsa animasiyasız, anında gizlə
+            logoEl.classList.add("hidden");
+        }
+        scoreFrameEl.classList.remove("hidden");
+
+        if (text !== latestScoreText) {
+            scoreEl.textContent = text;
+            latestScoreText = text;
+            scoreEl.classList.remove("pulse");
+            // restart animation
+            void scoreEl.offsetWidth;
+            scoreEl.classList.add("pulse");
+        }
+    }
+
+    function showLogo() {
+        if (!(scoreFrameEl instanceof HTMLElement) || !(logoEl instanceof HTMLImageElement) || !(scoreEl instanceof HTMLElement)) return;
+        scoreFrameEl.classList.add("hidden");
+        logoEl.classList.remove("hidden");
+        latestScoreText = "";
+    }
+
+    function pickActiveLane(lanes) {
+        // Scoreboard yalnız aktiv sessiya olanda xal göstərməlidir.
+        return (Array.isArray(lanes) ? lanes : []).find(x =>
+            x.laneNumber === laneNumber &&
+            x.status === "Active" &&
+            x.sessionId);
+    }
+
+    async function loadScoreboard() {
+        const response = await apiFetch("/dashboard/lanes");
+        if (!response.ok) return;
+        const lanes = await response.json();
+        latestLanes = Array.isArray(lanes) ? lanes : [];
+        const active = pickActiveLane(latestLanes);
+        if (!active) {
+            showLogo();
+            return;
+        }
+        showScore(active.totalScore ?? 0);
+    }
+
+    async function startSignalR() {
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/lane")
+            .withAutomaticReconnect()
+            .build();
+
+        // Event gələndə səhifəni yeniləmədən score-u yenilə
+        connection.on("lane-updated", loadScoreboard);
+        connection.on("score-updated", loadScoreboard);
+
+        await connection.start();
+    }
+
+    // Initial state is server-rendered to avoid flicker.
+    // We still refresh once to sync with backend state.
+    loadScoreboard();
+    startSignalR();
+</script>
+</body>
+</html>
+

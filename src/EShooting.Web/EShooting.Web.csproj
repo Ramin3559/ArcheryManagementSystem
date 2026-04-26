@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>EShooting.Web</AssemblyName>
+    <RootNamespace>EShooting.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EShooting.Application\EShooting.Application.csproj" />
+    <ProjectReference Include="..\EShooting.Infrastructure\EShooting.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

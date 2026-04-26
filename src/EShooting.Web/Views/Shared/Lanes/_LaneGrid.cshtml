@@ -1,0 +1,5 @@
+@model IReadOnlyCollection<EShooting.Application.Common.Models.LaneDashboardItem>
+@foreach (var lane in Model)
+{
+    <partial name="Lanes/_LaneCard" model="lane" />
+}

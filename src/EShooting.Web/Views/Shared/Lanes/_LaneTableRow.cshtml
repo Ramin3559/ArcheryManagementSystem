@@ -1,0 +1,48 @@
+@using EShooting.Web.Helpers
+@model EShooting.Application.Common.Models.LaneDashboardItem
+@{
+    var st = Model.Status ?? "Idle";
+}
+<tr>
+    <td>@Model.LaneNumber</td>
+    <td>@LaneDisplayHelper.TranslateLaneType(Model.LaneType)</td>
+    <td>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span>@(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)</span>
+            @if (Model.AthleteMembershipType is EShooting.Domain.Enums.MembershipType mt)
+            {
+                <span style="padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; border:1px solid rgba(41,55,89,0.22); background:rgba(255,255,255,0.06);">
+                    @mt
+                </span>
+                @if (mt == EShooting.Domain.Enums.MembershipType.GymOnly)
+                {
+                    <span style="padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; border:1px solid rgba(246,183,60,0.5); background:rgba(246,183,60,0.14); color:#9a6100;">
+                        Yalnız zal
+                    </span>
+                }
+            }
+        </div>
+        @if (Model.QueueAthleteNames.Count > 1)
+        {
+            <div class="lane-meta lane-meta--compact">Növbə: @string.Join(", ", Model.QueueAthleteNames)</div>
+        }
+    </td>
+    <td><span class="status-pill @st">@LaneDisplayHelper.TranslateStatus(Model.Status)</span></td>
+    <td class="table-countdown-cell">
+        <div class="countdown-ring-wrap countdown-ring-wrap--compact"
+             data-countdown-ring
+             data-start="@(Model.StartTimeUtc?.ToString("O") ?? "")"
+             data-end="@(Model.EndTimeUtc?.ToString("O") ?? "")"
+             data-status="@st">
+            <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
+                <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
+            </svg>
+            <div class="countdown-ring__center">
+                <div class="countdown-ring__timer" data-role="timer">—</div>
+            </div>
+        </div>
+    </td>
+    <td>@Model.TotalScore</td>
+    <td>@LaneDisplayHelper.TranslateWarning(Model.Warning)</td>
+</tr>

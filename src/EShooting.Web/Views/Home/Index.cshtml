@@ -1,0 +1,4154 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    Antiforgery.GetAndStoreTokens(Context);
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EShooting — İdarə paneli</title>
+    <style>
+        :root {
+            --bg-a: #fff3e8;
+            --bg-b: #f7f4ff;
+            --bg-c: #ecf8ff;
+            --panel: rgba(255, 255, 255, 0.78);
+            --panel-strong: rgba(255, 255, 255, 0.9);
+            --text: #1d2440;
+            --text-muted: #657296;
+            --primary: #6c5cff;
+            --primary-strong: #5543f3;
+            --success: #0f9d77;
+            --warning: #d68a00;
+            --danger: #d1435f;
+            --border: rgba(122, 138, 178, 0.28);
+            --ring: rgba(108, 92, 255, 0.28);
+            --shadow: 0 18px 45px rgba(65, 45, 120, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
+            background:
+                radial-gradient(circle at 0% 0%, #ffd7be 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, #dacdff 0%, transparent 36%),
+                radial-gradient(circle at 100% 100%, #cbe8ff 0%, transparent 45%),
+                linear-gradient(145deg, var(--bg-a), var(--bg-b) 46%, var(--bg-c));
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 28px 24px 34px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .logout-form {
+            margin: 0;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            color: #1b2140;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .header-clock {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--panel-strong);
+            box-shadow: 0 10px 26px rgba(101, 102, 160, 0.16);
+            backdrop-filter: blur(10px);
+        }
+
+        .header-clock__label {
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #6b7394;
+        }
+
+        .header-clock__value {
+            font-size: 26px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.06em;
+            color: #2d3260;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(108, 92, 255, 0.4);
+            box-shadow: 0 22px 48px rgba(65, 45, 120, 0.2);
+        }
+
+        .card--spaced {
+            margin-bottom: 16px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(12, 1fr);
+        }
+
+        .col-6 {
+            grid-column: span 6;
+        }
+
+        .col-12 {
+            grid-column: span 12;
+        }
+
+        @@media (max-width: 900px) {
+            .col-6 {
+                grid-column: span 12;
+            }
+        }
+
+        h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            font-weight: 800;
+            color: #253060;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .row > * {
+            min-width: 140px;
+        }
+
+        input,
+        select,
+        textarea,
+        button {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            color: var(--text);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease, filter 0.2s ease;
+        }
+
+        input,
+        textarea,
+        select {
+            min-height: 42px;
+            background: #fff;
+        }
+
+        input::placeholder {
+            color: #8b97b9;
+        }
+
+        input:focus,
+        select:focus,
+        button:focus-visible {
+            outline: none;
+            border-color: #7668ff;
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        button {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .btn {
+            min-height: 42px;
+            border-radius: 12px;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-primary {
+            border: none;
+            color: #fff;
+            background: linear-gradient(120deg, var(--primary), #8a57ff);
+            box-shadow: 0 10px 22px rgba(108, 92, 255, 0.32);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(120deg, var(--primary-strong), #7a4df0);
+        }
+
+        .btn-secondary {
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #25a2d7, #1f86d8);
+            box-shadow: 0 10px 22px rgba(36, 137, 214, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.75);
+            color: #37426e;
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: rgba(108, 92, 255, 0.38);
+            background: #fff;
+        }
+
+        .btn-danger {
+            background: rgba(209, 67, 95, 0.12);
+            color: #8d2140;
+            border: 1px solid rgba(209, 67, 95, 0.35);
+        }
+
+        .btn-danger:hover {
+            background: rgba(209, 67, 95, 0.18);
+            border-color: rgba(209, 67, 95, 0.52);
+        }
+
+        .btn-success {
+            border: 1px solid rgba(18, 153, 104, 0.55);
+            background: rgba(18, 153, 104, 0.18);
+            color: #0b5a3d;
+        }
+
+        .btn-success:hover {
+            border-color: rgba(18, 153, 104, 0.72);
+            background: rgba(18, 153, 104, 0.24);
+        }
+
+        .btn-sm {
+            min-height: 38px;
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        @@media (max-width: 900px) {
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .stat {
+            border-radius: 15px;
+            padding: 14px;
+            border: 1px solid rgba(122, 138, 178, 0.23);
+            background: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 10px 24px rgba(104, 93, 161, 0.14);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .stat-value {
+            margin-top: 6px;
+            font-size: 28px;
+            line-height: 1;
+            font-weight: 800;
+            color: #222d58;
+        }
+
+        .notice {
+            margin-top: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .status-pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(86, 103, 148, 0.18);
+            color: #52618f;
+        }
+
+        .status-pill.Active {
+            background: rgba(15, 157, 119, 0.16);
+            color: #0b8a69;
+        }
+
+        .status-pill.Completed {
+            background: rgba(78, 102, 255, 0.16);
+            color: #445fd4;
+        }
+
+        .status-pill.Scheduled {
+            background: rgba(214, 138, 0, 0.2);
+            color: #b57100;
+        }
+
+        .lane-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        @@media (max-width: 1100px) {
+            .lane-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @@media (max-width: 700px) {
+            .lane-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .lane-card {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(122, 138, 178, 0.25);
+            border-radius: 16px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            box-shadow: 0 14px 24px rgba(96, 87, 157, 0.12);
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+
+        .lane-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 30px rgba(96, 87, 157, 0.16);
+        }
+
+        .lane-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .lane-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 800;
+            color: #202c56;
+        }
+
+        .lane-type {
+            font-size: 11px;
+            color: #7b86a7;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .lane-meta {
+            margin: 4px 0;
+            color: #667395;
+            font-size: 13px;
+        }
+
+        .lane-meta--compact {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .score {
+            margin-top: 10px;
+            font-weight: 800;
+            font-size: 22px;
+            color: #24305f;
+        }
+
+        .countdown-ring-wrap {
+            --ring-track: rgba(62, 77, 130, 0.14);
+            --ring-accent: #17ad80;
+            --ring-glow: rgba(23, 173, 128, 0.25);
+            position: relative;
+            width: 132px;
+            height: 132px;
+            margin: 12px auto 4px;
+        }
+
+        .countdown-ring-wrap--compact {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto;
+        }
+
+        .countdown-ring__svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 0 10px var(--ring-glow));
+        }
+
+        .countdown-ring__track {
+            fill: none;
+            stroke: var(--ring-track);
+            stroke-width: 7;
+        }
+
+        .countdown-ring__progress {
+            fill: none;
+            stroke: var(--ring-accent);
+            stroke-width: 7;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease, filter 0.3s ease;
+        }
+
+        .countdown-ring__center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 8px;
+            pointer-events: none;
+        }
+
+        .countdown-ring__timer {
+            font-size: 22px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.04em;
+            line-height: 1.1;
+            color: #26325f;
+        }
+
+        .countdown-ring-wrap--compact .countdown-ring__timer {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .countdown-ring__caption {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #7a86a8;
+        }
+
+        .lane-card {
+            position: relative;
+        }
+
+        .lane-bottom-hint {
+            position: absolute;
+            left: 16px;
+            bottom: 62px; /* above Stop button */
+            font-weight: 900;
+            font-size: 14px;
+            color: #11824b;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+            pointer-events: none;
+        }
+
+        .lane-bottom-hint.is-show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .lane-bottom-hint.is-warn {
+            color: #c77700;
+        }
+
+        .lane-bottom-hint.is-critical {
+            color: #b63852;
+        }
+
+        .equip-fab {
+            width: 46px;
+            height: 46px;
+            border-radius: 999px;
+            border: 1px solid rgba(41,55,89,0.22);
+            background: rgba(255,255,255,0.92);
+            box-shadow: 0 10px 30px rgba(16, 24, 40, 0.22);
+            cursor: pointer;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        }
+
+        .equip-fab:hover { transform: translateY(-1px); }
+        .equip-fab--hidden { display: none; }
+        .equip-fab--idle { background: rgba(245, 246, 250, 0.92); }
+        .equip-fab--ok { background: rgba(27, 191, 122, 0.16); border-color: rgba(27, 191, 122, 0.28); }
+        .equip-fab--bad { background: rgba(209, 67, 95, 0.18); border-color: rgba(209, 67, 95, 0.35); }
+
+        @@keyframes equipPulse {
+            0% { box-shadow: 0 0 0 0 rgba(209, 67, 95, 0.28), 0 10px 30px rgba(16, 24, 40, 0.22); }
+            70% { box-shadow: 0 0 0 14px rgba(209, 67, 95, 0.0), 0 10px 30px rgba(16, 24, 40, 0.22); }
+            100% { box-shadow: 0 0 0 0 rgba(209, 67, 95, 0.0), 0 10px 30px rgba(16, 24, 40, 0.22); }
+        }
+
+        .equip-fab--pulse { animation: equipPulse 1.25s ease-out infinite; }
+
+        .equip-fab__icon {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .equip-fab__badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            padding: 0 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 900;
+            color: #fff;
+            background: #1bbf7a;
+            border: 2px solid rgba(255,255,255,0.92);
+        }
+
+        .equip-fab--bad .equip-fab__badge { background: #d1435f; }
+        .equip-fab--idle .equip-fab__badge { background: #7a86a8; }
+
+        .equip-panel {
+            position: fixed;
+            top: 86px;
+            right: 14px;
+            width: min(380px, 92vw);
+            z-index: 8887;
+            background: rgba(255,255,255,0.95);
+            border: 1px solid rgba(41,55,89,0.22);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 16px 50px rgba(16, 24, 40, 0.28);
+            transform: translateX(calc(100% + 20px));
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.22s ease, opacity 0.22s ease;
+        }
+
+        .equip-panel.is-open {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .equip-panel__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .countdown-ring-wrap.is-pending {
+            --ring-accent: #d68a00;
+            --ring-glow: rgba(214, 138, 0, 0.24);
+        }
+
+        .countdown-ring-wrap.is-live.is-warn:not(.is-critical),
+        .countdown-ring-wrap.is-pending.is-warn:not(.is-critical) {
+            --ring-accent: #ef8f1f;
+            --ring-glow: rgba(239, 143, 31, 0.3);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical,
+        .countdown-ring-wrap.is-pending.is-critical {
+            --ring-accent: #d1435f;
+            --ring-glow: rgba(209, 67, 95, 0.34);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer,
+        .countdown-ring-wrap.is-pending.is-critical .countdown-ring__timer {
+            color: #b63852;
+        }
+
+        .countdown-ring-wrap.is-done,
+        .countdown-ring-wrap.is-idle {
+            --ring-accent: rgba(120, 132, 168, 0.55);
+            --ring-glow: transparent;
+        }
+
+        .countdown-ring-wrap.is-live.is-critical .countdown-ring__svg {
+            animation: ring-pulse 0.95s ease-in-out infinite;
+        }
+
+        @@keyframes ring-pulse {
+            0%, 100% { filter: drop-shadow(0 0 6px var(--ring-glow)); }
+            50% { filter: drop-shadow(0 0 16px var(--ring-glow)); }
+        }
+
+        .table-countdown-cell {
+            vertical-align: middle;
+            min-width: 64px;
+        }
+
+        .lane-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .lane-score-input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .lane-score-btn {
+            min-width: 86px;
+            padding: 8px 10px;
+            font-size: 12px;
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #25a2d7, #1f86d8);
+        }
+
+        .pick-session {
+            margin-top: 10px;
+            width: 100%;
+            min-height: 38px;
+            padding: 8px 12px;
+            font-size: 12px;
+            border: 1px solid rgba(108, 92, 255, 0.28);
+            background: rgba(108, 92, 255, 0.12);
+            color: #403a97;
+            font-weight: 700;
+        }
+
+        .pick-session:hover {
+            border-color: rgba(108, 92, 255, 0.55);
+            background: rgba(108, 92, 255, 0.17);
+        }
+
+        .stop-session-btn {
+            margin-top: 8px;
+            width: 100%;
+            min-height: 38px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(209, 67, 95, 0.4);
+            background: rgba(209, 67, 95, 0.14);
+            color: #a72d48;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .stop-session-btn:hover {
+            border-color: rgba(209, 67, 95, 0.72);
+            background: rgba(209, 67, 95, 0.2);
+        }
+
+        .warn {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .warn.ok {
+            color: #128461;
+        }
+
+        .warn.alert {
+            color: #b26d00;
+        }
+
+        .warn.danger {
+            color: #b83854;
+        }
+
+        .table-wrap {
+            margin-top: 12px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.75);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid rgba(122, 138, 178, 0.2);
+            padding: 11px 10px;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            color: #586892;
+            font-weight: 700;
+            background: rgba(108, 92, 255, 0.06);
+        }
+
+        tr:hover td {
+            background: rgba(108, 92, 255, 0.04);
+        }
+
+        .tv-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        .tv-link {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 11px;
+            border: 1px solid rgba(108, 92, 255, 0.25);
+            background: rgba(108, 92, 255, 0.1);
+            color: #413c9a;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+            transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .tv-link:hover {
+            transform: translateY(-1px);
+            border-color: rgba(108, 92, 255, 0.52);
+            background: rgba(108, 92, 255, 0.16);
+        }
+
+        .tv-link--pro {
+            margin-left: 8px;
+            border-color: rgba(214, 138, 0, 0.42);
+            background: rgba(255, 245, 225, 0.75);
+            color: #6a3f00;
+        }
+
+        .tv-link--pro-first {
+            margin-left: 18px;
+        }
+
+        .tv-link--active {
+            border-color: rgba(18, 153, 104, 0.55);
+            background: rgba(18, 153, 104, 0.18);
+            color: #0b5a3d;
+        }
+
+        .tv-link--active.tv-link--pro {
+            border-color: rgba(18, 153, 104, 0.58);
+            background: rgba(18, 153, 104, 0.18);
+            color: #0b5a3d;
+        }
+
+        .tv-link.tv-link--disabled,
+        .tv-link[aria-disabled="true"] {
+            cursor: default;
+            pointer-events: none;
+            transform: none;
+        }
+
+        .subscription-table td,
+        .subscription-table th {
+            white-space: nowrap;
+        }
+
+        .upcoming-list {
+            margin: 10px 0 0;
+            padding-left: 18px;
+        }
+
+        .upcoming-list li {
+            margin: 6px 0;
+            color: #33406d;
+        }
+
+        .upcoming-tag {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(214, 138, 0, 0.18);
+            color: #9a6100;
+        }
+
+        .notice.notice--warn {
+            background: rgba(255, 214, 102, 0.42);
+            border-color: rgba(214, 138, 0, 0.45);
+            color: #6a3f00;
+            font-weight: 800;
+        }
+
+        .notice.notice--ok {
+            background: rgba(27, 191, 122, 0.16);
+            border-color: rgba(27, 191, 122, 0.32);
+            color: #0f5c39;
+            font-weight: 800;
+        }
+
+        .notice.notice--error {
+            background: rgba(209, 67, 95, 0.16);
+            border-color: rgba(209, 67, 95, 0.30);
+            color: #6a1024;
+            font-weight: 800;
+        }
+
+        .avail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+            gap: 8px;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .slot {
+            border-radius: 12px;
+            border: 1px solid rgba(41, 55, 89, 0.18);
+            padding: 10px 10px;
+            background: rgba(255, 255, 255, 0.8);
+            font-weight: 900;
+            color: #1a2650;
+        }
+
+        .slot.slot--free {
+            border-color: rgba(18, 153, 104, 0.40);
+            background: rgba(18, 153, 104, 0.10);
+            color: #0b5a3d;
+            cursor: pointer;
+        }
+
+        .slot.slot--busy {
+            border-color: rgba(209, 67, 95, 0.45);
+            background: rgba(209, 67, 95, 0.10);
+            color: #8d2140;
+            opacity: 0.75;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .checkbox-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.76);
+            color: #475483;
+            font-size: 13px;
+            font-weight: 700;
+            user-select: none;
+        }
+
+        .checkbox-chip input[type="checkbox"] {
+            accent-color: var(--primary);
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
+        .group-athletes-input {
+            min-height: 44px; /* ilkin açılışda kiçik */
+            height: 44px;
+            max-height: 240px; /* adlar artdıqca aşağı doğru böyüsün */
+            width: auto;
+            flex: 1 1 360px;
+            resize: none;
+            overflow: hidden;
+            line-height: 1.35;
+            font-family: inherit;
+        }
+
+        .group-row {
+            align-items: stretch;
+            max-width: 780px;
+        }
+
+        .group-row > * {
+            min-width: 0; /* row default min-width(140px) override */
+        }
+
+        .group-register-btn {
+            flex: 0 0 auto;
+            min-width: 220px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header class="header">
+        <div>
+            <h1 class="title">EShooting idarə paneli</h1>
+            <p class="subtitle">Planlama, planşetdə xal və canlı monitor.</p>
+        </div>
+        <div class="header-actions">
+            <div class="header-clock" title="Brauzerin yerli vaxtı">
+                <span class="header-clock__label">Canlı saat</span>
+                <span class="header-clock__value" id="wallClock">--:--:--</span>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-ghost btn-sm">Çıxış</button>
+            </form>
+                <span class="status-pill" id="connectionBadge">Qoşulur...</span>
+        </div>
+    </header>
+
+    <section class="stats">
+        <article class="stat">
+            <div class="stat-label">Zolaqlar (cəmi)</div>
+            <div class="stat-value" id="totalLanes">11</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Aktiv sessiyalar</div>
+            <div class="stat-value" id="activeSessions">0</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Planlaşdırılmış</div>
+            <div class="stat-value" id="scheduledSessions">0</div>
+        </article>
+        <article class="stat">
+            <div class="stat-label">Bitmiş sessiyalar</div>
+            <div class="stat-value" id="completedSessions">0</div>
+        </article>
+    </section>
+
+    <section class="card card--spaced">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <h2 style="margin:0;">TV — ayrı zolaq ekranları</h2>
+            <button id="infoBtn" type="button" class="btn btn-primary btn-sm">Məlumat</button>
+        </div>
+        <p class="notice">Zolaq məlumatlarını və aktiv zolağı göstərmək üçün</p>
+        <div class="tv-links">
+            @for (var i = 1; i <= 11; i++)
+            {
+                <span class="tv-link tv-link--disabled @(i >= 9 ? "tv-link--pro" : "") @(i == 9 ? "tv-link--pro-first" : "")"
+                      data-tv-lane="@i"
+                      aria-disabled="true"
+                      title="Yalnız məlumat üçün (klik deaktivdir)">
+                    Zolaq @i
+                </span>
+            }
+        </div>
+    </section>
+
+    <section class="grid">
+        <article class="card col-12">
+            <h2>Reception — qeydiyyat</h2>
+            <div class="row">
+                <input id="firstName" placeholder="Ad (mütləq)" />
+                <input id="lastName" placeholder="Soyad (mütləq)" />
+                <input id="phoneNumber"
+                       placeholder="Telefon (mütləq)"
+                       inputmode="tel"
+                       autocomplete="tel"
+                       maxlength="20"
+                       pattern="[0-9+\s()-]{7,20}"
+                       title="Yalnız rəqəm və + (min 7 simvol). Məs: +994501234567" />
+                <input id="email"
+                       type="email"
+                       placeholder="Email (opsional)"
+                       inputmode="email"
+                       autocomplete="email"
+                       maxlength="200" />
+                <input id="idCardNumber"
+                       placeholder="Ş/V nömrəsi (opsional)"
+                       autocomplete="off"
+                       maxlength="60" />
+                <div class="notice" id="receptionLookupHint" style="flex: 1 1 100%; margin-top:-6px; display:none;"></div>
+                <select id="category" title="Kateqoriya">
+                    <option value="" selected disabled>Kateqoriya seçin</option>
+                    <option value="0">Həvəskar</option>
+                    <option value="1">Professional</option>
+                    <option value="2">Məşqçi</option>
+                </select>
+                <select id="registrationMode" title="Qeydiyyat növü">
+                    <option value="" selected disabled>Qeydiyyat növü seçin</option>
+                    <option value="instant">Anlıq yazılma</option>
+                    <option value="subscription">Abunəlik yazılma</option>
+                </select>
+                <select id="membershipType" title="Abunəlik növü">
+                    <option value="" selected disabled>Abunəlik növü seçin</option>
+                    <option value="2">Hər ikisi (Full)</option>
+                    <option value="0">Yalnız oxatma</option>
+                    <option value="1">Yalnız zal</option>
+                </select>
+                <label class="check" style="display:flex;align-items:center;gap:8px;white-space:nowrap;">
+                    <input id="isEquipmentIssued" type="checkbox" />
+                    Avadanlıq verildi
+                </label>
+            </div>
+            <div class="row" id="instantLaneRow">
+                <select id="laneNumber">
+                    <option value="1">Zolaq 1 (Həvəskar)</option>
+                    <option value="2">Zolaq 2 (Həvəskar)</option>
+                    <option value="3">Zolaq 3 (Həvəskar)</option>
+                    <option value="4">Zolaq 4 (Həvəskar)</option>
+                    <option value="5">Zolaq 5 (Həvəskar)</option>
+                    <option value="6">Zolaq 6 (Həvəskar)</option>
+                    <option value="7">Zolaq 7 (Həvəskar)</option>
+                    <option value="8">Zolaq 8 (Həvəskar)</option>
+                    <option value="9">Zolaq 9 (Peşəkar)</option>
+                    <option value="10">Zolaq 10 (Peşəkar)</option>
+                    <option value="11">Zolaq 11 (Peşəkar)</option>
+                </select>
+                <input id="durationMinutes" type="number" min="1" max="240" value="3" />
+                <button id="scheduleBtn" class="btn btn-primary">Qeydiyyat və planlama</button>
+                <button id="updateAthleteBtn" class="btn btn-ghost" type="button" disabled>Məlumatları Yenilə</button>
+                <button id="cancelSubscriptionBtn" class="btn btn-danger" type="button">Abunəni ləğv et</button>
+            </div>
+            <div class="notice" id="sessionInfo">Hələ seçim yoxdur. Müddət dəqiqə ilədir (məs. 3 = 180 saniyə).</div>
+        </article>
+
+        <article class="card col-6" style="display:none;">
+            <h2>Planşet — xal</h2>
+            <div class="row">
+                <input id="tabletAthleteName" placeholder="İdmançı" readonly />
+                <select id="tabletLaneNumber">
+                    <option value="1">Zolaq 1</option>
+                    <option value="2">Zolaq 2</option>
+                    <option value="3">Zolaq 3</option>
+                    <option value="4">Zolaq 4</option>
+                    <option value="5">Zolaq 5</option>
+                    <option value="6">Zolaq 6</option>
+                    <option value="7">Zolaq 7</option>
+                    <option value="8">Zolaq 8</option>
+                    <option value="9">Zolaq 9</option>
+                    <option value="10">Zolaq 10</option>
+                    <option value="11">Zolaq 11</option>
+                </select>
+                <input id="tabletSessionId" type="hidden" value="" />
+                <input id="roundNumber" type="number" min="1" value="1" />
+                <input id="scoreValue" type="number" min="0" max="10" value="10" />
+                <button id="submitScoreBtn" class="btn btn-secondary">Xalı göndər</button>
+            </div>
+            <div class="notice">Xal 0–10 aralığında olmalıdır.</div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Qrup qeydiyyatı (bir zolaq)</h2>
+            <div class="row group-row">
+                <textarea id="groupAthleteNames"
+                          class="group-athletes-input"
+                          placeholder="Dostların adlarını yazın (hər sətirdə bir nəfər). Yuxarıdakı ad+soyad avtomatik əlavə olunacaq."></textarea>
+                <button id="groupRegisterBtn" class="btn btn-primary group-register-btn">Qrup qeydiyyatını tamamla</button>
+            </div>
+            <div class="notice" id="groupInfo">Yuxarıdakı idmançı + dostları bir zolaqda eyni vaxtda bir sessiyada qeydiyyatdan keçirir (xal yazma dəyişmir).</div>
+        </article>
+
+        <article class="card col-12" id="subscriptionSection">
+            <h2>Aylıq abunə planlama</h2>
+            <div class="row">
+                <input id="subscriptionAthleteName" placeholder="Abunəçinin adı, soyadı" readonly />
+                <label class="checkbox-chip" title="Full paket: sabit həftəlik plan tələb olunmur">
+                    <input id="subscriptionIsFullPackage" type="checkbox" />
+                    Full paket
+                </label>
+                <div class="notice" style="flex: 1 1 100%; margin-top:-6px;">
+                    Həftə günlərini seçin. Seçdiyin hər gün üçün aşağıda ayrıca saat və zolaq seçəcəksən.
+                </div>
+                <div id="subscriptionDays" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <label class="checkbox-chip"><input type="checkbox" value="1" class="sub-day" /> B.e</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="2" class="sub-day" /> Ç.a</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="3" class="sub-day" /> Ç</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="4" class="sub-day" /> C.a</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="5" class="sub-day" /> C</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="6" class="sub-day" /> Ş</label>
+                    <label class="checkbox-chip"><input type="checkbox" value="0" class="sub-day" /> Bazar</label>
+                </div>
+                <div id="subscriptionLaneTypesByDay" style="display:grid; grid-template-columns: 1fr; gap:8px; width:100%;"></div>
+                <input id="subscriptionDurationMinutes" type="number" min="1" max="240" value="12" title="Aylıq paket (saat)" />
+                <input id="subscriptionStartDate" type="date" />
+                <input id="subscriptionEndDate" type="date" title="Bitmə tarixi" />
+                <button id="createSubscriptionBtn" class="btn btn-primary">Paket yarat</button>
+            </div>
+            <div class="notice" id="subscriptionInfo">Həftə günlərini seçin, hər gün üçün saat və zolağı təyin edin.</div>
+            <div id="upcomingSubscriptionBlock" style="display:none;">
+                <h3 style="margin:12px 0 6px; font-size:16px; color:#2c396a;">Vaxtı yaxınlaşan abunəçilər</h3>
+                <div class="notice" id="upcomingSubscriptionInfo">Yüklənir...</div>
+                <ol class="upcoming-list" id="upcomingSubscriptionRows"></ol>
+            </div>
+            <div class="notice" id="dayPlanInfo" style="margin-top:10px;">Cari gün üçün abunələr və anlıqlar siyahısı.</div>
+            <div class="table-wrap" style="margin-top:10px;">
+                <table class="subscription-table">
+                    <thead>
+                    <tr>
+                        <th>Tip</th>
+                        <th>İdmançı</th>
+                        <th>Zolaq</th>
+                        <th>Başla</th>
+                        <th>Bitir</th>
+                        <th>Gün</th>
+                        <th>Müddət</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dayPlanRows"></tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="card col-12">
+            <h2>Zolaq monitoru</h2>
+            <div class="lane-grid" id="laneGrid"></div>
+        </article>
+
+        <article class="card col-12" style="display:none;">
+            <h2>Ətraflı cədvəl</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Zolaq</th>
+                        <th>Növ</th>
+                        <th>İdmançı</th>
+                        <th>Status</th>
+                        <th>Qalan</th>
+                        <th>Cəmi</th>
+                        <th>Xəbərdarlıq</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dashboardRows"></tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</main>
+
+<!-- Avadanlıq tədarükü: FAB + açılan panel -->
+<div id="equipmentFabWrap" style="position:fixed; top:86px; right:14px; z-index:8888;">
+    <button id="equipmentFabBtn"
+            type="button"
+            aria-label="Avadanlıq Tədarükü"
+            class="equip-fab equip-fab--hidden">
+        <span class="equip-fab__icon">🏹</span>
+        <span id="equipmentFabBadge" class="equip-fab__badge">0</span>
+    </button>
+</div>
+
+<aside id="equipmentReturnsPanel" class="equip-panel" aria-hidden="true">
+    <div class="equip-panel__head">
+        <div style="font-weight:900; color:#1a2650;">Avadanlıq Tədarükü</div>
+        <button id="equipmentPanelCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+    </div>
+    <div class="notice" style="margin-top:8px;">Avadanlıq verilib və hələ təhvil alınmayıbsa burada görünəcək.</div>
+    <div id="equipmentReturnsList" style="margin-top:10px; display:flex; flex-direction:column; gap:8px; max-height:65vh; overflow:auto;"></div>
+    <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button id="equipmentReturnSelectedBtn" type="button" class="btn btn-primary btn-sm">Seçilənləri təhvil al</button>
+        <button id="equipmentReturnAllBtn" type="button" class="btn btn-ghost btn-sm">Hamısını təhvil al</button>
+    </div>
+</aside>
+
+<!-- Abunə ləğvi modal -->
+<div id="cancelSubscriptionModal" style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.55); backdrop-filter: blur(4px); z-index:9999; padding:16px;">
+    <div style="max-width:900px; margin:0 auto; background:rgba(255,255,255,0.92); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:14px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:800; color:#1a2650;">Abunəni ləğv et</div>
+            <button id="cancelSubscriptionCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+            <input id="cancelSubscriptionSearch" placeholder="Axtar: ad / telefon / email / Ş/V" style="flex:1; min-width:240px;" />
+        </div>
+        <div class="notice" style="margin-top:8px;">Seçdiyiniz idmançının bütün aktiv abunə planları söndürüləcək.</div>
+        <div id="cancelSubscriptionList" style="margin-top:10px; max-height:60vh; overflow:auto; border:1px solid rgba(41,55,89,0.15); border-radius:12px; background:#fff;"></div>
+    </div>
+</div>
+
+<!-- Abunə konflikt redaktə modal -->
+<div id="subscriptionConflictModal" style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.55); backdrop-filter: blur(4px); z-index:9999; padding:16px;">
+    <div style="max-width:980px; margin:0 auto; background:rgba(255,255,255,0.94); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:14px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#1a2650;">Konflikt redaktə paneli</div>
+            <button id="subscriptionConflictCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+        <div class="notice" id="subscriptionConflictInfo" style="margin-top:10px;">
+            Bəzi həftələr doludur. Qırmızı olan tarixlər üçün alternativ vaxt və ya zolaq seçin.
+        </div>
+        <div id="subscriptionConflictList" style="margin-top:10px; max-height:60vh; overflow:auto; border:1px solid rgba(41,55,89,0.15); border-radius:12px; background:#fff;"></div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
+            <button id="subscriptionConflictConfirmBtn" type="button" class="btn btn-primary" disabled>Təsdiqlə</button>
+        </div>
+    </div>
+</div>
+
+<!-- Məlumat modal -->
+<div id="infoModal"
+     style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.45); backdrop-filter: blur(5px); z-index:9999; padding:16px;">
+    <div style="max-width:980px; margin:6vh auto 0; background:rgba(255,255,255,0.95); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:14px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#1a2650;">Məlumat</div>
+            <button id="infoCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+            <input id="infoPhone" placeholder="Telefon (məs: 055-000-00-00)" inputmode="tel" maxlength="20" />
+            <input id="infoEmail" type="email" placeholder="E-mail (məs: misal@mail.com)" maxlength="200" />
+            <input id="infoIdCard" placeholder="Ş/V (FİN/Seriya) (məs: 7ABC123)" maxlength="60" autocomplete="off" />
+        </div>
+        <div style="display:flex; justify-content:center; margin-top:10px;">
+            <button id="infoShowBtn" type="button" class="btn btn-primary">Göstər</button>
+        </div>
+
+        <div class="notice" id="infoResultHint" style="margin-top:10px; display:none;"></div>
+        <div class="table-wrap" style="margin-top:10px; max-height:55vh; overflow:auto; display:none;" id="infoTableWrap">
+            <table class="subscription-table">
+                <thead>
+                <tr>
+                    <th>Ad və Soyad</th>
+                    <th>Aralıq</th>
+                    <th>Günlər</th>
+                    <th>Seanslar (tarix · saat · müddət)</th>
+                </tr>
+                </thead>
+                <tbody id="infoTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- SignalR JS (iki CDN fallback) -->
+<script src="https://cdn.jsdelivr.net/npm/%40microsoft/signalr%408.0.7/dist/browser/signalr.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    const firstNameInput = document.getElementById("firstName");
+    const lastNameInput = document.getElementById("lastName");
+    const phoneNumberInput = document.getElementById("phoneNumber");
+    const emailInput = document.getElementById("email");
+    const idCardNumberInput = document.getElementById("idCardNumber");
+    const categoryInput = document.getElementById("category");
+    const registrationModeInput = document.getElementById("registrationMode");
+    const membershipTypeInput = document.getElementById("membershipType");
+    const laneNumberInput = document.getElementById("laneNumber");
+    const instantLaneRow = document.getElementById("instantLaneRow");
+    const durationMinutesInput = document.getElementById("durationMinutes");
+    const isEquipmentIssuedInput = document.getElementById("isEquipmentIssued");
+    // Vaxtsız checkbox ləğv edildi
+    const tabletAthleteNameInput = document.getElementById("tabletAthleteName");
+    const tabletLaneNumberInput = document.getElementById("tabletLaneNumber");
+    const tabletSessionIdInput = document.getElementById("tabletSessionId");
+    const roundNumberInput = document.getElementById("roundNumber");
+    const scoreValueInput = document.getElementById("scoreValue");
+    const dashboardRows = document.getElementById("dashboardRows");
+    const sessionInfo = document.getElementById("sessionInfo");
+    const laneGrid = document.getElementById("laneGrid");
+    const connectionBadge = document.getElementById("connectionBadge");
+    const subscriptionAthleteNameInput = document.getElementById("subscriptionAthleteName");
+    const subscriptionLaneTypesByDayEl = document.getElementById("subscriptionLaneTypesByDay");
+    const subscriptionDurationMinutesInput = document.getElementById("subscriptionDurationMinutes");
+    const subscriptionStartDateInput = document.getElementById("subscriptionStartDate");
+    const subscriptionEndDateInput = document.getElementById("subscriptionEndDate");
+    const subscriptionIsFullPackageInput = document.getElementById("subscriptionIsFullPackage");
+    const subscriptionRows = document.getElementById("subscriptionRows");
+    const subscriptionInfo = document.getElementById("subscriptionInfo");
+    const upcomingSubscriptionRows = document.getElementById("upcomingSubscriptionRows");
+    const upcomingSubscriptionInfo = document.getElementById("upcomingSubscriptionInfo");
+    const dayPlanRows = document.getElementById("dayPlanRows");
+    const dayPlanInfo = document.getElementById("dayPlanInfo");
+    const equipmentReturnsPanel = document.getElementById("equipmentReturnsPanel");
+    const equipmentFabBtn = document.getElementById("equipmentFabBtn");
+    const equipmentFabBadge = document.getElementById("equipmentFabBadge");
+    const equipmentPanelCloseBtn = document.getElementById("equipmentPanelCloseBtn");
+    const equipmentReturnsList = document.getElementById("equipmentReturnsList");
+    const equipmentReturnSelectedBtn = document.getElementById("equipmentReturnSelectedBtn");
+    const equipmentReturnAllBtn = document.getElementById("equipmentReturnAllBtn");
+
+    const subscriptionConflictModal = document.getElementById("subscriptionConflictModal");
+    const subscriptionConflictCloseBtn = document.getElementById("subscriptionConflictCloseBtn");
+    const subscriptionConflictConfirmBtn = document.getElementById("subscriptionConflictConfirmBtn");
+    const subscriptionConflictList = document.getElementById("subscriptionConflictList");
+    const subscriptionConflictInfo = document.getElementById("subscriptionConflictInfo");
+    const groupAthleteNamesInput = document.getElementById("groupAthleteNames");
+    // Qrup qeydiyyatı paneli sadələşdirildi (zolaq/müddət Reception-dan götürülür)
+    const groupInfo = document.getElementById("groupInfo");
+
+    const updateAthleteBtn = document.getElementById("updateAthleteBtn");
+    const receptionLookupHint = document.getElementById("receptionLookupHint");
+    const cancelSubscriptionBtn = document.getElementById("cancelSubscriptionBtn");
+
+    const infoBtn = document.getElementById("infoBtn");
+    const infoModal = document.getElementById("infoModal");
+    const infoCloseBtn = document.getElementById("infoCloseBtn");
+    const infoPhone = document.getElementById("infoPhone");
+    const infoEmail = document.getElementById("infoEmail");
+    const infoIdCard = document.getElementById("infoIdCard");
+    const infoShowBtn = document.getElementById("infoShowBtn");
+    const infoResultHint = document.getElementById("infoResultHint");
+    const infoTableWrap = document.getElementById("infoTableWrap");
+    const infoTableBody = document.getElementById("infoTableBody");
+    const cancelSubscriptionModal = document.getElementById("cancelSubscriptionModal");
+    const cancelSubscriptionCloseBtn = document.getElementById("cancelSubscriptionCloseBtn");
+    const cancelSubscriptionSearch = document.getElementById("cancelSubscriptionSearch");
+    const cancelSubscriptionList = document.getElementById("cancelSubscriptionList");
+    let allAthletesCache = [];
+    let athletesCacheLoadedAtMs = 0;
+    let receptionMatchedAthleteId = null;
+    let receptionMatchedSnapshot = null; // last "known-good" db snapshot of person fields
+    let isAutoFillingReception = false;
+
+    const totalLanesEl = document.getElementById("totalLanes");
+    const activeSessionsEl = document.getElementById("activeSessions");
+    const scheduledSessionsEl = document.getElementById("scheduledSessions");
+    const completedSessionsEl = document.getElementById("completedSessions");
+    let latestLanes = [];
+    const laneScoreDraft = {};
+    let countdownTimerId = null;
+    let upcomingCountdownTimerId = null;
+    let subscriptionSchedulesCache = [];
+    const dayNames = ["Bazar", "Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə"];
+
+    function refreshStats(lanes) {
+        totalLanesEl.textContent = String(lanes.length);
+        activeSessionsEl.textContent = String(lanes.filter(x => x.status === "Active").length);
+        scheduledSessionsEl.textContent = String(lanes.filter(x => x.status === "Scheduled").length);
+        completedSessionsEl.textContent = String(lanes.filter(x => x.status === "Completed").length);
+    }
+
+    function syncRegistrationModeUi() {
+        const mode = registrationModeInput?.value ?? "";
+        const isSubscription = mode === "subscription";
+        const isInstant = mode === "instant";
+        if (instantLaneRow instanceof HTMLElement) {
+            // Abunəlik seçiləndə itmesin, sadəcə deaktiv olsun
+            instantLaneRow.style.display = "";
+            instantLaneRow.querySelectorAll("input, select, button").forEach(el => {
+                if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement)) return;
+                if (el.id === "cancelSubscriptionBtn") return; // həmişə aktiv
+                el.disabled = isSubscription;
+            });
+        }
+        const btn = document.getElementById("scheduleBtn");
+        if (btn instanceof HTMLButtonElement) {
+            btn.textContent = isSubscription ? "Yalnız qeydiyyat" : "Qeydiyyat və planlama";
+        }
+
+        // Abunəlik seçilibsə: aylıq paket tam aktiv olsun.
+        // Anlıq seçilibsə: aylıq paket deaktiv.
+        const subscriptionSection = document.getElementById("subscriptionSection");
+        if (subscriptionSection instanceof HTMLElement) {
+            subscriptionSection.querySelectorAll("input, select, button, textarea").forEach(el => {
+                if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement || el instanceof HTMLTextAreaElement) {
+                    if (isSubscription) {
+                        el.disabled = false;
+                        return;
+                    }
+
+                    if (isInstant) {
+                        el.disabled = true;
+                        return;
+                    }
+
+                    // Heç nə seçilməyibsə (placeholder): hamısı bağlı qalsın
+                    el.disabled = true;
+                }
+            });
+        }
+
+        // Abunəlik seçilibsə: qrup qeydiyyatı deaktiv olsun.
+        const groupCard = document.getElementById("groupRegisterBtn")?.closest("article");
+        if (groupCard instanceof HTMLElement) {
+            groupCard.querySelectorAll("input, select, button, textarea").forEach(el => {
+                if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement || el instanceof HTMLTextAreaElement) {
+                    el.disabled = isSubscription;
+                }
+            });
+        }
+    }
+
+    function syncFullPackageUi() {
+        const isFull = subscriptionIsFullPackageInput instanceof HTMLInputElement && subscriptionIsFullPackageInput.checked;
+        const disable = isFull;
+        const ids = [
+            "subscriptionDays",
+            "subscriptionLaneTypesByDay",
+            "subscriptionDurationMinutes",
+            "subscriptionStartDate",
+            "subscriptionEndDate",
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!(el instanceof HTMLElement)) return;
+            // Full paketdə gün/saat seçimləri görünməsin
+            if (id === "subscriptionDays" || id === "subscriptionLaneTypesByDay") {
+                el.style.display = "";
+            }
+            // Full paketdə tarixlər görünməlidir (period seçimi üçün).
+            // Amma həftə günləri və aylıq paket saatı (və s.) deaktiv olmalıdır.
+            if (id === "subscriptionStartDate" || id === "subscriptionEndDate") {
+                el.style.display = "";
+            }
+            el.querySelectorAll("input, select, button, textarea").forEach(x => {
+                if (x instanceof HTMLInputElement || x instanceof HTMLSelectElement || x instanceof HTMLButtonElement || x instanceof HTMLTextAreaElement) {
+                    if (id === "subscriptionStartDate" || id === "subscriptionEndDate") {
+                        x.disabled = false;
+                    } else {
+                        x.disabled = disable;
+                    }
+                }
+            });
+            if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement || el instanceof HTMLTextAreaElement) {
+                if (id === "subscriptionStartDate" || id === "subscriptionEndDate") {
+                    el.disabled = false;
+                } else {
+                    el.disabled = disable;
+                }
+            }
+        });
+    }
+
+    function syncSubscriptionAthleteNameFromReception() {
+        if (!(subscriptionAthleteNameInput instanceof HTMLInputElement)) return;
+        subscriptionAthleteNameInput.readOnly = true;
+        const first = (firstNameInput instanceof HTMLInputElement ? firstNameInput.value : "").trim();
+        const last = (lastNameInput instanceof HTMLInputElement ? lastNameInput.value : "").trim();
+        const full = `${first} ${last}`.trim();
+        if (full) {
+            subscriptionAthleteNameInput.value = full;
+        } else {
+            subscriptionAthleteNameInput.value = "";
+        }
+    }
+
+    function getDayOptionsHtml() {
+        const days = [
+            { v: 1, t: "Bazar ertəsi" },
+            { v: 2, t: "Çərşənbə axşamı" },
+            { v: 3, t: "Çərşənbə" },
+            { v: 4, t: "Cümə axşamı" },
+            { v: 5, t: "Cümə" },
+            { v: 6, t: "Şənbə" },
+            { v: 0, t: "Bazar" }
+        ];
+        return days.map(d => `<option value="${d.v}">${d.t}</option>`).join("");
+    }
+
+    function getLaneOptionsHtml(categoryValue) {
+        const cat = Number(categoryValue);
+        const maxLane = (cat === 0) ? 8 : 11;
+        const opts = [];
+        for (let i = 1; i <= maxLane; i++) {
+            const label = i >= 9 ? `Zolaq ${i} (Peşəkar)` : `Zolaq ${i}`;
+            opts.push(`<option value="${i}">${label}</option>`);
+        }
+        return opts.join("");
+    }
+
+    function categoryAllowsLane(categoryValue, laneNumber) {
+        const category = Number(categoryValue);
+        const lane = Number(laneNumber);
+        if (!Number.isFinite(category) || !Number.isFinite(lane)) return false;
+        // Qayda: 9-11 uzun (peşəkar), 1-8 qısa.
+        if (category === 0) { // Amateur
+            return lane >= 1 && lane <= 8;
+        }
+        // Professional/Coach: hər iki tip mümkündür
+        return lane >= 1 && lane <= 11;
+    }
+
+    function isLaneIdleForSelection(laneNumber) {
+        // Dashboard hələ yüklənməyibsə, səhvən disable etməyək (yalnız kateqoriya qaydası işləsin).
+        if (!Array.isArray(latestLanes) || latestLanes.length === 0) return true;
+
+        const lane = latestLanes.find(x => x.laneNumber === laneNumber);
+        if (lane?.status !== "Idle") return false;
+        const until = lane?.cooldownUntilUtc ? parseApiDate(lane.cooldownUntilUtc) : null;
+        if (until && until.getTime && until.getTime() > Date.now()) return false;
+        return true;
+    }
+
+    function refreshLaneOptions() {
+        if (!(laneNumberInput instanceof HTMLSelectElement)) return;
+        const catVal = categoryInput?.value ?? "0";
+
+        Array.from(laneNumberInput.options).forEach(opt => {
+            const lane = Number(opt.value);
+            const allowed = categoryAllowsLane(catVal, lane);
+            const disabled = !allowed;
+
+            opt.disabled = disabled;
+            if (!allowed && lane >= 9) {
+                opt.textContent = `Zolaq ${lane} (Yalnız Peşəkarlar)`;
+            }
+        });
+
+        if (laneNumberInput.selectedOptions.length && laneNumberInput.selectedOptions[0].disabled) {
+            const firstEnabled = Array.from(laneNumberInput.options).find(o => !o.disabled);
+            if (firstEnabled) laneNumberInput.value = firstEnabled.value;
+        }
+
+        if (laneNumberInput.selectedOptions.length && !laneNumberInput.selectedOptions[0].disabled) {
+            lastValidLaneNumber = laneNumberInput.value;
+        }
+    }
+
+    // Lane monitor UX thresholds
+    const COUNTDOWN_WARN_SEC = 300; // 5 dəqiqə
+    const COUNTDOWN_CRIT_SEC = 120; // 2 dəqiqə
+    const SESSION_BUFFER_MS = 0; // buffer ləğv edildi
+    let lastValidLaneNumber = null;
+    function applyRingRemaining(circle, fractionRemaining) {
+        const f = Math.max(0, Math.min(1, fractionRemaining));
+        const r = circle instanceof SVGCircleElement ? circle.r.baseVal.value : 42;
+        const len = 2 * Math.PI * r;
+        circle.style.strokeDasharray = String(len);
+        circle.style.strokeDashoffset = String(len * (1 - f));
+    }
+
+    function formatSeconds(milliseconds) {
+        const totalSeconds = Math.floor(milliseconds / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        }
+
+        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function getLaneSelectOptionsHtml(maxLane) {
+        const opts = [`<option value="0">Fərq etmir</option>`];
+        for (let i = 1; i <= maxLane; i++) {
+            opts.push(`<option value="${i}">Zolaq ${i}</option>`);
+        }
+        return opts.join("");
+    }
+
+    function getSelectedSubscriptionDays() {
+        const root = document.getElementById("subscriptionDays");
+        if (!(root instanceof HTMLElement)) return [];
+        return Array.from(root.querySelectorAll("input.sub-day"))
+            .filter(x => x instanceof HTMLInputElement && x.checked)
+            .map(x => Number(x.value))
+            .filter(x => Number.isInteger(x) && x >= 0 && x <= 6);
+    }
+
+    function renderSubscriptionLaneTypesByDay() {
+        if (!(subscriptionLaneTypesByDayEl instanceof HTMLElement)) return;
+        const days = getSelectedSubscriptionDays();
+        const cat = Number(categoryInput?.value ?? "0");
+        const isAmateur = cat === 0;
+        const dayLabel = (d) => {
+            switch (d) {
+                case 1: return "B.e";
+                case 2: return "Ç.a";
+                case 3: return "Ç";
+                case 4: return "C.a";
+                case 5: return "C";
+                case 6: return "Ş";
+                case 0: return "Bazar";
+                default: return String(d);
+            }
+        };
+        const existingTimes = {};
+        const existingLanes = {};
+        const existingAvailDates = {};
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-time").forEach(inp => {
+            if (!(inp instanceof HTMLInputElement)) return;
+            const day = inp.getAttribute("data-day");
+            if (!day) return;
+            existingTimes[day] = inp.value;
+        });
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            const day = sel.getAttribute("data-day");
+            if (!day) return;
+            existingLanes[day] = sel.value;
+        });
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-avail-date").forEach(inp => {
+            if (!(inp instanceof HTMLInputElement)) return;
+            const day = inp.getAttribute("data-day");
+            if (!day) return;
+            if (inp.value) existingAvailDates[day] = inp.value;
+        });
+
+        if (days.length === 0) {
+            subscriptionLaneTypesByDayEl.innerHTML = "";
+            return;
+        }
+
+        const maxLane = isAmateur ? 8 : 11;
+        subscriptionLaneTypesByDayEl.innerHTML = days.map(d => `
+            <div class="row" style="margin-top:0;">
+                <div style="min-width:90px; font-weight:800; color:#2c396a;">${dayLabel(d)}</div>
+                <input type="text"
+                       inputmode="numeric"
+                       data-day="${d}"
+                       class="sub-day-time"
+                       value="${existingTimes[String(d)] ?? "17:00"}"
+                       title="Başlanğıc saat (HH:mm)"
+                       placeholder="19:00"
+                       pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                       maxlength="5" />
+                <select data-day="${d}" class="sub-day-lane">
+                    ${getLaneSelectOptionsHtml(maxLane)}
+                </select>
+            </div>
+            <div class="notice" data-avail-root="${d}" style="display:none; width:100%; margin-top:6px;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+                    <div style="font-weight:900;">Zolaq qrafiki (24 saat)</div>
+                    <input type="date" class="sub-avail-date" data-day="${d}" title="Tarix" />
+                    <div style="color:#55638a; font-weight:800;">Yaşıl → boş, Qırmızı → dolu</div>
+                </div>
+                <div class="avail-grid" data-avail-grid="${d}"></div>
+            </div>
+        `).join("");
+
+        // restore selections
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            const day = sel.getAttribute("data-day");
+            if (!day) return;
+            const v = existingLanes[day];
+            if (v && Array.from(sel.options).some(o => o.value === v)) {
+                sel.value = v;
+            }
+        });
+
+        // bind availability (only for specific lane selection)
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            sel.addEventListener("change", () => { refreshLaneAvailabilityForSubscriptionRow(sel); });
+        });
+
+        // initial availability render (if manual lane selected)
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            refreshLaneAvailabilityForSubscriptionRow(sel);
+        });
+
+        // bind availability datepicker
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-avail-date").forEach(inp => {
+            if (!(inp instanceof HTMLInputElement)) return;
+            const d = inp.getAttribute("data-day");
+            const remembered = d ? existingAvailDates[d] : "";
+            if (remembered) {
+                inp.value = remembered;
+            } else {
+                const startDateStr = subscriptionStartDateInput?.value ?? "";
+                const dt = computeFirstDateForDayWithinStartDate(d ?? "0", startDateStr);
+                if (dt) inp.value = dt.toISOString().slice(0, 10);
+            }
+            inp.addEventListener("change", () => {
+                const laneSel = subscriptionLaneTypesByDayEl.querySelector(`select.sub-day-lane[data-day="${CSS.escape(d ?? "")}"]`);
+                if (laneSel instanceof HTMLSelectElement) refreshLaneAvailabilityForSubscriptionRow(laneSel);
+            });
+        });
+
+        // end time field removed
+    }
+
+    function addMinutesToTimeHHmm(hhmm, minutesToAdd) {
+        if (!/^\d{2}:\d{2}$/.test(hhmm)) return "";
+        const [h, m] = hhmm.split(":").map(x => Number(x));
+        const total = h * 60 + m + Number(minutesToAdd);
+        const mod = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
+        const hh = String(Math.floor(mod / 60)).padStart(2, "0");
+        const mm = String(mod % 60).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // updateSubscriptionEndTimes removed (end time field removed)
+
+    function computeFirstDateForDayWithinStartDate(dayOfWeek, startDateStr) {
+        if (!startDateStr) return null;
+        const start = new Date(`${startDateStr}T00:00:00`);
+        if (!Number.isFinite(start.getTime())) return null;
+        let d = new Date(start);
+        for (let i = 0; i < 7; i++) {
+            if (d.getDay() === Number(dayOfWeek)) return d;
+            d.setDate(d.getDate() + 1);
+        }
+        return start;
+    }
+
+    async function refreshLaneAvailabilityForSubscriptionRow(laneSelectEl) {
+        if (!(laneSelectEl instanceof HTMLSelectElement)) return;
+        const day = laneSelectEl.getAttribute("data-day");
+        if (!day) return;
+        const laneNumber = Number(laneSelectEl.value ?? "0");
+        const root = subscriptionLaneTypesByDayEl?.querySelector(`[data-avail-root="${CSS.escape(day)}"]`);
+        const grid = subscriptionLaneTypesByDayEl?.querySelector(`[data-avail-grid="${CSS.escape(day)}"]`);
+        const timeInput = subscriptionLaneTypesByDayEl?.querySelector(`input.sub-day-time[data-day="${CSS.escape(day)}"]`);
+        const dateInput = subscriptionLaneTypesByDayEl?.querySelector(`input.sub-avail-date[data-day="${CSS.escape(day)}"]`);
+        if (!(root instanceof HTMLElement) || !(grid instanceof HTMLElement) || !(timeInput instanceof HTMLInputElement)) return;
+
+        if (!laneNumber || laneNumber <= 0) {
+            root.style.display = "none";
+            grid.innerHTML = "";
+            return;
+        }
+
+        const pickedDateStr = (dateInput instanceof HTMLInputElement ? dateInput.value : "") || "";
+        if (!pickedDateStr) {
+            root.style.display = "";
+            grid.innerHTML = "<div style=\"color:#55638a; font-weight:800;\">Əvvəlcə başlanğıc tarixi seçin.</div>";
+            return;
+        }
+
+        const durationMinutes = computeMinutesPerSelectedDay(Number(subscriptionDurationMinutesInput?.value ?? "0"), getSelectedSubscriptionDays().length);
+        root.style.display = "";
+        grid.innerHTML = "<div style=\"color:#55638a; font-weight:800;\">Yüklənir...</div>";
+
+        const res = await apiFetch(`/availability/lane?laneNumber=${encodeURIComponent(laneNumber)}&dateLocal=${encodeURIComponent(pickedDateStr)}&durationMinutes=${encodeURIComponent(durationMinutes)}`);
+        if (!res.ok) {
+            const msg = await readErrorMessage(res);
+            grid.innerHTML = `<div style="color:#8d2140; font-weight:900;">${escapeHtml(msg)}</div>`;
+            return;
+        }
+        const data = await res.json();
+        const slots = Array.isArray(data?.slots) ? data.slots : [];
+        grid.innerHTML = slots.map(s => {
+            const t = String(s?.startTimeLocal ?? "");
+            const busy = Boolean(s?.isBusy);
+            if (busy) {
+                return `<div class="slot slot--busy" title="Dolu">${escapeHtml(t)}</div>`;
+            }
+            return `<button type="button" class="slot slot--free" data-pick-time="${escapeHtml(t)}">${escapeHtml(t)}</button>`;
+        }).join("");
+
+        grid.querySelectorAll("[data-pick-time]").forEach(btn => {
+            if (!(btn instanceof HTMLElement)) return;
+            btn.addEventListener("click", () => {
+                const t = btn.getAttribute("data-pick-time") ?? "";
+                timeInput.value = t;
+                timeInput.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+        });
+    }
+
+    function computeMinutesPerSelectedDay(totalMonthlyHours, selectedDaysCount) {
+        const totalMin = Math.max(0, Number(totalMonthlyHours)) * 60;
+        const denom = Math.max(1, Number(selectedDaysCount)) * 4; // ~4 həftə
+        const raw = totalMin / denom;
+        const rounded = Math.max(10, Math.round(raw / 10) * 10);
+        return rounded;
+    }
+
+    function syncMonthlySplitInfo() {
+        if (!(subscriptionInfo instanceof HTMLElement)) return;
+        const days = getSelectedSubscriptionDays();
+        const totalHours = Number(subscriptionDurationMinutesInput?.value ?? "0");
+        if (!Number.isFinite(totalHours) || totalHours <= 0 || days.length === 0) {
+            subscriptionInfo.textContent = "Həftə günlərini seçin, hər gün üçün saat və zolağı təyin edin.";
+            return;
+        }
+        const minutesPerDay = computeMinutesPerSelectedDay(totalHours, days.length);
+        const hoursPerDay = (minutesPerDay / 60);
+        subscriptionInfo.textContent = `Aylıq paket: ${totalHours} saat. Seçim: həftədə ${days.length} gün. Təxmini: hər gün ${hoursPerDay.toFixed(hoursPerDay % 1 === 0 ? 0 : 2)} saat.`;
+    }
+
+    function parseApiDate(value) {
+        if (!value) {
+            return new Date(0);
+        }
+
+        const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
+        return new Date(needsUtcSuffix ? `${value}Z` : value);
+    }
+
+    function hasValidTimeWindow(startMs, endMs) {
+        return Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
+    }
+
+    // syncOpenEndedMode ləğv edildi
+
+    async function apiFetch(input, init = {}) {
+        const response = await fetch(input, { ...init, credentials: "same-origin" });
+        if (response.status === 401) {
+            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+            throw new Error("İcazə yoxdur");
+        }
+
+        return response;
+    }
+
+    async function ensureAthletesCacheFresh() {
+        const now = Date.now();
+        if (Array.isArray(allAthletesCache) && allAthletesCache.length > 0 && (now - athletesCacheLoadedAtMs) < 60000) {
+            return;
+        }
+        try {
+            const res = await apiFetch("/athletes");
+            if (!res.ok) {
+                allAthletesCache = [];
+                athletesCacheLoadedAtMs = now;
+                return;
+            }
+            const data = await res.json();
+            allAthletesCache = Array.isArray(data) ? data : [];
+            athletesCacheLoadedAtMs = now;
+        } catch {
+            allAthletesCache = [];
+            athletesCacheLoadedAtMs = now;
+        }
+    }
+
+    function normalizeDigits(value) {
+        return String(value ?? "").replaceAll(/\\D+/g, "");
+    }
+
+    function normalizeText(value) {
+        return String(value ?? "").trim().toLowerCase();
+    }
+
+    function pickBestMatch(candidates, scoreFn) {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        let best = candidates[0];
+        let bestScore = scoreFn(best);
+        for (let i = 1; i < candidates.length; i++) {
+            const c = candidates[i];
+            const s = scoreFn(c);
+            if (s > bestScore) {
+                best = c;
+                bestScore = s;
+            }
+        }
+        return best;
+    }
+
+    async function tryAutofillReceptionFromLookup() {
+        if (isAutoFillingReception) return;
+        const phoneQ = normalizeDigits(phoneNumberInput?.value);
+        const emailQ = normalizeText(emailInput?.value);
+        const idQ = normalizeText(idCardNumberInput?.value);
+
+        // Minimum input lengths to avoid noisy matches
+        const hasQuery = (phoneQ && phoneQ.length >= 4) || (emailQ && emailQ.length >= 4) || (idQ && idQ.length >= 3);
+        if (!hasQuery) {
+            receptionMatchedAthleteId = null;
+            receptionMatchedSnapshot = null;
+            syncUpdateAthleteButton();
+            setLookupHint("");
+            return;
+        }
+
+        let best = null;
+        try {
+            const qs = new URLSearchParams();
+            if (phoneQ) qs.set("phone", phoneQ);
+            if (emailQ) qs.set("email", emailQ);
+            if (idQ) qs.set("idCardNumber", idQ);
+            const res = await apiFetch(`/athletes/lookup?${qs.toString()}`);
+            if (!res.ok) {
+                // Not found or error: clear selection but keep typed data
+                receptionMatchedAthleteId = null;
+                receptionMatchedSnapshot = null;
+                syncUpdateAthleteButton();
+                setLookupHint("Müştəri tapılmadı.");
+                return;
+            }
+            best = await res.json();
+        } catch {
+            return;
+        }
+
+        if (!best) return;
+
+        isAutoFillingReception = true;
+        try {
+            receptionMatchedAthleteId = best.id ?? null;
+            if (firstNameInput instanceof HTMLInputElement) firstNameInput.value = best.firstName ?? (best.fullName?.split(" ")[0] ?? "");
+            if (lastNameInput instanceof HTMLInputElement) lastNameInput.value = best.lastName ?? (best.fullName?.split(" ").slice(1).join(" ") ?? "");
+            if (phoneNumberInput instanceof HTMLInputElement) phoneNumberInput.value = best.phoneNumber ?? "";
+            if (emailInput instanceof HTMLInputElement) emailInput.value = best.email ?? "";
+            if (idCardNumberInput instanceof HTMLInputElement) idCardNumberInput.value = best.idCardNumber ?? "";
+            if (categoryInput instanceof HTMLSelectElement && best.category !== undefined && best.category !== null && String(best.category) !== "") {
+                // server returns enum as string (e.g., "Amateur") OR number; handle both
+                const catVal = typeof best.category === "number"
+                    ? String(best.category)
+                    : (String(best.category).toLowerCase() === "amateur" ? "0" : String(best.category).toLowerCase() === "professional" ? "1" : "2");
+                categoryInput.value = catVal;
+                refreshLaneOptions();
+            }
+            if (membershipTypeInput instanceof HTMLSelectElement && best.membershipType !== undefined && best.membershipType !== null && String(best.membershipType) !== "") {
+                const mVal = typeof best.membershipType === "number"
+                    ? String(best.membershipType)
+                    : (String(best.membershipType).toLowerCase() === "archeryonly" ? "0" : String(best.membershipType).toLowerCase() === "gymonly" ? "1" : "2");
+                membershipTypeInput.value = mVal;
+            }
+            receptionMatchedSnapshot = buildReceptionCurrentSnapshot();
+            setLookupHint(`Müştəri tapıldı: ${(best.fullName ?? `${best.firstName ?? ""} ${best.lastName ?? ""}`.trim()) || "—"}`);
+            syncUpdateAthleteButton();
+        } finally {
+            isAutoFillingReception = false;
+        }
+    }
+
+    async function updateAthleteFromReception(opts = {}) {
+        const id = receptionMatchedAthleteId;
+        if (!id) {
+            alert("Yeniləmə üçün bazadan seçilmiş şəxs yoxdur (axtarış edin).");
+            return false;
+        }
+
+        const firstName = firstNameInput?.value?.trim() ?? "";
+        const lastName = lastNameInput?.value?.trim() ?? "";
+        const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+        if (!firstName || !lastName || !phoneNumber) {
+            alert("Ad, Soyad və Telefon mütləqdir.");
+            return;
+        }
+
+        const membershipTypeRaw = membershipTypeInput?.value ?? "";
+        const categoryRaw = categoryInput?.value ?? "";
+        if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return; }
+        if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
+
+        const response = await apiFetch(`/athletes/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                firstName,
+                lastName,
+                phoneNumber,
+                email: emailInput?.value?.trim() || null,
+                idCardNumber: idCardNumberInput?.value?.trim() || null,
+                category: Number(categoryRaw),
+                isSubscriber: registrationModeInput?.value === "subscription",
+                membershipType: Number(membershipTypeRaw)
+            })
+        });
+
+        if (!response.ok) {
+            const message = await readErrorMessage(response);
+            alert(message);
+            return false;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!opts?.silentSuccess) {
+            alert(data?.message || "Məlumatlar uğurla yeniləndi.");
+        }
+        // refresh cache immediately
+        allAthletesCache = [];
+        athletesCacheLoadedAtMs = 0;
+        await ensureAthletesCacheFresh();
+        receptionMatchedSnapshot = buildReceptionCurrentSnapshot();
+        setLookupHint(`Məlumatlar yeniləndi: ${(firstNameInput?.value ?? "").trim()} ${(lastNameInput?.value ?? "").trim()}`.trim());
+        syncUpdateAthleteButton();
+        return true;
+    }
+
+    function debounce(fn, waitMs) {
+        let t = null;
+        return (...args) => {
+            if (t) clearTimeout(t);
+            t = setTimeout(() => fn(...args), waitMs);
+        };
+    }
+
+    function autoGrowGroupTextarea() {
+        if (!(groupAthleteNamesInput instanceof HTMLTextAreaElement)) return;
+        const maxH = 240;
+        groupAthleteNamesInput.style.height = "auto";
+        const next = Math.min(groupAthleteNamesInput.scrollHeight, maxH);
+        groupAthleteNamesInput.style.height = `${next}px`;
+        groupAthleteNamesInput.style.overflowY = groupAthleteNamesInput.scrollHeight > maxH ? "auto" : "hidden";
+    }
+
+    function openInfoModal() {
+        if (!(infoModal instanceof HTMLElement)) return;
+        infoModal.style.display = "block";
+        if (infoResultHint instanceof HTMLElement) {
+            infoResultHint.style.display = "none";
+            infoResultHint.textContent = "";
+        }
+        if (infoTableWrap instanceof HTMLElement) {
+            infoTableWrap.style.display = "none";
+        }
+        if (infoTableBody instanceof HTMLElement) {
+            infoTableBody.innerHTML = "";
+        }
+        try { infoPhone?.focus(); } catch { }
+    }
+
+    function closeInfoModal() {
+        if (!(infoModal instanceof HTMLElement)) return;
+        infoModal.style.display = "none";
+    }
+
+    function showInfoHint(text, kind = "warn") {
+        if (!(infoResultHint instanceof HTMLElement)) return;
+        infoResultHint.textContent = text || "";
+        infoResultHint.style.display = text ? "block" : "none";
+        infoResultHint.className = kind === "ok" ? "notice notice--ok" : kind === "error" ? "notice notice--error" : "notice";
+    }
+
+    function escapeHtml2(s) {
+        return escapeHtml(String(s ?? ""));
+    }
+
+    async function infoShow() {
+        const phone = normalizeDigits(infoPhone?.value);
+        const email = normalizeText(infoEmail?.value);
+        const idCardNumber = normalizeText(infoIdCard?.value);
+
+        if (!phone && !email && !idCardNumber) {
+            showInfoHint("Zəhmət olmasa bir məlumat daxil edin.", "warn");
+            return;
+        }
+
+        showInfoHint("Yüklənir...", "warn");
+        if (infoTableWrap instanceof HTMLElement) infoTableWrap.style.display = "none";
+        if (infoTableBody instanceof HTMLElement) infoTableBody.innerHTML = "";
+
+        const qs = new URLSearchParams();
+        if (phone) qs.set("phone", phone);
+        if (email) qs.set("email", email);
+        if (idCardNumber) qs.set("idCardNumber", idCardNumber);
+
+        const res = await apiFetch(`/info/athlete?${qs.toString()}`);
+        if (!res.ok) {
+            const msg = await readErrorMessage(res);
+            showInfoHint(msg || "Tapılmadı.", "error");
+            return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        const packages = Array.isArray(data?.packages) ? data.packages : [];
+        showInfoHint(`Müştəri tapıldı: ${data?.fullName ?? "—"}`, "ok");
+
+        if (!(infoTableBody instanceof HTMLElement) || !(infoTableWrap instanceof HTMLElement)) return;
+        infoTableBody.innerHTML = "";
+
+        for (const p of packages) {
+            const occ = Array.isArray(p?.occurrences) ? p.occurrences : [];
+            const occHtml = occ.map(o => {
+                const date = escapeHtml2(o?.dateLocal);
+                const day = escapeHtml2(o?.dayLabel);
+                const start = escapeHtml2(o?.startTime);
+                const end = escapeHtml2(o?.endTime);
+                const dur = escapeHtml2(o?.durationHours);
+                return `<div style="white-space:nowrap; margin:2px 0;">${date} (${day}) · ${start}-${end} · ${dur} saat</div>`;
+            }).join("");
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${escapeHtml2(p.fullName)}</td>
+                <td>${escapeHtml2(p.fromLocal)} — ${escapeHtml2(p.toLocal)}</td>
+                <td>${escapeHtml2(p.days)}</td>
+                <td>${occHtml || "<span style='color:#7a86a8'>—</span>"}</td>
+            `;
+            infoTableBody.appendChild(tr);
+        }
+
+        infoTableWrap.style.display = "block";
+    }
+
+    function clearReceptionPersonFields() {
+        if (firstNameInput instanceof HTMLInputElement) firstNameInput.value = "";
+        if (lastNameInput instanceof HTMLInputElement) lastNameInput.value = "";
+        if (phoneNumberInput instanceof HTMLInputElement) phoneNumberInput.value = "";
+        if (emailInput instanceof HTMLInputElement) emailInput.value = "";
+        if (idCardNumberInput instanceof HTMLInputElement) idCardNumberInput.value = "";
+        if (categoryInput instanceof HTMLSelectElement) categoryInput.value = "";
+        if (registrationModeInput instanceof HTMLSelectElement) registrationModeInput.value = "";
+        if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "";
+        if (isEquipmentIssuedInput instanceof HTMLInputElement) isEquipmentIssuedInput.checked = false;
+        receptionMatchedAthleteId = null;
+        receptionMatchedSnapshot = null;
+        if (updateAthleteBtn instanceof HTMLButtonElement) updateAthleteBtn.disabled = true;
+        if (updateAthleteBtn instanceof HTMLButtonElement) updateAthleteBtn.classList.remove("btn-success");
+        if (receptionLookupHint instanceof HTMLElement) {
+            receptionLookupHint.style.display = "none";
+            receptionLookupHint.textContent = "";
+        }
+        try { syncSubscriptionAthleteNameFromReception(); } catch { }
+        try { syncRegistrationModeUi(); } catch { }
+    }
+
+    function clearSubscriptionPlanningFields() {
+        try {
+            if (subscriptionIsFullPackageInput instanceof HTMLInputElement) subscriptionIsFullPackageInput.checked = false;
+            document.querySelectorAll("#subscriptionDays .sub-day").forEach(el => {
+                if (el instanceof HTMLInputElement) el.checked = false;
+            });
+            if (subscriptionLaneTypesByDayEl instanceof HTMLElement) subscriptionLaneTypesByDayEl.innerHTML = "";
+            if (subscriptionDurationMinutesInput instanceof HTMLInputElement) subscriptionDurationMinutesInput.value = "12";
+            if (subscriptionStartDateInput instanceof HTMLInputElement) subscriptionStartDateInput.value = "";
+            if (subscriptionEndDateInput instanceof HTMLInputElement) subscriptionEndDateInput.value = "";
+            renderSubscriptionLaneTypesByDay();
+            syncMonthlySplitInfo();
+            syncFullPackageUi();
+        } catch { /* ignore */ }
+    }
+
+    function syncUpdateAthleteButton() {
+        if (!(updateAthleteBtn instanceof HTMLButtonElement)) return;
+        const has = Boolean(receptionMatchedAthleteId);
+        updateAthleteBtn.disabled = !has;
+        updateAthleteBtn.classList.toggle("btn-success", has);
+    }
+
+    function setLookupHint(text) {
+        if (!(receptionLookupHint instanceof HTMLElement)) return;
+        const t = String(text ?? "").trim();
+        if (!t) {
+            receptionLookupHint.style.display = "none";
+            receptionLookupHint.textContent = "";
+            return;
+        }
+        receptionLookupHint.style.display = "";
+        receptionLookupHint.textContent = t;
+    }
+
+    function buildReceptionCurrentSnapshot() {
+        const first = (firstNameInput?.value ?? "").trim();
+        const last = (lastNameInput?.value ?? "").trim();
+        const phone = normalizeDigits(phoneNumberInput?.value);
+        const email = normalizeText(emailInput?.value);
+        const idCard = normalizeText(idCardNumberInput?.value);
+        const category = String(categoryInput?.value ?? "");
+        const membership = String(membershipTypeInput?.value ?? "");
+        return { first, last, phone, email, idCard, category, membership };
+    }
+
+    function isReceptionDirtyComparedToSnapshot() {
+        if (!receptionMatchedAthleteId || !receptionMatchedSnapshot) return false;
+        const cur = buildReceptionCurrentSnapshot();
+        const prev = receptionMatchedSnapshot;
+        return cur.first !== prev.first
+            || cur.last !== prev.last
+            || cur.phone !== prev.phone
+            || cur.email !== prev.email
+            || cur.idCard !== prev.idCard
+            || cur.category !== prev.category
+            || cur.membership !== prev.membership;
+    }
+
+    async function maybeUpdateAthleteIfDirtyBeforeAction() {
+        if (!receptionMatchedAthleteId) return true;
+        if (!isReceptionDirtyComparedToSnapshot()) return true;
+        const ok = window.confirm("Məlumatlar dəyişdirilib. Yenilənsin?");
+        if (!ok) return true;
+        const updated = await updateAthleteFromReception({ silentSuccess: true });
+        return Boolean(updated);
+    }
+
+    function renderCancelSubscriptionList() {
+        if (!(cancelSubscriptionList instanceof HTMLElement)) return;
+        const q = (cancelSubscriptionSearch?.value ?? "").trim().toLowerCase();
+        const rows = (Array.isArray(allAthletesCache) ? allAthletesCache : [])
+            .filter(x => x.isSubscriber || x.isFullPackage)
+            .filter(x => {
+                if (!q) return true;
+                const name = `${x.firstName ?? ""} ${x.lastName ?? ""} ${x.fullName ?? ""}`.toLowerCase();
+                const phone = String(x.phoneNumber ?? "").toLowerCase();
+                const email = String(x.email ?? "").toLowerCase();
+                const id = String(x.idCardNumber ?? "").toLowerCase();
+                return name.includes(q) || phone.includes(q) || email.includes(q) || id.includes(q);
+            })
+            .slice(0, 200);
+
+        if (rows.length === 0) {
+            cancelSubscriptionList.innerHTML = "<div style=\"padding:12px; color:#55638a;\">Abunəçi tapılmadı.</div>";
+            return;
+        }
+
+        cancelSubscriptionList.innerHTML = rows.map(item => {
+            const fallbackName = `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim();
+            const name = escapeHtml(item.fullName ?? (fallbackName || "—"));
+            const phone = escapeHtml(item.phoneNumber ?? "—");
+            const tag = item.isFullPackage ? "Full paket" : "Abunəçi";
+            return `<button type="button"
+                        data-cancel-athlete="${item.id}"
+                        style="width:100%; text-align:left; padding:12px; border:0; border-bottom:1px solid rgba(41,55,89,0.10); background:#fff; cursor:pointer;">
+                        <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                            <div style="font-weight:800; color:#1a2650;">${name}</div>
+                            <div style="color:#55638a; font-weight:700;">${phone}</div>
+                        </div>
+                        <div style="margin-top:4px; color:#55638a; font-size:12px; font-weight:800;">${tag}</div>
+                    </button>`;
+        }).join("");
+    }
+
+    async function openCancelSubscriptionModal() {
+        if (!(cancelSubscriptionModal instanceof HTMLElement)) return;
+        cancelSubscriptionModal.style.display = "block";
+        await ensureAthletesCacheFresh();
+        renderCancelSubscriptionList();
+        cancelSubscriptionSearch?.focus();
+    }
+
+    function closeCancelSubscriptionModal() {
+        if (!(cancelSubscriptionModal instanceof HTMLElement)) return;
+        cancelSubscriptionModal.style.display = "none";
+    }
+
+    async function cancelSubscription(athleteId) {
+        const response = await apiFetch("/subscriptions/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ athleteId })
+        });
+
+        if (!response.ok) {
+            const message = await readErrorMessage(response);
+            alert(message);
+            return;
+        }
+
+        const data = await response.json();
+        sessionInfo.textContent = `Abunə ləğv edildi. Söndürülən plan: ${data.cancelledSchedules}`;
+        closeCancelSubscriptionModal();
+        clearReceptionPersonFields();
+        await loadSubscriptionSchedules();
+    }
+
+    async function readErrorMessage(response) {
+        const raw = await response.text();
+        if (!raw) {
+            return "Naməlum xəta";
+        }
+
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed?.error ?? parsed?.title ?? raw;
+        } catch {
+            return raw;
+        }
+    }
+
+    function getExceptionMessage(error) {
+        if (error instanceof Error && error.message) {
+            return error.message;
+        }
+
+        return "Naməlum xəta";
+    }
+
+    function updateCountdownRings() {
+        document.querySelectorAll("[data-countdown-ring]").forEach(el => {
+            if (!(el instanceof HTMLElement)) {
+                return;
+            }
+
+            const start = el.dataset.start ?? "";
+            const end = el.dataset.end ?? "";
+            const status = el.dataset.status ?? "";
+            const timerEl = el.querySelector("[data-role=\"timer\"]");
+            const captionEl = el.querySelector("[data-role=\"caption\"]");
+            const progressEl = el.querySelector(".countdown-ring__progress");
+            if (!timerEl || !(progressEl instanceof SVGGraphicsElement)) {
+                return;
+            }
+
+            const card = el.closest(".lane-card");
+            const bottomHint = card instanceof HTMLElement ? card.querySelector("[data-role=\"lane-bottom-hint\"]") : null;
+            const setBottomHint = (text, kind) => {
+                if (!(bottomHint instanceof HTMLElement)) return;
+                bottomHint.textContent = text || "";
+                bottomHint.classList.toggle("is-show", Boolean(text));
+                bottomHint.classList.toggle("is-warn", kind === "warn");
+                bottomHint.classList.toggle("is-critical", kind === "critical");
+            };
+
+            el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle");
+
+            const startMs = parseApiDate(start).getTime();
+            const endMs = parseApiDate(end).getTime();
+            const nowMs = Date.now();
+            const timedSession = hasValidTimeWindow(startMs, endMs);
+            const totalMs = timedSession ? endMs - startMs : 0;
+
+            if (!start || !end || !timedSession) {
+                if (status === "Completed") {
+                    el.classList.add("is-done");
+                    timerEl.textContent = "Bitib";
+                    if (captionEl) {
+                        captionEl.textContent = "Sessiya";
+                    }
+                    setBottomHint("", "");
+                    applyRingRemaining(progressEl, 0);
+                    return;
+                }
+
+                if (status === "Scheduled") {
+                    el.classList.add("is-pending");
+                    const untilStartMs = Number.isFinite(startMs) ? Math.max(0, startMs - nowMs) : 0;
+                    timerEl.textContent = untilStartMs > 0 ? formatSeconds(untilStartMs) : "—";
+                    if (captionEl) {
+                        captionEl.textContent = untilStartMs > 0 ? "Başlayır" : "Planlı";
+                    }
+                    setBottomHint("", "");
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                if (status === "Active") {
+                    el.classList.add("is-live");
+                    const elapsedMs = Number.isFinite(startMs)
+                        ? Math.max(1000, nowMs - startMs)
+                        : 1000;
+                    timerEl.textContent = formatSeconds(elapsedMs);
+                    if (captionEl) {
+                        captionEl.textContent = "Keçən vaxt";
+                    }
+                    setBottomHint("", "");
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                el.classList.add("is-idle");
+                timerEl.textContent = "—";
+                if (captionEl) {
+                    captionEl.textContent = "Boş";
+                }
+                setBottomHint("", "");
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            if (status === "Completed") {
+                el.classList.add("is-done");
+                timerEl.textContent = "Bitib";
+                if (captionEl) {
+                    captionEl.textContent = "Sessiya";
+                }
+                setBottomHint("", "");
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            if (nowMs < startMs) {
+                el.classList.add("is-pending");
+                const untilMs = startMs - nowMs;
+                const untilSec = Math.floor(untilMs / 1000);
+                const startLocal = new Date(startMs);
+
+                // Prevent absurd countdowns (e.g., bad time zones or far future): show planned time instead.
+                if (untilSec > 24 * 3600) {
+                    timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                    if (captionEl) captionEl.textContent = "Planlı";
+                    setBottomHint("", "");
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                // 5 dəqiqəlik xəbərdarlıq
+                if (untilSec <= 120) {
+                    el.classList.add("is-critical");
+                } else if (untilSec <= 300) {
+                    el.classList.add("is-warn");
+                }
+
+                // Pending cards: show only start time (e.g., 17:00). No "Başlayır" line inside ring.
+                timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                if (captionEl) {
+                    captionEl.textContent = "Başlayır";
+                }
+                if (untilSec <= 300) {
+                    const minLeft = Math.max(0, Math.ceil(untilSec / 60));
+                    setBottomHint(`${minLeft} dəqiqə qaldı`, untilSec <= 120 ? "critical" : "warn");
+                } else {
+                    setBottomHint("", "");
+                }
+                applyRingRemaining(progressEl, 1);
+                return;
+            }
+
+            if (nowMs >= endMs) {
+                el.classList.add("is-done");
+                timerEl.textContent = "00:00";
+                if (captionEl) {
+                    captionEl.textContent = "Vaxt bitib";
+                }
+                setBottomHint("", "");
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            // For Active sessions, show remaining TRAINING time (exclude 10-min buffer).
+            // Buffer is a reservation rule, not the customer's training time.
+            const trainingEndMs = Math.max(startMs, endMs - SESSION_BUFFER_MS);
+            const trainingRemainingMs = trainingEndMs - nowMs;
+            const trainingRemainingSec = Math.floor(trainingRemainingMs / 1000);
+
+            // If training already ended, we're in cleanup/buffer window.
+            if (trainingRemainingMs <= 0) {
+                const bufferRemainingMs = Math.max(0, endMs - nowMs);
+                el.classList.add("is-idle");
+                timerEl.textContent = "00:00";
+                if (captionEl) captionEl.textContent = "Təmizlik";
+                setBottomHint("", "");
+                applyRingRemaining(progressEl, 0);
+                return;
+            }
+
+            const frac = (trainingEndMs - startMs) > 0 ? trainingRemainingMs / (trainingEndMs - startMs) : 0;
+            el.classList.add("is-live");
+            if (trainingRemainingSec <= COUNTDOWN_CRIT_SEC) {
+                el.classList.add("is-critical");
+            } else if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) {
+                el.classList.add("is-warn");
+            }
+
+            timerEl.textContent = formatSeconds(trainingRemainingMs);
+            if (captionEl) captionEl.textContent = "Qalan vaxt";
+
+            if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) {
+                const minLeft = Math.max(0, Math.ceil(trainingRemainingSec / 60));
+                setBottomHint(`${minLeft} dəqiqə qaldı`, trainingRemainingSec <= COUNTDOWN_CRIT_SEC ? "critical" : "warn");
+            } else {
+                setBottomHint("", "");
+            }
+
+            applyRingRemaining(progressEl, frac);
+        });
+    }
+
+    function restoreLaneDrafts() {
+        document.querySelectorAll(".lane-score-input").forEach(input => {
+            const sid = input.getAttribute("data-session-id");
+            if (!sid) {
+                return;
+            }
+
+            const key = `session-${sid}`;
+            if (Object.prototype.hasOwnProperty.call(laneScoreDraft, key)) {
+                input.value = laneScoreDraft[key];
+            }
+        });
+    }
+
+    function bindLaneEvents() {
+        document.querySelectorAll(".lane-score-input").forEach(input => {
+            input.addEventListener("input", event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLInputElement)) {
+                    return;
+                }
+
+                const laneNumber = target.getAttribute("data-lane-number");
+                const sessionId = target.getAttribute("data-session-id");
+                if (!laneNumber && !sessionId) {
+                    return;
+                }
+
+                const key = sessionId ? `session-${sessionId}` : `lane-${laneNumber}`;
+                laneScoreDraft[key] = target.value;
+            });
+        });
+
+        document.querySelectorAll("[data-submit-lane-score]").forEach(button => {
+            button.addEventListener("click", async event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const sessionId = target.getAttribute("data-session-id");
+                const laneNumber = Number(target.getAttribute("data-lane-number"));
+                const nextRound = Number(target.getAttribute("data-next-round"));
+
+                if (!sessionId) {
+                    alert("Bu zolaqda aktiv sessiya yoxdur.");
+                    return;
+                }
+
+                const key = `session-${sessionId}`;
+                const rawValue = laneScoreDraft[key] ?? "";
+                const value = Number(rawValue);
+
+                if (!Number.isFinite(value) || value < 0 || value > 10) {
+                    alert("Xal 0 ilə 10 arasında olmalıdır.");
+                    return;
+                }
+
+                await submitLaneScore(sessionId, laneNumber, nextRound, value);
+            });
+        });
+
+        document.querySelectorAll(".pick-session").forEach(button => {
+            button.addEventListener("click", event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                const selected = target.getAttribute("data-session-id");
+                if (!selected) {
+                    return;
+                }
+
+                const pickedLane = latestLanes.find(x => x.sessionId === selected);
+                if (pickedLane?.laneNumber && tabletLaneNumberInput) {
+                    tabletLaneNumberInput.value = String(pickedLane.laneNumber);
+                }
+                if (tabletSessionIdInput) {
+                    tabletSessionIdInput.value = selected;
+                }
+                syncTabletScoreContext();
+            });
+        });
+
+        document.querySelectorAll("[data-stop-session]").forEach(button => {
+            button.addEventListener("click", async event => {
+                const target = event.currentTarget;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                const selected = target.getAttribute("data-stop-session");
+                if (!selected) {
+                    return;
+                }
+
+                const issued = target.getAttribute("data-equipment-issued") === "1";
+                const returned = target.getAttribute("data-equipment-returned") === "1";
+                if (issued && !returned) {
+                    const ok = confirm("Avadanlıq təhvil alındımı?");
+                    if (!ok) return;
+                    try {
+                        await apiFetch(`/sessions/${selected}/equipment/return`, { method: "POST" });
+                    } catch { }
+                }
+
+                await stopSession(selected);
+            });
+        });
+    }
+
+    function startCountdownTicker() {
+        if (countdownTimerId) {
+            clearInterval(countdownTimerId);
+        }
+
+        const tick = () => {
+            const wall = document.getElementById("wallClock");
+            if (wall) {
+                wall.textContent = new Date().toLocaleTimeString("az-AZ", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                });
+            }
+            updateCountdownRings();
+        };
+
+        tick();
+        countdownTimerId = setInterval(tick, 250);
+    }
+
+    async function loadDashboard() {
+        const response = await apiFetch("/dashboard/lanes");
+        if (!response.ok) {
+            return;
+        }
+
+        const lanes = await response.json();
+        latestLanes = lanes;
+        refreshStats(lanes);
+        refreshLaneOptions();
+        refreshTvLaneBadges(lanes);
+
+        const gridResponse = await apiFetch("/dashboard/lanes/partial/grid");
+        if (!gridResponse.ok) {
+            return;
+        }
+
+        laneGrid.innerHTML = await gridResponse.text();
+
+        const tableResponse = await apiFetch("/dashboard/lanes/partial/table");
+        if (!tableResponse.ok) {
+            return;
+        }
+
+        dashboardRows.innerHTML = await tableResponse.text();
+
+        bindLaneEvents();
+        restoreLaneDrafts();
+        syncTabletScoreContext();
+    }
+
+    function refreshTvLaneBadges(lanes) {
+        const safe = Array.isArray(lanes) ? lanes : [];
+        document.querySelectorAll("[data-tv-lane]").forEach(el => {
+            if (!(el instanceof HTMLElement)) return;
+            const n = Number(el.getAttribute("data-tv-lane") ?? "0");
+            const lane = safe.find(x => x.laneNumber === n);
+            const isActive = lane?.status === "Active";
+            el.classList.toggle("tv-link--active", Boolean(isActive));
+        });
+    }
+
+    function showSessionNotice(text, kind = "") {
+        if (!(sessionInfo instanceof HTMLElement)) return;
+        sessionInfo.classList.toggle("notice--warn", kind === "warn");
+        sessionInfo.textContent = String(text ?? "");
+        const prev = Number(sessionInfo.dataset.autoClearTimer ?? "0");
+        if (prev) {
+            clearTimeout(prev);
+        }
+        const t = setTimeout(() => {
+            sessionInfo.classList.remove("notice--warn");
+        }, 5000);
+        sessionInfo.dataset.autoClearTimer = String(t);
+    }
+
+    function formatDateOnly(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) {
+            return "—";
+        }
+
+        return dt.toLocaleDateString("az-AZ");
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) {
+            return "—";
+        }
+
+        return dt.toLocaleString("az-AZ", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    }
+
+    function parseLocalTimeParts(rawTimeValue) {
+        const rawTime = (rawTimeValue ?? "").toString();
+        const timeMatch = /(\d{1,2}):(\d{2})/.exec(rawTime);
+        if (!timeMatch) {
+            return null;
+        }
+
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2]);
+        if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            return null;
+        }
+
+        return { hour, minute };
+    }
+
+    function parseScheduleStartLocal(item, nowLocal) {
+        const timeParts = parseLocalTimeParts(item.startTimeLocal);
+        if (timeParts === null) {
+            return null;
+        }
+
+        const fromRaw = new Date(item.activeFromDateLocal);
+        const toRaw = new Date(item.activeToDateLocal ?? item.activeFromDateLocal);
+        if (Number.isNaN(fromRaw.getTime()) || Number.isNaN(toRaw.getTime())) {
+            return null;
+        }
+
+        const fromDate = new Date(fromRaw.getFullYear(), fromRaw.getMonth(), fromRaw.getDate());
+        const toDate = new Date(toRaw.getFullYear(), toRaw.getMonth(), toRaw.getDate());
+        if (toDate.getTime() < fromDate.getTime()) {
+            return null;
+        }
+
+        const dayOfWeek = Number(item.dayOfWeek);
+        if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+            return null;
+        }
+
+        const today = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+        const baseDate = today.getTime() > fromDate.getTime() ? today : fromDate;
+        const dayOffset = (dayOfWeek - baseDate.getDay() + 7) % 7;
+        const candidateDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + dayOffset);
+
+        let candidate = new Date(
+            candidateDate.getFullYear(),
+            candidateDate.getMonth(),
+            candidateDate.getDate(),
+            timeParts.hour,
+            timeParts.minute,
+            0,
+            0
+        );
+
+        if (candidate.getTime() < nowLocal.getTime()) {
+            candidate = new Date(
+                candidate.getFullYear(),
+                candidate.getMonth(),
+                candidate.getDate() + 7,
+                timeParts.hour,
+                timeParts.minute,
+                0,
+                0
+            );
+        }
+
+        if (candidate.getTime() < fromDate.getTime() || candidate.getTime() > toDate.getTime() + (24 * 60 * 60 * 1000) - 1) {
+            return null;
+        }
+
+        return candidate;
+    }
+
+    function renderUpcomingSubscriptions(schedules) {
+        if (!(upcomingSubscriptionRows instanceof HTMLElement) || !(upcomingSubscriptionInfo instanceof HTMLElement)) {
+            return;
+        }
+
+        const now = new Date();
+        const upcoming = (Array.isArray(schedules) ? schedules : [])
+            .map(item => ({ item, startLocal: parseScheduleStartLocal(item, now) }))
+            .filter(x => x.startLocal instanceof Date && x.startLocal.getTime() >= now.getTime())
+            .sort((a, b) => a.startLocal.getTime() - b.startLocal.getTime())
+            .slice(0, 8);
+
+        if (upcoming.length === 0) {
+            upcomingSubscriptionInfo.textContent = "Yaxın saatlarda planlı abunəçi görünmür.";
+            upcomingSubscriptionRows.innerHTML = "";
+            return;
+        }
+
+        const soonThresholdMinutes = 120;
+        const soonCount = upcoming.filter(x => ((x.startLocal.getTime() - now.getTime()) / 60000) <= soonThresholdMinutes).length;
+        upcomingSubscriptionInfo.textContent = `Növbəti abunəçilər sıralandı. ${soonCount} nəfər yaxın 2 saat içindədir.`;
+
+        upcomingSubscriptionRows.innerHTML = upcoming.map(({ item, startLocal }) => {
+            const diffMinutes = Math.max(0, Math.round((startLocal.getTime() - now.getTime()) / 60000));
+            const whenText = startLocal.toLocaleString("az-AZ", {
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+            const nearTag = diffMinutes <= soonThresholdMinutes
+                ? `<span class="upcoming-tag">${diffMinutes} dəq sonra</span>`
+                : "";
+            return `<li><strong>${escapeHtml(item.athleteName ?? "—")}</strong> — ${whenText}${nearTag}</li>`;
+        }).join("");
+    }
+
+    function startUpcomingCountdownTicker() {
+        if (upcomingCountdownTimerId) {
+            clearInterval(upcomingCountdownTimerId);
+        }
+
+        upcomingCountdownTimerId = setInterval(() => {
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+        }, 60000);
+    }
+
+    // subscriptionStartTime (tək saat) artıq istifadə edilmir — saatlar günlərə görə ayrıca verilir.
+
+    function formatDurationMinutes(minutes) {
+        const value = Number(minutes);
+        if (!Number.isFinite(value) || value <= 0) {
+            return "—";
+        }
+
+        if (value % 60 === 0) {
+            const hours = value / 60;
+            return `${hours} saat`;
+        }
+
+        return `${value} dəq`;
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll("\"", "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
+    async function loadSubscriptionSchedules() {
+        // keep cache for day filter rendering
+        if (!(dayPlanRows instanceof HTMLElement)) {
+            return;
+        }
+
+        const response = await apiFetch("/subscriptions/schedules");
+        if (!response.ok) {
+            subscriptionSchedulesCache = [];
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            await loadDayPlan();
+            return;
+        }
+
+        const schedules = await response.json();
+        if (!Array.isArray(schedules)) {
+            subscriptionSchedulesCache = [];
+            renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            return;
+        }
+
+        subscriptionSchedulesCache = schedules;
+        renderUpcomingSubscriptions(subscriptionSchedulesCache);
+        await loadDayPlan();
+    }
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+
+    function toYmd(date) {
+        return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    }
+
+    function formatHm(d) {
+        return d.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function computeScheduleOccurrenceOnDate(schedule, dateLocal) {
+        const day = dateLocal.getDay();
+        const dow = Number(schedule?.dayOfWeek);
+        if (day !== dow) return null;
+        const from = new Date(schedule.activeFromDateLocal);
+        const to = new Date(schedule.activeToDateLocal);
+        const dayStart = new Date(dateLocal.getFullYear(), dateLocal.getMonth(), dateLocal.getDate());
+        if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+        if (dayStart.getTime() < new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()) return null;
+        if (dayStart.getTime() > new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime()) return null;
+
+        const t = String(schedule?.startTimeLocal ?? "").slice(0, 5);
+        const [hh, mm] = t.split(":").map(x => Number(x));
+        if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+        const start = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), hh, mm, 0, 0);
+        const dur = Number(schedule?.durationMinutes ?? 0);
+        const end = new Date(start.getTime() + dur * 60000);
+        return { start, end };
+    }
+
+    async function loadDayPlan() {
+        if (!(dayPlanRows instanceof HTMLElement) || !(dayPlanInfo instanceof HTMLElement)) return;
+
+        const dateStr = toYmd(new Date());
+
+        const dateLocal = new Date(`${dateStr}T00:00:00`);
+        if (Number.isNaN(dateLocal.getTime())) return;
+
+        const sessRes = await apiFetch(`/sessions/by-date?dateLocal=${encodeURIComponent(dateStr)}`);
+        let sessions = [];
+        if (sessRes.ok) {
+            const data = await sessRes.json();
+            sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+        }
+
+        const schedules = Array.isArray(subscriptionSchedulesCache) ? subscriptionSchedulesCache : [];
+        const subs = schedules
+            .filter(s => s?.isEnabled !== false)
+            .map(s => ({ s, occ: computeScheduleOccurrenceOnDate(s, dateLocal) }))
+            .filter(x => x.occ)
+            .map(x => {
+                const lanePicked = Number(x.s.laneNumber ?? 0);
+                const laneText = Number.isFinite(x.s.lastAssignedLaneNumber)
+                    ? `Zolaq ${x.s.lastAssignedLaneNumber}`
+                    : (lanePicked > 0 ? `Zolaq ${lanePicked}` : "Sistem təyin edəcək");
+                return {
+                    tip: "Abunə",
+                    athleteName: x.s.athleteName ?? "—",
+                    lane: laneText,
+                    start: x.occ.start,
+                    end: x.occ.end,
+                    dayLabel: dayNames[x.s.dayOfWeek] ?? String(x.s.dayOfWeek),
+                    durationText: formatDurationMinutes(x.s.durationMinutes),
+                    status: "Planlı"
+                };
+            });
+
+        const inst = sessions.map(s => {
+            const start = new Date(s.startTimeUtc);
+            const end = new Date(s.endTimeUtc);
+            const laneText = s.laneNumber ? `Zolaq ${s.laneNumber}` : "—";
+            return {
+                tip: s.kind ?? "Anlıq",
+                athleteName: s.athleteName ?? "—",
+                lane: laneText,
+                start,
+                end,
+                dayLabel: dayNames[dateLocal.getDay()] ?? String(dateLocal.getDay()),
+                durationText: (start instanceof Date && end instanceof Date && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()))
+                    ? `${Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000))} dəq`
+                    : "—",
+                status: s.statusLabel ?? s.status ?? "—"
+            };
+        });
+
+        // Newest first (latest start time on top)
+        const all = [...inst, ...subs].sort((a, b) => b.start.getTime() - a.start.getTime());
+        dayPlanInfo.textContent = `${dateStr} üçün: ${all.length} qeyd (Anlıq/Qrup + Abunə).`;
+
+        if (all.length === 0) {
+            dayPlanRows.innerHTML = `<tr><td colspan="8">Bu gün üçün qeydiyyat tapılmadı.</td></tr>`;
+            return;
+        }
+
+        dayPlanRows.innerHTML = all.map(r => {
+            const startText = r.start instanceof Date && !Number.isNaN(r.start.getTime()) ? formatHm(r.start) : "—";
+            const endText = r.end instanceof Date && !Number.isNaN(r.end.getTime()) ? formatHm(r.end) : "—";
+            return `<tr>
+                <td>${escapeHtml(r.tip)}</td>
+                <td>${escapeHtml(r.athleteName)}</td>
+                <td>${escapeHtml(r.lane)}</td>
+                <td>${startText}</td>
+                <td>${endText}</td>
+                <td>${escapeHtml(r.dayLabel)}</td>
+                <td>${escapeHtml(r.durationText)}</td>
+                <td>${escapeHtml(r.status)}</td>
+            </tr>`;
+        }).join("");
+    }
+
+    async function createSubscriptionSchedule() {
+        try {
+            if (!(await maybeUpdateAthleteIfDirtyBeforeAction())) return;
+            const athleteFullName = subscriptionAthleteNameInput?.value?.trim() ?? "";
+            if (!athleteFullName) {
+                alert("Abunəçinin adını daxil edin.");
+                return;
+            }
+
+            // Ensure athlete exists in DB: lookup by identifiers; if not found, register first.
+            let athleteId = receptionMatchedAthleteId;
+            if (!athleteId) {
+                try {
+                    const phoneQ = normalizeDigits(phoneNumberInput?.value);
+                    const emailQ = normalizeText(emailInput?.value);
+                    const idQ = normalizeText(idCardNumberInput?.value);
+                    const qs = new URLSearchParams();
+                    if (phoneQ) qs.set("phone", phoneQ);
+                    if (emailQ) qs.set("email", emailQ);
+                    if (idQ) qs.set("idCardNumber", idQ);
+                    const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`);
+                    if (lookupRes.ok) {
+                        const found = await lookupRes.json();
+                        athleteId = found?.id ?? null;
+                        receptionMatchedAthleteId = athleteId;
+                        syncUpdateAthleteButton();
+                    }
+                } catch { /* ignore */ }
+            }
+
+            if (!athleteId) {
+                const firstName = firstNameInput?.value?.trim() ?? "";
+                const lastName = lastNameInput?.value?.trim() ?? "";
+                const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+                if (!firstName || !lastName || !phoneNumber) {
+                    alert("Abunə planı yaratmaq üçün əvvəlcə Ad, Soyad və Telefon daxil edin (və ya axtarışla mövcud şəxsi tapın).");
+                    return;
+                }
+
+                const membershipTypeRaw = membershipTypeInput?.value ?? "";
+                const categoryRaw = categoryInput?.value ?? "";
+                if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return; }
+                if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
+
+                const athleteResponse = await apiFetch("/athletes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        firstName,
+                        lastName,
+                        phoneNumber,
+                        email: emailInput?.value?.trim() || null,
+                        idCardNumber: idCardNumberInput?.value?.trim() || null,
+                        category: Number(categoryRaw),
+                        isSubscriber: true,
+                        membershipType: Number(membershipTypeRaw)
+                    })
+                });
+
+                if (!athleteResponse.ok) {
+                    const message = await readErrorMessage(athleteResponse);
+                    alert(message || "İdmançı qeydiyyatı alınmadı.");
+                    return;
+                }
+
+                const athleteData = await athleteResponse.json();
+                athleteId = athleteData?.id ?? null;
+                receptionMatchedAthleteId = athleteId;
+                syncUpdateAthleteButton();
+            }
+
+            const totalMonthlyHours = Number(subscriptionDurationMinutesInput?.value ?? "0");
+            if (!Number.isFinite(totalMonthlyHours) || totalMonthlyHours <= 0) {
+                alert("Aylıq paket (saat) müsbət olmalıdır.");
+                return;
+            }
+
+            const isFullPackage = subscriptionIsFullPackageInput instanceof HTMLInputElement && subscriptionIsFullPackageInput.checked;
+            if (isFullPackage) {
+                const startDate = new Date().toISOString().slice(0, 10);
+                const response = await apiFetch("/subscriptions/packages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        athleteFullName,
+                        athleteId,
+                        dayPattern: "1-3-5",
+                        visitsCount: 1,
+                        startTimeLocal: "00:00",
+                        durationMinutes: 60,
+                        startDateLocal: new Date(`${startDate}T00:00:00`).toISOString(),
+                        preferredLaneTypesByDayOfWeek: {},
+                        isFullPackage: true
+                    })
+                });
+
+                if (!response.ok) {
+                    const message = await readErrorMessage(response);
+                    alert(`Full paket qeydiyyatı alınmadı. ${message}`);
+                    return;
+                }
+
+                subscriptionInfo.textContent = "Full paket aktiv edildi (sabit həftəlik plan yoxdur).";
+                clearReceptionPersonFields();
+                clearSubscriptionPlanningFields();
+                await loadSubscriptionSchedules();
+                return;
+            }
+
+            const startDate = subscriptionStartDateInput?.value;
+            const endDate = subscriptionEndDateInput?.value;
+            if (!startDate || !endDate) {
+                alert("Başlanğıc və bitmə tarixini seçin.");
+                return;
+            }
+            if (new Date(endDate).getTime() < new Date(startDate).getTime()) {
+                alert("Bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
+                return;
+            }
+
+            const selectedDays = getSelectedSubscriptionDays();
+            if (selectedDays.length === 0) {
+                alert("Həftə günlərini seçin.");
+                return;
+            }
+
+            const cat = Number(categoryInput?.value ?? "0");
+            const isAmateur = cat === 0;
+
+            const timeByDay = {};
+            document.querySelectorAll(".sub-day-time").forEach(inp => {
+                if (!(inp instanceof HTMLInputElement)) return;
+                const day = inp.getAttribute("data-day");
+                if (!day) return;
+                timeByDay[day] = inp.value;
+            });
+
+            const missingDays = selectedDays.filter(d => !/^\d{2}:\d{2}$/.test(timeByDay[String(d)] ?? ""));
+            if (missingDays.length) {
+                alert("Bəzi günlər üçün saat seçilməyib. Zəhmət olmasa hər seçilən gün üçün saat təyin edin.");
+                return;
+            }
+
+            const laneByDay = {};
+            document.querySelectorAll(".sub-day-lane").forEach(sel => {
+                if (!(sel instanceof HTMLSelectElement)) return;
+                const day = sel.getAttribute("data-day");
+                if (!day) return;
+                laneByDay[String(day)] = Number(sel.value ?? "0");
+            });
+
+            const durationMinutes = computeMinutesPerSelectedDay(totalMonthlyHours, selectedDays.length);
+
+            async function resolveConflictsAndCreateForDay(payload, dayLabel) {
+                // Pre-save week-by-week analysis (Smart Conflict Resolver)
+                if (Number(payload?.laneNumber ?? 0) <= 0) {
+                    // auto lane: keep old flow
+                    const resp = await apiFetch("/subscriptions/schedules", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    return { resp, createdVia: "legacy" };
+                }
+
+                const analyze = await apiFetch("/subscriptions/schedules/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!analyze.ok) {
+                    const message = await readErrorMessage(analyze);
+                    alert(`Konflikt analizi alınmadı. ${message}`);
+                    return { resp: analyze, createdVia: "analyze_failed" };
+                }
+
+                const data = await analyze.json();
+                const occurrences = Array.isArray(data?.occurrences) ? data.occurrences : [];
+                const conflictCount = Number(data?.conflictCount ?? 0);
+
+                const overrides = await openSubscriptionConflictModal({
+                    dayLabel,
+                    baseLaneNumber: Number(payload.laneNumber),
+                    baseStartTimeLocal: String(payload.startTimeLocal ?? "").slice(0, 5),
+                    occurrences
+                });
+
+                // If operator closes the modal, do NOT create anything.
+                // Closing should only dismiss the UI without clearing or saving.
+                if (overrides === null) {
+                    return { resp: null, createdVia: "cancelled" };
+                }
+
+                const resp = await apiFetch("/subscriptions/schedules/with-exceptions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...payload, overrides: overrides ?? [] })
+                });
+
+                return { resp, createdVia: "with_exceptions" };
+            }
+
+            for (const d of selectedDays) {
+                const laneNumber = laneByDay[String(d)] ?? 0;
+                const payload = {
+                    athleteFullName,
+                    athleteId,
+                    dayOfWeek: d,
+                    startTimeLocal: timeByDay[String(d)],
+                    durationMinutes,
+                    activeFromDateLocal: new Date(`${startDate}T00:00:00`).toISOString(),
+                    activeToDateLocal: new Date(`${endDate}T00:00:00`).toISOString(),
+                    preferredLaneType: 0,
+                    laneNumber,
+                    isFullPackage: false
+                };
+
+                const dayLabel = dayNames[d] ?? String(d);
+                const { resp } = await resolveConflictsAndCreateForDay(payload, dayLabel);
+                if (resp === null) return;
+
+                if (!resp.ok) {
+                    if (resp.status === 409) {
+                        let data = null;
+                        try { data = await resp.json(); } catch { }
+                        const kind = data?.kind ?? "";
+                        if (kind === "busy") {
+                            alert(data?.error ?? "Seçdiyiniz vaxt/zolaq doludur. Zəhmət olmasa başqa vaxt və ya zolaq seçin.");
+                            // Don't clear forms: operator should adjust only this day.
+                            return;
+                        }
+
+                        const existingId = data?.existingScheduleId ?? null;
+                        const ok = window.confirm(data?.error ?? "Bu şəxs üçün abunə artıq mövcuddur. Yeniləmək istəyirsinizmi?");
+                        if (!ok) {
+                            clearReceptionPersonFields();
+                            clearSubscriptionPlanningFields();
+                            return;
+                        }
+                        if (!existingId) {
+                            alert("Mövcud abunənin ID-si tapılmadı.");
+                            clearReceptionPersonFields();
+                            clearSubscriptionPlanningFields();
+                            return;
+                        }
+                        const up = await apiFetch(`/subscriptions/schedules/${encodeURIComponent(existingId)}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!up.ok) {
+                            const message = await readErrorMessage(up);
+                            alert(`Abunə yenilənmədi. ${message}`);
+                            clearReceptionPersonFields();
+                            clearSubscriptionPlanningFields();
+                            return;
+                        }
+                        continue;
+                    }
+
+                    const message = await readErrorMessage(resp);
+                    alert(`Abunə planı yaradılmadı. ${message}`);
+                    clearReceptionPersonFields();
+                    clearSubscriptionPlanningFields();
+                    return;
+                }
+            }
+
+            subscriptionInfo.textContent = `Abunə cədvəli yaradıldı: həftədə ${selectedDays.length} gün (təxmini ${Math.round(durationMinutes / 6) / 10} saat/gün). ${formatDateOnly(startDate)} - ${formatDateOnly(endDate)}.`;
+            if (subscriptionAthleteNameInput instanceof HTMLInputElement) {
+                subscriptionAthleteNameInput.value = "";
+            }
+            clearReceptionPersonFields();
+            clearSubscriptionPlanningFields();
+            await loadSubscriptionSchedules();
+        } catch (error) {
+            alert(`Abunə planı yaradılmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    function openSubscriptionConflictModal(input) {
+        try {
+            if (!(subscriptionConflictModal instanceof HTMLElement)
+                || !(subscriptionConflictList instanceof HTMLElement)
+                || !(subscriptionConflictConfirmBtn instanceof HTMLButtonElement)
+                || !(subscriptionConflictInfo instanceof HTMLElement)) {
+                return Promise.resolve(null);
+            }
+
+            const dayLabel = input?.dayLabel ?? "";
+            const occurrences = Array.isArray(input?.occurrences) ? input.occurrences : [];
+            const baseLane = Number(input?.baseLaneNumber ?? 0);
+            const baseTime = String(input?.baseStartTimeLocal ?? "").slice(0, 5);
+
+            const busy = occurrences.filter(x => !!x?.isBusy);
+            subscriptionConflictInfo.textContent = busy.length
+                ? `${dayLabel} üçün ${busy.length} həftə doludur. Qırmızı tarixlərdə alternativ seçin.`
+                : `${dayLabel} üçün konflikt yoxdur.`;
+
+            // Build UI rows
+            const rowsHtml = occurrences.map(o => {
+                const dateLocal = String(o?.dateLocal ?? "");
+                const isBusy = !!o?.isBusy;
+                const allowedLanes = Array.isArray(o?.allowedLaneNumbers) ? o.allowedLaneNumbers : [];
+                const busyLanes = Array.isArray(o?.busyLaneNumbersSameTime) ? o.busyLaneNumbersSameTime : [];
+                const freeTimes = Array.isArray(o?.freeStartTimesSameLane) ? o.freeStartTimesSameLane : [];
+
+                const bg = isBusy ? "rgba(255, 61, 87, 0.10)" : "rgba(50, 205, 125, 0.10)";
+                const border = isBusy ? "rgba(255, 61, 87, 0.35)" : "rgba(50, 205, 125, 0.35)";
+                const tag = isBusy ? "Dolu" : "Boş";
+
+                const laneOptions = [
+                    `<option value="">—</option>`,
+                    ...(allowedLanes.length ? allowedLanes : (Number(categoryInput?.value ?? "0") === 0 ? [1,2,3,4,5,6,7,8] : [1,2,3,4,5,6,7,8,9,10,11]))
+                        .map(n => {
+                            const disabled = busyLanes.includes(n) ? "disabled" : "";
+                            const suffix = busyLanes.includes(n) ? " — dolu" : "";
+                            return `<option value="${n}" ${disabled}>Zolaq ${n}${suffix}</option>`;
+                        })
+                ].join("");
+
+                const timeOptions = [
+                    `<option value="">—</option>`,
+                    ...freeTimes.map(t => `<option value="${t}">${t}</option>`)
+                ].join("");
+
+                const controls = isBusy
+                    ? `<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                            <div style="font-weight:700; color:#1a2650; min-width:170px;">Vaxtı/Zolağı dəyiş</div>
+                            <label style="display:flex; gap:6px; align-items:center;">
+                                <span style="font-size:12px; color:#42506f;">Zolaq</span>
+                                <select data-ov-lane="${dateLocal}" style="min-width:140px;">${laneOptions}</select>
+                            </label>
+                            <label style="display:flex; gap:6px; align-items:center;">
+                                <span style="font-size:12px; color:#42506f;">Saat</span>
+                                <select data-ov-time="${dateLocal}" style="min-width:120px;">${timeOptions}</select>
+                            </label>
+                            <span style="font-size:12px; color:#6a738f;">(Əsas: ${baseTime}, Zolaq ${baseLane})</span>
+                       </div>`
+                    : `<div style="font-size:12px; color:#4a5a7f;">Saxlanılır: ${baseTime}, Zolaq ${baseLane}</div>`;
+
+                return `<div data-ov-row="${dateLocal}" style="padding:10px 12px; border-bottom:1px solid rgba(41,55,89,0.10); background:${bg}; border-left:6px solid ${border};">
+                            <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;">
+                                <div style="font-weight:900; color:#1a2650;">${dateLocal}</div>
+                                <div style="font-weight:800; color:${isBusy ? "#c21b33" : "#11824b"};">${tag}</div>
+                            </div>
+                            <div style="margin-top:8px;">${controls}</div>
+                        </div>`;
+            }).join("");
+
+            subscriptionConflictList.innerHTML = rowsHtml || "<div class=\"notice\">Heç bir tarix tapılmadı.</div>";
+            subscriptionConflictConfirmBtn.disabled = busy.length > 0;
+
+            const getOverrideForDate = (date) => {
+                const laneSel = subscriptionConflictList.querySelector(`select[data-ov-lane="${CSS.escape(date)}"]`);
+                const timeSel = subscriptionConflictList.querySelector(`select[data-ov-time="${CSS.escape(date)}"]`);
+                const laneVal = laneSel instanceof HTMLSelectElement ? Number(laneSel.value || "0") : 0;
+                const timeVal = timeSel instanceof HTMLSelectElement ? (timeSel.value || "") : "";
+
+                // Operator must change either lane or time (or both). If both are blank -> unresolved.
+                if (!laneVal && !timeVal) return null;
+
+                return {
+                    laneNumber: laneVal || baseLane,
+                    startTimeLocal: (timeVal || baseTime).slice(0, 5)
+                };
+            };
+
+            const recomputeEnabled = () => {
+                const unresolved = busy.filter(o => {
+                    const d = String(o?.dateLocal ?? "");
+                    return getOverrideForDate(d) === null;
+                });
+                subscriptionConflictConfirmBtn.disabled = unresolved.length > 0;
+            };
+
+            // attach listeners
+            subscriptionConflictList.querySelectorAll("select[data-ov-lane]").forEach(sel => {
+                if (!(sel instanceof HTMLSelectElement)) return;
+                sel.addEventListener("change", () => {
+                    recomputeEnabled();
+                });
+            });
+            subscriptionConflictList.querySelectorAll("select[data-ov-time]").forEach(sel => {
+                if (!(sel instanceof HTMLSelectElement)) return;
+                sel.addEventListener("change", () => {
+                    recomputeEnabled();
+                });
+            });
+
+            subscriptionConflictModal.style.display = "block";
+            recomputeEnabled();
+
+            return new Promise(resolve => {
+                const cleanup = () => {
+                    subscriptionConflictModal.style.display = "none";
+                    subscriptionConflictConfirmBtn.onclick = null;
+                    if (subscriptionConflictCloseBtn instanceof HTMLButtonElement) subscriptionConflictCloseBtn.onclick = null;
+                    subscriptionConflictModal.onclick = null;
+                };
+
+                subscriptionConflictConfirmBtn.onclick = () => {
+                    const overrides = busy
+                        .map(o => String(o?.dateLocal ?? ""))
+                        .map(d => ({ dateLocal: d, ov: getOverrideForDate(d) }))
+                        .filter(x => x.dateLocal && x.ov)
+                        .map(x => ({
+                            dateLocal: x.dateLocal,
+                            laneNumber: Number(x.ov.laneNumber),
+                            startTimeLocal: String(x.ov.startTimeLocal).slice(0, 5)
+                        }));
+                    cleanup();
+                    resolve(overrides);
+                };
+
+                if (subscriptionConflictCloseBtn instanceof HTMLButtonElement) {
+                    subscriptionConflictCloseBtn.onclick = () => {
+                        cleanup();
+                        resolve(null);
+                    };
+                }
+
+                subscriptionConflictModal.onclick = (e) => {
+                    if (e.target === subscriptionConflictModal) {
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+            });
+        } catch (e) {
+            console.error(e);
+            return Promise.resolve(null);
+        }
+    }
+
+    async function registerGroupOnLane() {
+        try {
+            if (!(await maybeUpdateAthleteIfDirtyBeforeAction())) return;
+            const rawNames = groupAthleteNamesInput?.value ?? "";
+            const baseName = `${firstNameInput?.value ?? ""} ${lastNameInput?.value ?? ""}`.trim();
+            const names = [
+                ...(baseName ? [baseName] : []),
+                ...rawNames
+                    .split(/\r?\n|,|;/)
+                    .map(x => x.trim())
+                    .filter(Boolean)
+            ]
+                .filter(Boolean)
+                .filter((v, idx, arr) => arr.findIndex(x => x.toLowerCase() === v.toLowerCase()) === idx);
+
+            if (names.length === 0) {
+                alert("Qrup üçün ən az bir ad daxil edin (və ya yuxarıda Ad+Soyad yazın).");
+                return;
+            }
+
+            // Same lane/time with the Reception athlete.
+            const laneNumber = Number(laneNumberInput?.value ?? "0");
+            const durationMinutes = Number(durationMinutesInput?.value ?? "0");
+            if (!Number.isInteger(laneNumber) || laneNumber <= 0) {
+                alert("Zolaq seçin.");
+                return;
+            }
+            if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+                alert("Qrup sessiyası üçün müddət müsbət dəqiqə olmalıdır.");
+                return;
+            }
+
+            const response = await apiFetch("/sessions/batch-lane", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteNames: names,
+                    laneNumber,
+                    startTimeUtc: new Date().toISOString(),
+                    durationMinutes,
+                    isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked)
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Qrup qeydiyyatı alınmadı. ${message}`);
+                return;
+            }
+
+            const data = await response.json();
+            const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+            if (sessions.length > 0) {
+                const item = sessions[0] ?? null;
+                const name = escapeHtml(item?.athleteName ?? item?.AthleteName ?? "—");
+                const start = formatDateTime(item?.startTimeUtc ?? item?.StartTimeUtc);
+                const end = formatDateTime(item?.endTimeUtc ?? item?.EndTimeUtc);
+                groupInfo.innerHTML = `Qrup qeydiyyatı alındı: <b>${name}</b><br/>Zaman: ${start} - ${end}`;
+            } else {
+                groupInfo.textContent = "Qrup qeydiyyatı alındı.";
+            }
+            if (groupAthleteNamesInput instanceof HTMLTextAreaElement) {
+                groupAthleteNamesInput.value = "";
+            }
+
+            clearReceptionPersonFields();
+            await loadDashboard();
+        } catch (error) {
+            alert(`Qrup qeydiyyatı alınmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function registerAndSchedule() {
+        try {
+            if (!(await maybeUpdateAthleteIfDirtyBeforeAction())) return;
+            receptionMatchedAthleteId = null;
+            const firstName = firstNameInput?.value?.trim() ?? "";
+            const lastName = lastNameInput?.value?.trim() ?? "";
+            const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+            if (!firstName || !lastName || !phoneNumber) {
+                alert("Ad, Soyad və Telefon mütləqdir.");
+                return;
+            }
+
+            const registrationMode = registrationModeInput?.value ?? "";
+            if (!registrationMode) {
+                alert("Qeydiyyat növünü seçin.");
+                return;
+            }
+
+            const membershipTypeRaw = membershipTypeInput?.value ?? "";
+            if (!membershipTypeRaw) {
+                alert("Abunəlik növünü seçin.");
+                return;
+            }
+
+            const categoryRaw = categoryInput?.value ?? "";
+            if (!categoryRaw) {
+                alert("Kateqoriya seçin.");
+                return;
+            }
+
+            const durationValue = Number(durationMinutesInput.value);
+            if (!Number.isInteger(durationValue) || durationValue < 0) {
+                alert("Müddət mənfi ola bilməz.");
+                return;
+            }
+
+            if (durationValue === 0) {
+                alert("Müddət 1 və ya daha böyük olmalıdır.");
+                return;
+            }
+
+            // 1) OR axtarış (telefon/email/şəxsiyyət)
+            let athleteId = null;
+            let foundAthlete = null;
+            try {
+                const phoneQ = normalizeDigits(phoneNumberInput?.value);
+                const emailQ = normalizeText(emailInput?.value);
+                const idQ = normalizeText(idCardNumberInput?.value);
+                const qs = new URLSearchParams();
+                if (phoneQ) qs.set("phone", phoneQ);
+                if (emailQ) qs.set("email", emailQ);
+                if (idQ) qs.set("idCardNumber", idQ);
+                const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`);
+                if (lookupRes.ok) {
+                    const found = await lookupRes.json();
+                    athleteId = found?.id ?? null;
+                    foundAthlete = found;
+                    receptionMatchedAthleteId = athleteId;
+                }
+            } catch { /* ignore */ }
+
+            // Əgər artıq sistemdə varsa: aktiv zolaq yoxlaması + ağıllı davranış
+            if (athleteId) {
+                // Hazırda hər hansı zolaqda aktivdirsə: yeni zolağa yazmaq olmaz
+                try {
+                    const activeRes = await apiFetch(`/sessions/active-by-athlete/${encodeURIComponent(athleteId)}`);
+                    if (activeRes.ok) {
+                        const active = await activeRes.json();
+                        const laneNo = Number(active?.laneNumber ?? 0);
+                        alert(`Bu şəxs hazırda ${laneNo > 0 ? `Zolaq ${laneNo}` : "başqa bir zolaq"}-də aktivdir. Aktivlik dayandırıldıqdan sonra yeni xətdə yazıla bilər.`);
+                        return;
+                    }
+                } catch { /* ignore */ }
+            }
+
+            // 2) Tapılmadısa yeni idmançı yaradılır
+            if (!athleteId) {
+                const athleteResponse = await apiFetch("/athletes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        firstName,
+                        lastName,
+                        phoneNumber,
+                        email: emailInput?.value?.trim() || null,
+                        idCardNumber: idCardNumberInput?.value?.trim() || null,
+                        category: Number(categoryRaw),
+                        isSubscriber: registrationMode === "subscription",
+                        membershipType: Number(membershipTypeRaw)
+                    })
+                });
+
+                if (!athleteResponse.ok) {
+                    if (athleteResponse.status === 409) {
+                        let payload = null;
+                        try { payload = await athleteResponse.json(); } catch { }
+                        const existingId = payload?.existingId ?? null;
+                        if (existingId) {
+                            receptionMatchedAthleteId = existingId;
+                            athleteId = existingId;
+                            syncUpdateAthleteButton();
+                            setLookupHint("Müştəri tapıldı (təkrar qeydiyyat əvəzinə mövcud şəxs seçildi).");
+
+                            const wantsUpdate = window.confirm("Bu şəxs artıq sistemdə qeydiyyatdadır. Məlumatlarını dəyişmək istəyirsinizmi?");
+                            if (wantsUpdate) {
+                                const ok = await updateAthleteFromReception({ silentSuccess: true });
+                                if (!ok) return;
+                            }
+                        } else {
+                            const message = payload?.error ?? "Bu məlumatlarla artıq qeydiyyat mövcuddur.";
+                            alert(message);
+                            return;
+                        }
+                    } else {
+                        const message = await readErrorMessage(athleteResponse);
+                        alert(message || "İdmançı qeydiyyatı alınmadı.");
+                        return;
+                    }
+                }
+
+                if (!athleteId) {
+                    const athleteData = await athleteResponse.json();
+                    athleteId = athleteData?.id ?? null;
+                }
+            }
+
+            if (!athleteId) {
+                alert("İdmançı tapılmadı / yaradılmadı.");
+                return;
+            }
+
+            const mode = registrationMode;
+            if (mode === "subscription") {
+                sessionInfo.textContent = "Qeydiyyat alındı. Abunə planlaması üçün aşağıdakı abunə panelindən istifadə edin.";
+                clearReceptionPersonFields();
+                await loadDashboard();
+                return;
+            }
+
+            // Full paket abunəçi tapılıbsa: xəbərdarlıq etmədən birbaşa sessiyanı başlat.
+            const isFullPackage = Boolean(foundAthlete?.isSubscriber && foundAthlete?.isFullPackage);
+            if (isFullPackage) {
+                // Əvvəl seçilmiş zolaqda cəhd et (boşdursa).
+                let scheduled = false;
+                try {
+                    const tryLaneResp = await apiFetch("/sessions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            athleteId,
+                            laneNumber: Number(laneNumberInput.value),
+                            startTimeUtc: new Date().toISOString(),
+                            durationMinutes: durationValue,
+                            isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked)
+                        })
+                    });
+                    if (tryLaneResp.ok) {
+                        scheduled = true;
+                        sessionInfo.textContent = "Sessiya yaradıldı.";
+                    }
+                } catch { /* ignore */ }
+
+                if (!scheduled) {
+                    const assignResp = await apiFetch("/sessions/full-package/assign", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ athleteId, durationMinutes: durationValue, isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked) })
+                    });
+                    if (!assignResp.ok) {
+                        const message = await readErrorMessage(assignResp);
+                        alert(message);
+                        return;
+                    }
+                    const data = await assignResp.json();
+                    sessionInfo.textContent = `Sessiya yaradıldı. Zolaq ${data?.laneNumber ?? "—"}`;
+                }
+
+                clearReceptionPersonFields();
+                await loadDashboard();
+                return;
+            }
+
+            const sessionResponse = await apiFetch("/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteId,
+                    laneNumber: Number(laneNumberInput.value),
+                    startTimeUtc: new Date().toISOString(),
+                    durationMinutes: durationValue,
+                    isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked)
+                })
+            });
+
+            if (!sessionResponse.ok) {
+                const message = await readErrorMessage(sessionResponse);
+                alert(`Sessiya planlaşdırılmadı. ${message}`);
+                return;
+            }
+
+            const sessionData = await sessionResponse.json();
+            if (sessionData?.message) {
+                showSessionNotice(sessionData.message, "warn");
+            } else {
+                showSessionNotice("Sessiya yaradıldı. Planşet bölməsində zolağı seçib xalı göndərə bilərsiniz.");
+            }
+            if (tabletLaneNumberInput) {
+                tabletLaneNumberInput.value = String(Number(sessionData?.laneNumber ?? laneNumberInput.value));
+            }
+            clearReceptionPersonFields();
+            await loadDashboard();
+        } catch (error) {
+            alert(`Sessiya planlaşdırılmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    function getActiveSessionForLane(laneNumber) {
+        if (!Number.isFinite(laneNumber) || laneNumber <= 0) {
+            return null;
+        }
+
+        const lane = (Array.isArray(latestLanes) ? latestLanes : []).find(x =>
+            x.laneNumber === laneNumber &&
+            x.status === "Active" &&
+            x.sessionId);
+
+        return lane ?? null;
+    }
+
+    function syncTabletScoreContext() {
+        if (!(tabletAthleteNameInput instanceof HTMLInputElement)
+            || !(tabletLaneNumberInput instanceof HTMLSelectElement)
+            || !(tabletSessionIdInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        tabletAthleteNameInput.readOnly = true;
+
+        const selectedLane = Number(tabletLaneNumberInput.value);
+        const active = getActiveSessionForLane(selectedLane);
+        const submitBtn = document.getElementById("submitScoreBtn");
+
+        if (!active?.sessionId) {
+            tabletAthleteNameInput.value = "Zolaq boşdur";
+            tabletSessionIdInput.value = "";
+            if (submitBtn instanceof HTMLButtonElement) {
+                submitBtn.disabled = true;
+                submitBtn.title = "Bu zolaqda aktiv sessiya yoxdur.";
+            }
+            return;
+        }
+
+        tabletSessionIdInput.value = active.sessionId;
+        tabletAthleteNameInput.value = active.athleteName || "—";
+        if (submitBtn instanceof HTMLButtonElement) {
+            submitBtn.disabled = false;
+            submitBtn.title = "";
+        }
+    }
+
+    async function submitScore() {
+        try {
+            syncTabletScoreContext();
+            const sessionId = tabletSessionIdInput instanceof HTMLInputElement
+                ? tabletSessionIdInput.value.trim()
+                : "";
+            if (!sessionId) {
+                alert("Bu zolaqda aktiv sessiya yoxdur. Zolaq seçimini dəyişin.");
+                return;
+            }
+
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber: Number(roundNumberInput.value),
+                    value: Number(scoreValueInput.value)
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Xal göndərilmədi. ${message}`);
+                return;
+            }
+
+            await loadDashboard();
+        } catch (error) {
+            alert(`Xal göndərilmədi. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function submitLaneScore(sessionId, laneNumber, roundNumber, value) {
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber,
+                    value
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Zolaq ${laneNumber}: xal göndərilmədi. ${message}`);
+                return;
+            }
+
+            laneScoreDraft[`session-${sessionId}`] = "";
+            sessionInfo.textContent = `Zolaq ${laneNumber}: xal göndərildi (tur ${roundNumber}).`;
+            await loadDashboard();
+        } catch (error) {
+            alert(`Zolaq ${laneNumber}: xal göndərilmədi. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function stopSession(sessionId) {
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/complete`, {
+                method: "POST"
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Sessiya dayandırılmadı. ${message}`);
+                return;
+            }
+
+            sessionInfo.textContent = `Sessiya dayandırıldı: ${sessionId}`;
+            await loadDashboard();
+            try { await loadEquipmentReturns(); } catch { }
+        } catch (error) {
+            alert(`Sessiya dayandırılmadı. ${getExceptionMessage(error)}`);
+        }
+    }
+
+    async function loadEquipmentReturns() {
+        if (!equipmentReturnsList || !equipmentFabBtn || !equipmentFabBadge) return;
+        try {
+            const res = await apiFetch("/sessions/equipment/pending");
+            if (!res.ok) {
+                equipmentFabBadge.textContent = "—";
+                return;
+            }
+            const data = await res.json();
+            renderEquipmentReturns(data?.pending ?? []);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function renderEquipmentReturns(items) {
+        if (!equipmentReturnsList || !equipmentFabBtn || !equipmentFabBadge) return;
+        const list = Array.isArray(items) ? items : [];
+        equipmentFabBadge.textContent = String(list.length);
+        equipmentReturnsList.innerHTML = "";
+
+        // Auto hide when empty (FAB + panel)
+        if (list.length === 0) {
+            equipmentFabBtn.classList.add("equip-fab--hidden");
+            equipmentFabBtn.classList.remove("equip-fab--ok", "equip-fab--bad", "equip-fab--idle", "equip-fab--pulse");
+            try { closeEquipmentPanel(); } catch { }
+            return;
+        }
+
+        // FAB visible + status color logic
+        equipmentFabBtn.classList.remove("equip-fab--hidden");
+        const hasExpired = list.some(x => x?.color === "red");
+        equipmentFabBtn.classList.remove("equip-fab--ok", "equip-fab--bad", "equip-fab--idle", "equip-fab--pulse");
+        if (hasExpired) {
+            equipmentFabBtn.classList.add("equip-fab--bad", "equip-fab--pulse");
+        } else {
+            equipmentFabBtn.classList.add("equip-fab--ok");
+        }
+
+        for (const item of list) {
+            const row = document.createElement("div");
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.justifyContent = "space-between";
+            row.style.gap = "10px";
+            row.style.padding = "8px 10px";
+            row.style.border = "1px solid rgba(41,55,89,0.18)";
+            row.style.borderRadius = "12px";
+            row.style.background = "rgba(255,255,255,0.9)";
+
+            const left = document.createElement("div");
+            left.style.display = "flex";
+            left.style.alignItems = "center";
+            left.style.gap = "10px";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.className = "equip-select";
+            cb.value = item.sessionId;
+
+            const name = document.createElement("div");
+            name.style.fontWeight = "800";
+            name.textContent = `🏹 ${item.athleteName} (Z${item.laneNumber})`;
+            if (item.color === "yellow") name.style.color = "#b8860b";
+            if (item.color === "red") name.style.color = "#c62828";
+
+            left.appendChild(cb);
+            left.appendChild(name);
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-success btn-sm";
+            btn.textContent = "Təhvil al";
+            btn.addEventListener("click", async () => {
+                await returnEquipment([item.sessionId]);
+            });
+
+            row.appendChild(left);
+            row.appendChild(btn);
+            equipmentReturnsList.appendChild(row);
+        }
+    }
+
+    async function returnEquipment(sessionIds) {
+        const ids = (Array.isArray(sessionIds) ? sessionIds : []).filter(Boolean);
+        if (ids.length === 0) return;
+        try {
+            if (ids.length === 1) {
+                await apiFetch(`/sessions/${encodeURIComponent(ids[0])}/equipment/return`, { method: "POST" });
+            } else {
+                await apiFetch("/sessions/equipment/return-bulk", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sessionIds: ids })
+                });
+            }
+            await loadDashboard();
+            await loadEquipmentReturns();
+        } catch (e) {
+            alert(`Avadanlıq təhvil alınmadı. ${getExceptionMessage(e)}`);
+        }
+    }
+
+    function openEquipmentPanel() {
+        if (!equipmentReturnsPanel) return;
+        equipmentReturnsPanel.classList.add("is-open");
+        equipmentReturnsPanel.setAttribute("aria-hidden", "false");
+    }
+
+    function closeEquipmentPanel() {
+        if (!equipmentReturnsPanel) return;
+        equipmentReturnsPanel.classList.remove("is-open");
+        equipmentReturnsPanel.setAttribute("aria-hidden", "true");
+    }
+
+    function toggleEquipmentPanel() {
+        if (!equipmentReturnsPanel) return;
+        if (equipmentReturnsPanel.classList.contains("is-open")) closeEquipmentPanel();
+        else openEquipmentPanel();
+    }
+
+    async function startSignalR() {
+        if (typeof signalR === "undefined" || !signalR?.HubConnectionBuilder) {
+            connectionBadge.textContent = "Skript yüklənmədi";
+            connectionBadge.className = "status-pill Completed";
+            return;
+        }
+
+        connectionBadge.textContent = "Qoşulur...";
+        connectionBadge.className = "status-pill Scheduled";
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/lane")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.onreconnecting(() => {
+            connectionBadge.textContent = "Yenidən qoşulur...";
+            connectionBadge.className = "status-pill Scheduled";
+        });
+
+        connection.onreconnected(() => {
+            connectionBadge.textContent = "Qoşuldu";
+            connectionBadge.className = "status-pill Active";
+        });
+
+        connection.on("lane-updated", async () => {
+            await loadDashboard();
+            await loadSubscriptionSchedules();
+            try { await loadEquipmentReturns(); } catch { }
+        });
+
+        connection.on("score-updated", async () => {
+            await loadDashboard();
+            await loadSubscriptionSchedules();
+            try { await loadEquipmentReturns(); } catch { }
+        });
+
+        try {
+            const startPromise = connection.start();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("SignalR start timeout (10s)")), 10000));
+            await Promise.race([startPromise, timeoutPromise]);
+            connectionBadge.textContent = "Qoşuldu";
+            connectionBadge.className = "status-pill Active";
+        } catch (err) {
+            connectionBadge.textContent = `Xəta`;
+            connectionBadge.className = "status-pill Completed";
+            console.error(err);
+        }
+    }
+
+    // Init (xətalar 1 funksiyanı dayandırmasın deyə bölünmüşdür)
+    try { startCountdownTicker(); } catch (e) { console.error("Clock error", e); }
+    try { startUpcomingCountdownTicker(); } catch (e) { console.error("Upcoming ticker error", e); }
+
+    // subscriptionStartTime artıq yoxdur (hər gün üçün ayrıca saat var)
+    // Vaxtsız mod ləğv edildi
+    // normalizeSubscriptionTimeInput artıq yoxdur
+
+    try {
+        if (subscriptionStartDateInput instanceof HTMLInputElement) {
+            const today = new Date();
+            subscriptionStartDateInput.value = today.toISOString().slice(0, 10);
+        }
+    } catch (e) { console.error(e); }
+
+    // Reception-da abunəlik həftəlik cədvəli yoxdur (yalnız aşağı paneldə planlanır)
+
+    try { syncRegistrationModeUi(); } catch (e) { console.error(e); }
+
+    try { document.getElementById("scheduleBtn")?.addEventListener("click", registerAndSchedule); } catch (e) { console.error(e); }
+    try { document.getElementById("groupRegisterBtn")?.addEventListener("click", registerGroupOnLane); } catch (e) { console.error(e); }
+    try {
+        groupAthleteNamesInput?.addEventListener("input", autoGrowGroupTextarea);
+        autoGrowGroupTextarea();
+    } catch (e) { console.error(e); }
+    try { document.getElementById("createSubscriptionBtn")?.addEventListener("click", createSubscriptionSchedule); } catch (e) { console.error(e); }
+    try { document.getElementById("submitScoreBtn")?.addEventListener("click", submitScore); } catch (e) { console.error(e); }
+
+    try { cancelSubscriptionBtn?.addEventListener("click", openCancelSubscriptionModal); } catch (e) { console.error(e); }
+    try { updateAthleteBtn?.addEventListener("click", updateAthleteFromReception); } catch (e) { console.error(e); }
+    try { infoBtn?.addEventListener("click", openInfoModal); } catch (e) { console.error(e); }
+    try { infoCloseBtn?.addEventListener("click", closeInfoModal); } catch (e) { console.error(e); }
+    try {
+        infoModal?.addEventListener("click", e => {
+            if (e.target === infoModal) closeInfoModal();
+        });
+    } catch (e) { console.error(e); }
+    try { infoShowBtn?.addEventListener("click", infoShow); } catch (e) { console.error(e); }
+    try {
+        [infoPhone, infoEmail, infoIdCard].forEach(el => {
+            if (!(el instanceof HTMLElement)) return;
+            el.addEventListener("keydown", ev => {
+                if (ev.key === "Enter") {
+                    ev.preventDefault();
+                    infoShow();
+                }
+                if (ev.key === "Escape") {
+                    ev.preventDefault();
+                    closeInfoModal();
+                }
+            });
+        });
+    } catch (e) { console.error(e); }
+    try { equipmentFabBtn?.addEventListener("click", toggleEquipmentPanel); } catch (e) { console.error(e); }
+    try { equipmentPanelCloseBtn?.addEventListener("click", closeEquipmentPanel); } catch (e) { console.error(e); }
+    try {
+        equipmentReturnSelectedBtn?.addEventListener("click", async () => {
+            const checked = Array.from(document.querySelectorAll(".equip-select"))
+                .filter(x => x instanceof HTMLInputElement && x.checked)
+                .map(x => x.value)
+                .filter(Boolean);
+            await returnEquipment(checked);
+        });
+    } catch (e) { console.error(e); }
+    try {
+        equipmentReturnAllBtn?.addEventListener("click", async () => {
+            const all = Array.from(document.querySelectorAll(".equip-select"))
+                .filter(x => x instanceof HTMLInputElement)
+                .map(x => x.value)
+                .filter(Boolean);
+            await returnEquipment(all);
+        });
+    } catch (e) { console.error(e); }
+    try { cancelSubscriptionCloseBtn?.addEventListener("click", closeCancelSubscriptionModal); } catch (e) { console.error(e); }
+    try { cancelSubscriptionSearch?.addEventListener("input", renderCancelSubscriptionList); } catch (e) { console.error(e); }
+    try {
+        cancelSubscriptionModal?.addEventListener("click", e => {
+            if (e.target === cancelSubscriptionModal) closeCancelSubscriptionModal();
+        });
+    } catch (e) { console.error(e); }
+    try {
+        cancelSubscriptionList?.addEventListener("click", e => {
+            const t = e.target;
+            const btn = t instanceof HTMLElement ? t.closest("[data-cancel-athlete]") : null;
+            if (!(btn instanceof HTMLElement)) return;
+            const id = btn.getAttribute("data-cancel-athlete");
+            if (!id) return;
+            cancelSubscription(id);
+        });
+    } catch (e) { console.error(e); }
+
+    // Vaxtsız mod ləğv edildi
+    try { tabletLaneNumberInput?.addEventListener("change", syncTabletScoreContext); } catch (e) { console.error(e); }
+    try { categoryInput?.addEventListener("change", refreshLaneOptions); } catch (e) { console.error(e); }
+    try { subscriptionIsFullPackageInput?.addEventListener("change", syncFullPackageUi); } catch (e) { console.error(e); }
+    try {
+        const daysRoot = document.getElementById("subscriptionDays");
+        daysRoot?.addEventListener("change", () => { renderSubscriptionLaneTypesByDay(); syncMonthlySplitInfo(); });
+        categoryInput?.addEventListener("change", () => { renderSubscriptionLaneTypesByDay(); syncMonthlySplitInfo(); });
+        subscriptionDurationMinutesInput?.addEventListener("input", () => { syncMonthlySplitInfo(); });
+        const refreshAllAvail = () => {
+            if (!(subscriptionLaneTypesByDayEl instanceof HTMLElement)) return;
+            subscriptionLaneTypesByDayEl.querySelectorAll("select.sub-day-lane").forEach(sel => {
+                if (sel instanceof HTMLSelectElement) refreshLaneAvailabilityForSubscriptionRow(sel);
+            });
+        };
+        subscriptionStartDateInput?.addEventListener("change", refreshAllAvail);
+        subscriptionEndDateInput?.addEventListener("change", refreshAllAvail);
+        renderSubscriptionLaneTypesByDay();
+        syncMonthlySplitInfo();
+    } catch (e) { console.error(e); }
+    // Gün seçimi UI yoxdur — cari gün avtomatik göstərilir
+    try { registrationModeInput?.addEventListener("change", syncRegistrationModeUi); } catch (e) { console.error(e); }
+    try {
+        firstNameInput?.addEventListener("input", syncSubscriptionAthleteNameFromReception);
+        lastNameInput?.addEventListener("input", syncSubscriptionAthleteNameFromReception);
+        syncSubscriptionAthleteNameFromReception();
+    } catch (e) { console.error(e); }
+
+    // Reception autofill by phone/email/id
+    try {
+        const debouncedLookup = debounce(() => { tryAutofillReceptionFromLookup(); }, 250);
+        phoneNumberInput?.addEventListener("input", () => {
+            if (!(phoneNumberInput instanceof HTMLInputElement)) return;
+            if (isAutoFillingReception) return;
+            const normalized = normalizeDigits(phoneNumberInput.value);
+            if (phoneNumberInput.value !== normalized) {
+                const pos = phoneNumberInput.selectionStart;
+                phoneNumberInput.value = normalized;
+                if (typeof pos === "number") phoneNumberInput.setSelectionRange(pos - 1, pos - 1);
+            }
+            debouncedLookup();
+        });
+        phoneNumberInput?.addEventListener("blur", () => { if (!isAutoFillingReception) debouncedLookup(); });
+        emailInput?.addEventListener("input", () => {
+            if (!(emailInput instanceof HTMLInputElement)) return;
+            if (isAutoFillingReception) return;
+            const trimmed = emailInput.value.trim().toLowerCase();
+            if (emailInput.value !== trimmed) emailInput.value = trimmed;
+            debouncedLookup();
+        });
+        emailInput?.addEventListener("blur", () => { if (!isAutoFillingReception) debouncedLookup(); });
+        idCardNumberInput?.addEventListener("input", () => { if (!isAutoFillingReception) debouncedLookup(); });
+        idCardNumberInput?.addEventListener("blur", () => { if (!isAutoFillingReception) debouncedLookup(); });
+    } catch (e) { console.error(e); }
+    // Reception-da abunəlik həftəlik cədvəl listener-ləri yoxdur
+    try {
+        laneNumberInput?.addEventListener("change", () => {
+            if (!(laneNumberInput instanceof HTMLSelectElement)) return;
+            const opt = laneNumberInput.selectedOptions.length ? laneNumberInput.selectedOptions[0] : null;
+            if (opt?.disabled) {
+                alert("Bu kateqoriya üçün bu zolağı seçmək olmaz (və ya zolaq hazır deyil).");
+                if (lastValidLaneNumber) {
+                    laneNumberInput.value = lastValidLaneNumber;
+                } else {
+                    refreshLaneOptions();
+                }
+                return;
+            }
+            lastValidLaneNumber = laneNumberInput.value;
+        });
+    } catch (e) { console.error(e); }
+
+    try { syncFullPackageUi(); } catch (e) { console.error(e); }
+    try { loadDashboard(); } catch (e) { console.error("loadDashboard error", e); }
+    try { loadSubscriptionSchedules(); } catch (e) { console.error("loadSubscriptionSchedules error", e); }
+    try { loadEquipmentReturns(); } catch (e) { console.error("loadEquipmentReturns error", e); }
+    try { startSignalR(); } catch (e) { console.error("startSignalR error", e); }
+</script>
+</body>
+</html>

@@ -1,0 +1,667 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>EShooting — Planşet</title>
+    <style>
+        :root {
+            /* Daha işıqlı, admin panelə yaxın boz/mavi ton */
+            --bg: #eef2fb;
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-2: rgba(248, 250, 255, 0.96);
+            --text: #18223a;
+            --muted: #55638a;
+            --border: rgba(41, 55, 89, 0.18);
+            --primary: #4f7cff;
+            --danger: #eb5757;
+            --ok: #1bbf7a;
+            --shadow: 0 10px 30px rgba(13, 24, 48, 0.10);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at top, #dce6ff 0, var(--bg) 58%);
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .screen {
+            height: 100vh;
+            padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+                     max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 12px;
+        }
+
+        .top {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .top-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .label {
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        select, input {
+            width: 100%;
+            min-height: 46px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--text);
+            font-size: 16px;
+            font-weight: 700;
+            outline: none;
+        }
+
+        input[readonly] {
+            opacity: 0.95;
+        }
+
+        .status {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 7px 10px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.75);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .pill.ok { color: #0f7a54; background: rgba(27, 191, 122, 0.10); }
+        .pill.bad { color: #9a6100; background: rgba(246, 183, 60, 0.12); }
+        .pill.spin::before {
+            content: "";
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            border: 2px solid rgba(79, 124, 255, 0.25);
+            border-top-color: rgba(79, 124, 255, 0.95);
+            display: inline-block;
+            animation: tspin 0.9s linear infinite;
+        }
+
+        @@keyframes tspin {
+            to { transform: rotate(360deg); }
+        }
+
+        .center {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 12px;
+            padding: 12px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            min-height: 0;
+        }
+
+        .score-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .keypad {
+            display: grid;
+            width: 100%;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            align-content: center;
+            justify-content: stretch;
+            min-height: 0;
+        }
+
+        .key {
+            min-height: 68px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(79, 124, 255, 0.10), rgba(248, 250, 255, 0.96));
+            color: var(--text);
+            font-size: clamp(22px, 3.2vw, 30px);
+            font-weight: 900;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            box-shadow: 0 6px 16px rgba(13, 24, 48, 0.08);
+        }
+
+        .key:active { transform: translateY(1px); filter: brightness(1.03); }
+        .key[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+        .key.key-wide { grid-column: span 2; }
+
+        .score-input-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .clear-btn {
+            min-width: 64px;
+            min-height: 46px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(79, 124, 255, 0.08);
+            color: var(--muted);
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .clear-btn:active { transform: translateY(1px); }
+        .clear-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .btn {
+            min-height: 66px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            font-size: 20px;
+            font-weight: 900;
+            cursor: pointer;
+            touch-action: manipulation;
+            color: var(--text);
+            box-shadow: 0 10px 22px rgba(13, 24, 48, 0.10);
+        }
+
+        .btn:active { transform: translateY(1px); }
+        .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-add {
+            border-color: rgba(62, 232, 168, 0.45);
+            background: linear-gradient(90deg, rgba(27, 191, 122, 0.20), rgba(248, 250, 255, 0.96));
+            color: #0f7a54;
+        }
+
+        .btn-undo {
+            border-color: rgba(255, 77, 77, 0.45);
+            background: linear-gradient(90deg, rgba(235, 87, 87, 0.18), rgba(248, 250, 255, 0.96));
+            color: #a72727;
+        }
+
+        .bottom {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            padding-bottom: max(0px, env(safe-area-inset-bottom));
+        }
+
+        .bottom-note {
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: max(12px, env(safe-area-inset-bottom));
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            border-radius: 999px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-weight: 800;
+            font-size: 13px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-2px);
+        }
+
+        .toast.ok { border-color: rgba(27, 191, 122, 0.35); }
+        .toast.bad { border-color: rgba(235, 87, 87, 0.35); }
+    </style>
+</head>
+<body>
+<main class="screen">
+    <section class="top">
+        <div class="top-row">
+            <div class="field">
+                <div class="label">Zolaq</div>
+                <select id="tabletLaneNumber">
+                    @for (var i = 1; i <= 11; i++)
+                    {
+                        <option value="@i">Zolaq @i</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <div class="label">İdmançı (aktiv)</div>
+                <input id="tabletAthleteName" readonly value="Yüklənir..." />
+            </div>
+        </div>
+        <div class="status">
+            <span class="pill" id="lanePill">Sessiya: Yüklənir…</span>
+            <span class="pill" id="connectionPill">Qoşulur…</span>
+        </div>
+    </section>
+
+    <section class="center">
+        <div class="score-row">
+            <div class="field">
+                <div class="label">Xal</div>
+                <div class="score-input-row">
+                    <input id="scoreValue" type="text" inputmode="numeric" autocomplete="off" placeholder="0" />
+                    <button class="clear-btn" id="clearBtn" type="button" title="Təmizlə">C</button>
+                </div>
+                <div class="hint">Rəqəmləri yığın, sonra “Əlavə et” ilə təsdiqləyin.</div>
+            </div>
+        </div>
+
+        <div class="keypad" id="keypad"></div>
+    </section>
+
+    <section class="bottom">
+        <div class="actions">
+            <button class="btn btn-add" id="addBtn" disabled>Əlavə et</button>
+            <button class="btn btn-undo" id="subBtn" disabled>Ləğv et</button>
+        </div>
+            <div class="bottom-note">Ləğv et: yığılmış rəqəmi cəmidən çıxır (0-dan aşağı düşmür).</div>
+    </section>
+
+    <input id="tabletSessionId" type="hidden" value="" />
+    <input id="roundNumber" type="hidden" value="1" />
+</main>
+<div class="toast" id="toast">—</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    const tabletLaneNumberInput = document.getElementById("tabletLaneNumber");
+    const tabletAthleteNameInput = document.getElementById("tabletAthleteName");
+    const tabletSessionIdInput = document.getElementById("tabletSessionId");
+    const scoreValueInput = document.getElementById("scoreValue");
+    const roundNumberInput = document.getElementById("roundNumber");
+    const clearBtn = document.getElementById("clearBtn");
+    const addBtn = document.getElementById("addBtn");
+    const subBtn = document.getElementById("subBtn");
+    const lanePill = document.getElementById("lanePill");
+    const connectionPill = document.getElementById("connectionPill");
+    const keypadRoot = document.getElementById("keypad");
+    const toastEl = document.getElementById("toast");
+
+    let latestLanes = [];
+    let isSubmitting = false;
+    let toastTimerId = null;
+    let activeLaneCache = null;
+
+    async function apiFetch(input, init = {}) {
+        const response = await fetch(input, { ...init, credentials: "same-origin" });
+        if (response.status === 401) {
+            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+            throw new Error("İcazə yoxdur");
+        }
+        return response;
+    }
+
+    async function readErrorMessage(response) {
+        const raw = await response.text();
+        if (!raw) return "Naməlum xəta";
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed?.error ?? parsed?.title ?? raw;
+        } catch {
+            return raw;
+        }
+    }
+
+    function getActiveSessionForLane(laneNumber) {
+        const lane = (Array.isArray(latestLanes) ? latestLanes : []).find(x =>
+            x.laneNumber === laneNumber &&
+            x.status === "Active" &&
+            x.sessionId);
+        return lane ?? null;
+    }
+
+    function syncTabletContext() {
+        if (!(tabletLaneNumberInput instanceof HTMLSelectElement)
+            || !(tabletAthleteNameInput instanceof HTMLInputElement)
+            || !(tabletSessionIdInput instanceof HTMLInputElement)
+            || !(subBtn instanceof HTMLButtonElement)
+            || !(lanePill instanceof HTMLElement)) {
+            return;
+        }
+
+        const selectedLane = Number(tabletLaneNumberInput.value);
+        const active = getActiveSessionForLane(selectedLane);
+        activeLaneCache = active;
+
+        if (!active?.sessionId) {
+            tabletAthleteNameInput.value = "Zolaq boşdur";
+            tabletSessionIdInput.value = "";
+            if (roundNumberInput instanceof HTMLInputElement) roundNumberInput.value = "1";
+            lanePill.textContent = "Sessiya: yoxdur";
+            lanePill.className = "pill bad";
+            subBtn.disabled = true;
+            if (addBtn instanceof HTMLButtonElement) addBtn.disabled = true;
+            setKeypadEnabled(false);
+            return;
+        }
+
+        tabletAthleteNameInput.value = active.athleteName || "—";
+        tabletSessionIdInput.value = active.sessionId;
+        if (roundNumberInput instanceof HTMLInputElement) {
+            const nextRound = Number(active.scoreCount ?? 0) + 1;
+            roundNumberInput.value = String(nextRound);
+        }
+        lanePill.textContent = `Sessiya: aktiv (cəmi xal: ${active.totalScore ?? 0})`;
+        lanePill.className = "pill ok";
+        subBtn.disabled = false;
+        if (addBtn instanceof HTMLButtonElement) addBtn.disabled = false;
+        setKeypadEnabled(true);
+    }
+
+    function setKeypadEnabled(enabled) {
+        const canInteract = enabled && !isSubmitting;
+
+        keypadRoot?.querySelectorAll("button.key").forEach(btn => {
+            btn.disabled = !canInteract;
+        });
+
+        if (clearBtn instanceof HTMLButtonElement) {
+            clearBtn.disabled = !canInteract;
+        }
+
+        // add/undo düymələri sessiya olub-olmamasına görə syncTabletContext() ilə idarə olunur.
+        // Burada yalnız "submitting" zamanı müvəqqəti kilidləyirik (disabled state ilişib qalmasın).
+        if (addBtn instanceof HTMLButtonElement) {
+            addBtn.disabled = addBtn.disabled || !canInteract;
+        }
+        if (subBtn instanceof HTMLButtonElement) {
+            subBtn.disabled = subBtn.disabled || !canInteract;
+        }
+    }
+
+    function showToast(message, kind = "ok") {
+        if (!(toastEl instanceof HTMLElement)) return;
+        toastEl.textContent = message;
+        toastEl.className = `toast ${kind} show`;
+        if (toastTimerId) {
+            clearTimeout(toastTimerId);
+        }
+        toastTimerId = setTimeout(() => {
+            toastEl.className = "toast";
+        }, 1400);
+    }
+
+    async function loadDashboard() {
+        const response = await apiFetch("/dashboard/lanes");
+        if (!response.ok) return;
+        const lanes = await response.json();
+        latestLanes = Array.isArray(lanes) ? lanes : [];
+        syncTabletContext();
+    }
+
+    function normalizeScoreDraft(raw) {
+        const digitsOnly = String(raw ?? "").replaceAll(/[^\d]/g, "");
+        const trimmed = digitsOnly.replace(/^0+(?=\d)/g, "");
+        if (trimmed.length === 0) return "";
+        return trimmed.slice(0, 3); // 0..999
+    }
+
+    function setScoreDraft(raw) {
+        if (!(scoreValueInput instanceof HTMLInputElement)) return;
+        scoreValueInput.value = normalizeScoreDraft(raw);
+    }
+
+    function appendDigit(digit) {
+        if (!(scoreValueInput instanceof HTMLInputElement)) return;
+        const next = normalizeScoreDraft(scoreValueInput.value + String(digit));
+        scoreValueInput.value = next;
+    }
+
+    async function submitScoreDraft() {
+        if (isSubmitting) return;
+
+        const sessionId = tabletSessionIdInput instanceof HTMLInputElement ? tabletSessionIdInput.value.trim() : "";
+        if (!sessionId) {
+            syncTabletContext();
+            return;
+        }
+
+        const draft = scoreValueInput instanceof HTMLInputElement ? normalizeScoreDraft(scoreValueInput.value) : "";
+        if (!draft) {
+            alert("Xalı daxil edin.");
+            return;
+        }
+
+        const value = Number(draft);
+        if (!Number.isFinite(value) || value < 0 || value > 999) {
+            alert("Xal 0–999 aralığında olmalıdır.");
+            return;
+        }
+
+        const round = roundNumberInput instanceof HTMLInputElement ? Number(roundNumberInput.value) : 1;
+        const roundSafe = Number.isFinite(round) && round > 0 ? round : 1;
+
+        isSubmitting = true;
+        if (lanePill instanceof HTMLElement) {
+            lanePill.textContent = "Göndərilir…";
+            lanePill.className = "pill spin";
+        }
+        setKeypadEnabled(true);
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber: roundSafe,
+                    value
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Xal göndərilmədi. ${message}`);
+                return;
+            }
+
+            setScoreDraft("");
+            if (scoreValueInput instanceof HTMLInputElement) {
+                scoreValueInput.focus();
+            }
+            await loadDashboard();
+            showToast("Xal əlavə olundu", "ok");
+        } finally {
+            isSubmitting = false;
+            syncTabletContext();
+            setKeypadEnabled(true);
+        }
+    }
+
+    async function subtractScoreDraft() {
+        if (isSubmitting) return;
+        const sessionId = tabletSessionIdInput instanceof HTMLInputElement ? tabletSessionIdInput.value.trim() : "";
+        if (!sessionId) {
+            syncTabletContext();
+            return;
+        }
+
+        const draft = scoreValueInput instanceof HTMLInputElement ? normalizeScoreDraft(scoreValueInput.value) : "";
+        if (!draft) {
+            alert("Çıxılacaq xalı daxil edin.");
+            return;
+        }
+
+        const subtractWanted = Number(draft);
+        if (!Number.isFinite(subtractWanted) || subtractWanted <= 0 || subtractWanted > 999) {
+            alert("Xal 1–999 aralığında olmalıdır.");
+            return;
+        }
+
+        const currentTotal = Number(activeLaneCache?.totalScore ?? 0);
+        const effectiveSubtract = Math.max(0, Math.min(subtractWanted, Number.isFinite(currentTotal) ? currentTotal : 0));
+        const negativeValue = -effectiveSubtract;
+
+        // If total is already 0, nothing to subtract.
+        if (negativeValue === 0) {
+            setScoreDraft("");
+            if (scoreValueInput instanceof HTMLInputElement) scoreValueInput.focus();
+            showToast("Cəmi xal artıq 0-dır", "bad");
+            return;
+        }
+
+        const round = roundNumberInput instanceof HTMLInputElement ? Number(roundNumberInput.value) : 1;
+        const roundSafe = Number.isFinite(round) && round > 0 ? round : 1;
+
+        isSubmitting = true;
+        if (lanePill instanceof HTMLElement) {
+            lanePill.textContent = "Çıxılır…";
+            lanePill.className = "pill spin";
+        }
+        setKeypadEnabled(true);
+        try {
+            const response = await apiFetch(`/sessions/${sessionId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    roundNumber: roundSafe,
+                    value: negativeValue
+                })
+            });
+
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                alert(`Xal çıxılmadı. ${message}`);
+                return;
+            }
+
+            setScoreDraft("");
+            if (scoreValueInput instanceof HTMLInputElement) scoreValueInput.focus();
+            await loadDashboard();
+            showToast("Xal çıxıldı", "ok");
+        } finally {
+            isSubmitting = false;
+            syncTabletContext();
+            setKeypadEnabled(true);
+        }
+    }
+
+    function buildKeypad() {
+        if (!(keypadRoot instanceof HTMLElement)) return;
+        const values = [1,2,3,4,5,6,7,8,9,0];
+        keypadRoot.innerHTML = values.map(v => {
+            const extra = v === 0 ? " key-wide" : "";
+            const label = v === 0 ? "0" : String(v);
+            return `<button class="key${extra}" data-value="${v}" type="button">${label}</button>`;
+        }).join("");
+
+        keypadRoot.querySelectorAll("button.key").forEach(btn => {
+            btn.addEventListener("click", async e => {
+                const t = e.currentTarget;
+                if (!(t instanceof HTMLButtonElement)) return;
+                const v = Number(t.dataset.value);
+                appendDigit(v);
+            });
+        });
+    }
+
+    async function startSignalR() {
+        if (!(connectionPill instanceof HTMLElement)) return;
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/lane")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.onreconnecting(() => {
+            connectionPill.textContent = "Yenidən qoşulur…";
+            connectionPill.className = "pill bad";
+        });
+
+        connection.onreconnected(() => {
+            connectionPill.textContent = "Qoşuldu";
+            connectionPill.className = "pill ok";
+        });
+
+        connection.on("lane-updated", loadDashboard);
+        connection.on("score-updated", loadDashboard);
+
+        await connection.start();
+        connectionPill.textContent = "Qoşuldu";
+        connectionPill.className = "pill ok";
+    }
+
+    tabletLaneNumberInput?.addEventListener("change", syncTabletContext);
+    scoreValueInput?.addEventListener("input", () => {
+        if (scoreValueInput instanceof HTMLInputElement) {
+            scoreValueInput.value = normalizeScoreDraft(scoreValueInput.value);
+        }
+    });
+    clearBtn?.addEventListener("click", () => setScoreDraft(""));
+    addBtn?.addEventListener("click", submitScoreDraft);
+    subBtn?.addEventListener("click", subtractScoreDraft);
+
+    buildKeypad();
+    loadDashboard();
+    startSignalR();
+</script>
+</body>
+</html>
+

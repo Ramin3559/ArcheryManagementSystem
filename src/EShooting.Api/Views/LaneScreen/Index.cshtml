@@ -1,0 +1,446 @@
+@model int
+@{
+    Layout = null;
+    var laneNumber = Model;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EShooting — Zolaq @laneNumber (TV)</title>
+    <style>
+        :root {
+            --bg: #0b1220;
+            --panel-soft: #17213a;
+            --text: #e8ecf7;
+            --text-muted: #9ba7c7;
+            --border: #293759;
+        }
+
+        * { box-sizing: border-box; }
+
+        body.lane-tv-body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            background: radial-gradient(circle at top, #15244a 0, #0b1220 55%);
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        .lane-tv-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .lane-tv-top .header-clock {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            padding: 8px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(17, 26, 46, 0.85);
+        }
+
+        .lane-tv-top .header-clock__label {
+            font-size: clamp(10px, 1.2vw, 12px);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .lane-tv-top .header-clock__value {
+            font-size: clamp(1.1rem, 2.8vw, 1.75rem);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #f0f4ff;
+        }
+
+        .lane-tv-top h1 {
+            margin: 0;
+            font-size: clamp(1rem, 2.5vw, 1.75rem);
+            font-weight: 700;
+        }
+
+        .lane-tv-wrap {
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding: clamp(8px, 2vw, 24px);
+            min-height: calc(100vh - 70px);
+        }
+
+        .lane-tv-inner {
+            width: 100%;
+            max-width: min(1400px, 96vw);
+        }
+
+        /* TV: yalnız nümayiş — xal daxiletmə və sessiya seçimi gizlədilir */
+        .lane-tv-body .lane-actions,
+        .lane-tv-body .pick-session {
+            display: none !important;
+        }
+
+        .status-pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: clamp(12px, 1.5vw, 18px);
+            font-weight: 600;
+            background: #2a3657;
+            color: #b8c8ef;
+        }
+
+        .status-pill.Active {
+            background: rgba(27, 191, 122, 0.2);
+            color: #8bf0c7;
+        }
+
+        .status-pill.Completed {
+            background: rgba(79, 124, 255, 0.25);
+            color: #a6beff;
+        }
+
+        .status-pill.Scheduled {
+            background: rgba(246, 183, 60, 0.2);
+            color: #ffd98d;
+        }
+
+        .status-pill.Idle {
+            background: #2a3657;
+            color: #b8c8ef;
+        }
+
+        .lane-card {
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            border-radius: clamp(12px, 2vw, 20px);
+            padding: clamp(16px, 3vw, 36px);
+            font-size: clamp(16px, 2.2vw, 28px);
+        }
+
+        .lane-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: clamp(8px, 1.5vw, 16px);
+            gap: 12px;
+        }
+
+        .lane-title {
+            margin: 0;
+            font-size: clamp(1.25rem, 4vw, 3rem);
+            font-weight: 800;
+        }
+
+        .lane-type {
+            font-size: clamp(12px, 1.8vw, 22px);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .lane-meta {
+            margin: clamp(6px, 1vw, 12px) 0;
+            color: var(--text-muted);
+            font-size: clamp(14px, 2vw, 26px);
+        }
+
+        .score {
+            margin-top: clamp(12px, 2vw, 24px);
+            font-weight: 800;
+            font-size: clamp(1.5rem, 5vw, 4rem);
+        }
+
+        .lane-meta--compact {
+            font-size: clamp(12px, 1.6vw, 18px);
+            line-height: 1.35;
+        }
+
+        .lane-tv-body .countdown-ring-wrap {
+            --ring-track: rgba(255, 255, 255, 0.1);
+            --ring-accent: #3ee8a8;
+            --ring-glow: rgba(62, 232, 168, 0.4);
+            position: relative;
+            width: min(280px, 52vw);
+            height: min(280px, 52vw);
+            margin: clamp(12px, 2vw, 28px) auto;
+        }
+
+        .lane-tv-body .countdown-ring__svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 0 16px var(--ring-glow));
+        }
+
+        .lane-tv-body .countdown-ring__track {
+            fill: none;
+            stroke: var(--ring-track);
+            stroke-width: 6;
+        }
+
+        .lane-tv-body .countdown-ring__progress {
+            fill: none;
+            stroke: var(--ring-accent);
+            stroke-width: 6;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease;
+        }
+
+        .lane-tv-body .countdown-ring__center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 12px;
+            pointer-events: none;
+        }
+
+        .lane-tv-body .countdown-ring__timer {
+            font-size: clamp(2rem, 8vw, 4.5rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            color: #f5f8ff;
+        }
+
+        .lane-tv-body .countdown-ring__caption {
+            margin-top: clamp(8px, 1.5vw, 14px);
+            font-size: clamp(12px, 2vw, 22px);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-pending {
+            --ring-accent: #f6b73c;
+            --ring-glow: rgba(246, 183, 60, 0.5);
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-live.is-warn:not(.is-critical) {
+            --ring-accent: #ffb020;
+            --ring-glow: rgba(255, 176, 32, 0.5);
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-live.is-critical {
+            --ring-accent: #ff4d4d;
+            --ring-glow: rgba(255, 77, 77, 0.6);
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer {
+            color: #ffc9c9;
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-live.is-critical .countdown-ring__svg {
+            animation: lane-tv-ring-pulse 0.95s ease-in-out infinite;
+        }
+
+        @@keyframes lane-tv-ring-pulse {
+            0%, 100% { filter: drop-shadow(0 0 10px var(--ring-glow)); }
+            50% { filter: drop-shadow(0 0 28px rgba(255, 90, 90, 0.85)); }
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-done,
+        .lane-tv-body .countdown-ring-wrap.is-idle {
+            --ring-accent: rgba(130, 142, 180, 0.55);
+            --ring-glow: transparent;
+        }
+
+        .warn {
+            margin-top: clamp(8px, 1.2vw, 16px);
+            font-size: clamp(14px, 2vw, 26px);
+        }
+
+        .warn.ok { color: #8bf0c7; }
+        .warn.alert { color: #ffd98d; }
+        .warn.danger { color: #ff9a9a; }
+    </style>
+</head>
+<body class="lane-tv-body">
+    <header class="lane-tv-top">
+        <h1>Zolaq @laneNumber — canlı ekran</h1>
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-left:auto;">
+            <div class="header-clock" title="Brauzerin yerli vaxtı">
+                <span class="header-clock__label">Canlı saat</span>
+                <span class="header-clock__value" id="wallClock">--:--:--</span>
+            </div>
+            <span class="status-pill" id="connectionBadge">SignalR: Qoşulur...</span>
+        </div>
+    </header>
+    <div class="lane-tv-wrap">
+        <div class="lane-tv-inner" id="laneRoot"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+    <script>
+        const laneNumber = @laneNumber;
+
+        function parseApiDate(value) {
+            if (!value) return new Date(0);
+            const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
+            return new Date(needsUtcSuffix ? `${value}Z` : value);
+        }
+
+        function formatSeconds(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            if (hours > 0) {
+                return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+            }
+            return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        }
+
+        const COUNTDOWN_WARN_SEC = 60;
+        const COUNTDOWN_CRIT_SEC = 10;
+
+        function applyRingRemaining(circle, fractionRemaining) {
+            const f = Math.max(0, Math.min(1, fractionRemaining));
+            const r = circle instanceof SVGCircleElement ? circle.r.baseVal.value : 42;
+            const len = 2 * Math.PI * r;
+            circle.style.strokeDasharray = String(len);
+            circle.style.strokeDashoffset = String(len * (1 - f));
+        }
+
+        function updateCountdownRings() {
+            document.querySelectorAll("[data-countdown-ring]").forEach(el => {
+                if (!(el instanceof HTMLElement)) return;
+                const start = el.dataset.start ?? "";
+                const end = el.dataset.end ?? "";
+                const status = el.dataset.status ?? "";
+                const timerEl = el.querySelector("[data-role=\"timer\"]");
+                const captionEl = el.querySelector("[data-role=\"caption\"]");
+                const progressEl = el.querySelector(".countdown-ring__progress");
+                if (!timerEl || !(progressEl instanceof SVGGraphicsElement)) return;
+
+                el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle");
+
+                if (!start || !end) {
+                    el.classList.add("is-idle");
+                    timerEl.textContent = "—";
+                    if (captionEl) captionEl.textContent = "Boş";
+                    applyRingRemaining(progressEl, 0);
+                    return;
+                }
+
+                const startMs = parseApiDate(start).getTime();
+                const endMs = parseApiDate(end).getTime();
+                const nowMs = Date.now();
+                const totalMs = endMs - startMs;
+
+                if (status === "Completed") {
+                    el.classList.add("is-done");
+                    timerEl.textContent = "Bitib";
+                    if (captionEl) captionEl.textContent = "Sessiya";
+                    applyRingRemaining(progressEl, 0);
+                    return;
+                }
+
+                if (nowMs < startMs) {
+                    el.classList.add("is-pending");
+                    timerEl.textContent = formatSeconds(startMs - nowMs);
+                    if (captionEl) captionEl.textContent = "Başlayır";
+                    applyRingRemaining(progressEl, 1);
+                    return;
+                }
+
+                if (nowMs >= endMs) {
+                    el.classList.add("is-done");
+                    timerEl.textContent = "00:00";
+                    if (captionEl) captionEl.textContent = "Vaxt bitib";
+                    applyRingRemaining(progressEl, 0);
+                    return;
+                }
+
+                const remainingMs = endMs - nowMs;
+                const remainingSec = Math.floor(remainingMs / 1000);
+                const frac = totalMs > 0 ? remainingMs / totalMs : 0;
+                el.classList.add("is-live");
+                if (remainingSec <= COUNTDOWN_CRIT_SEC) el.classList.add("is-critical");
+                else if (remainingSec <= COUNTDOWN_WARN_SEC) el.classList.add("is-warn");
+
+                timerEl.textContent = formatSeconds(remainingMs);
+                if (captionEl) captionEl.textContent = "Qalan vaxt";
+                applyRingRemaining(progressEl, frac);
+            });
+        }
+
+        async function apiFetch(input, init = {}) {
+            const response = await fetch(input, { ...init, credentials: "same-origin" });
+            if (response.status === 401) {
+                window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+                throw new Error("İcazə yoxdur");
+            }
+            return response;
+        }
+
+        async function loadLane() {
+            const res = await apiFetch(`/dashboard/lanes/partial/card/${laneNumber}`);
+            if (!res.ok) return;
+            const root = document.getElementById("laneRoot");
+            root.innerHTML = await res.text();
+            updateCountdownRings();
+        }
+
+        let tickerId = null;
+        function startTicker() {
+            if (tickerId) clearInterval(tickerId);
+            const tick = () => {
+                const wall = document.getElementById("wallClock");
+                if (wall) {
+                    wall.textContent = new Date().toLocaleTimeString("az-AZ", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit"
+                    });
+                }
+                updateCountdownRings();
+            };
+            tick();
+            tickerId = setInterval(tick, 250);
+        }
+
+        async function startSignalR() {
+            const connectionBadge = document.getElementById("connectionBadge");
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/hubs/lane")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.onreconnecting(() => {
+                connectionBadge.textContent = "SignalR: Yenidən qoşulur...";
+                connectionBadge.className = "status-pill Scheduled";
+            });
+
+            connection.onreconnected(() => {
+                connectionBadge.textContent = "SignalR: Qoşuldu";
+                connectionBadge.className = "status-pill Active";
+            });
+
+            connection.on("lane-updated", loadLane);
+            connection.on("score-updated", loadLane);
+
+            await connection.start();
+            connectionBadge.textContent = "SignalR: Qoşuldu";
+            connectionBadge.className = "status-pill Active";
+        }
+
+        loadLane();
+        startTicker();
+        startSignalR();
+    </script>
+</body>
+</html>

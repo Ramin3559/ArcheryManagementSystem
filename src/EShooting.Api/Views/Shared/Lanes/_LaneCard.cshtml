@@ -1,0 +1,63 @@
+@using EShooting.Web.Helpers
+@model EShooting.Application.Common.Models.LaneDashboardItem
+<article class="lane-card">
+    <div class="lane-head">
+        <h3 class="lane-title">Zolaq @Model.LaneNumber</h3>
+        @{
+            var st = Model.Status ?? "Idle";
+        }
+        <span class="status-pill @st">@LaneDisplayHelper.TranslateStatus(Model.Status)</span>
+    </div>
+    <div class="lane-type">@LaneDisplayHelper.TranslateLaneType(Model.LaneType)</div>
+    <div class="lane-meta">İdmançı: @(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)</div>
+    @if (Model.QueueAthleteNames.Count > 0)
+    {
+        <div class="lane-meta lane-meta--compact">Növbə: @string.Join(", ", Model.QueueAthleteNames)</div>
+    }
+    <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc)</div>
+
+    <div class="countdown-ring-wrap"
+         data-countdown-ring
+         data-start="@(Model.StartTimeUtc?.ToString("O") ?? "")"
+         data-end="@(Model.EndTimeUtc?.ToString("O") ?? "")"
+         data-status="@st">
+        <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
+            <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
+        </svg>
+        <div class="countdown-ring__center">
+            <div class="countdown-ring__timer" data-role="timer">—</div>
+            <div class="countdown-ring__caption" data-role="caption">Gözləyir</div>
+        </div>
+    </div>
+
+    <div class="score">Cəmi: @Model.TotalScore</div>
+    <div class="@LaneDisplayHelper.WarningCssClass(Model.Warning)">@LaneDisplayHelper.TranslateWarning(Model.Warning)</div>
+    @if (Model.SessionId is { } sid)
+    {
+        <div class="lane-actions">
+            <input type="number"
+                   class="lane-score-input"
+                   min="0"
+                   max="10"
+                   step="1"
+                   placeholder="0–10"
+                   value=""
+                   data-lane-number="@Model.LaneNumber"
+                   data-session-id="@sid" />
+            <button type="button"
+                    class="lane-score-btn"
+                    data-submit-lane-score
+                    data-lane-number="@Model.LaneNumber"
+                    data-session-id="@sid"
+                    data-next-round="@(Model.ScoreCount + 1)">
+                Göndər
+            </button>
+        </div>
+        <button type="button" class="pick-session" data-session-id="@sid">Bu sessiyanı seç</button>
+        @if (!string.Equals(Model.Status, "Completed", StringComparison.Ordinal))
+        {
+            <button type="button" class="stop-session-btn" data-stop-session="@sid">Stop</button>
+        }
+    }
+</article>
