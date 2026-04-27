@@ -1,0 +1,77 @@
+@using EShooting.Web.Controllers.Admin
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Tarixçə";
+    var rows = (List<HistoryRow>?)ViewData["Rows"] ?? new List<HistoryRow>();
+    var f = (HistoryFilter?)ViewData["Filter"] ?? new HistoryFilter();
+}
+
+<div class="topbar">
+    <h1>Tarixçə</h1>
+    <a class="btn btn-excel" href="@($"/admin/export.xlsx?phone={Uri.EscapeDataString(f.Phone ?? "")}&email={Uri.EscapeDataString(f.Email ?? "")}&idCardNumber={Uri.EscapeDataString(f.IdCardNumber ?? "")}&fromDate={(f.FromDate?.ToString("yyyy-MM-dd") ?? "")}&toDate={(f.ToDate?.ToString("yyyy-MM-dd") ?? "")}")">
+        Excel-ə çıxart
+    </a>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+    <form method="get" action="/admin/history">
+        <div class="row">
+            <div>
+                <div class="statLabel" style="margin-bottom:6px;">Telefon</div>
+                <input name="phone" value="@(f.Phone ?? "")" placeholder="Telefon" />
+            </div>
+            <div>
+                <div class="statLabel" style="margin-bottom:6px;">E-mail</div>
+                <input name="email" value="@(f.Email ?? "")" placeholder="E-mail" />
+            </div>
+            <div>
+                <div class="statLabel" style="margin-bottom:6px;">Ş/V / FİN</div>
+                <input name="idCardNumber" value="@(f.IdCardNumber ?? "")" placeholder="Ş/V / FİN" />
+            </div>
+            <div>
+                <div class="statLabel" style="margin-bottom:6px;">Başlanğıc</div>
+                <input name="fromDate" type="date" value="@(f.FromDate?.ToString("yyyy-MM-dd") ?? "")" />
+            </div>
+            <div>
+                <div class="statLabel" style="margin-bottom:6px;">Bitmə</div>
+                <input name="toDate" type="date" value="@(f.ToDate?.ToString("yyyy-MM-dd") ?? "")" />
+            </div>
+            <div>
+                <button class="btn btn-primary" type="submit">Göstər</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="tableWrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Tarix</th>
+                <th>İdmançı</th>
+                <th>Telefon</th>
+                <th>Kateqoriya</th>
+                <th>Zolaq</th>
+                <th>Giriş</th>
+                <th>Çıxış</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td>@r.DateLocal</td>
+                    <td>@r.AthleteName</td>
+                    <td>@r.Phone</td>
+                    <td>@r.Category</td>
+                    <td>@(r.LaneNumber <= 0 ? "—" : r.LaneNumber)</td>
+                    <td>@r.StartTimeLocal</td>
+                    <td>@r.EndTimeLocal</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+

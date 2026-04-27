@@ -1,0 +1,32 @@
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Dashboard";
+    var total = (int)(ViewData["TotalRegistrations"] ?? 0);
+    var subs = (int)(ViewData["ActiveSubscribers"] ?? 0);
+    var today = (int)(ViewData["TodaysSessions"] ?? 0);
+    var popular = (string)(ViewData["PopularLane"] ?? "—");
+}
+
+<div class="topbar">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="grid4">
+    <div class="card">
+        <div class="statLabel">Ümumi qeydiyyat sayı</div>
+        <div class="statValue">@total</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Aktiv abunəçilər</div>
+        <div class="statValue">@subs</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Bu günkü sessiyalar</div>
+        <div class="statValue">@today</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Populyar zolaq</div>
+        <div class="statValue">@popular</div>
+    </div>
+</div>
+

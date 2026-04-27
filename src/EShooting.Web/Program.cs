@@ -30,6 +30,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 return Task.CompletedTask;
             }
 
+            if (context.Request.Path.StartsWithSegments("/admin"))
+            {
+                var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
+                context.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
+                return Task.CompletedTask;
+            }
+
             context.Response.Redirect(context.RedirectUri);
             return Task.CompletedTask;
         };
@@ -39,7 +46,7 @@ builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .RequireRole("Reception")
+        .RequireRole("Reception", "Admin")
         .Build();
 });
 

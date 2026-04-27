@@ -1,0 +1,87 @@
+@{
+    Layout = null;
+    var title = (string?)ViewData["Title"] ?? "Admin";
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title — EShooting Admin</title>
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --text: #111827;
+            --muted: #6b7280;
+            --border: rgba(17, 24, 39, 0.12);
+            --primary: #4f46e5;
+            --green: #16a34a;
+        }
+        * { box-sizing: border-box; }
+        body { margin:0; font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
+        a { color: inherit; text-decoration: none; }
+        .shell { display:grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        .side {
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 18px 14px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+        .brand { font-weight: 900; letter-spacing: .02em; margin-bottom: 14px; }
+        .nav { display:flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        .nav a, .nav button {
+            display:flex;
+            align-items:center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: transparent;
+            cursor:pointer;
+            font-weight: 700;
+            color: #253060;
+        }
+        .nav a:hover, .nav button:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
+        .content { padding: 22px; }
+        .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 14px; }
+        .topbar h1 { margin:0; font-size: 22px; font-weight: 900; }
+        .card { background: var(--panel); border:1px solid var(--border); border-radius: 16px; padding: 14px; }
+        .grid4 { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        @@media (max-width: 1100px){ .grid4{ grid-template-columns: repeat(2, minmax(0,1fr)); } .shell{ grid-template-columns: 1fr; } .side{ position:relative; height:auto; } }
+        .statLabel { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+        .statValue { font-weight: 900; font-size: 26px; margin-top: 4px; }
+        .row { display:flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+        input { border-radius: 12px; border: 1px solid var(--border); padding: 10px 12px; min-height: 42px; background:#fff; min-width: 220px; }
+        .btn { border-radius: 12px; border: 1px solid var(--border); padding: 10px 12px; min-height: 42px; font-weight: 800; cursor:pointer; background:#fff; }
+        .btn-primary { background: var(--primary); border-color: rgba(79,70,229,0.35); color:#fff; }
+        .btn-excel { background: var(--green); border-color: rgba(22,163,74,0.35); color:#fff; }
+        table { width:100%; border-collapse: collapse; }
+        th, td { padding: 10px 10px; border-bottom: 1px solid rgba(17,24,39,0.10); text-align: left; white-space: nowrap; }
+        th { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+        .tableWrap { overflow:auto; max-height: 70vh; border-radius: 14px; border:1px solid var(--border); }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <aside class="side">
+        <div class="brand">EShooting Admin</div>
+        <div class="nav">
+            <a href="/admin">Dashboard</a>
+            <a href="/admin/history">Tarixçə</a>
+            <form asp-controller="AdminAuth" asp-action="Logout" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit">Çıxış</button>
+            </form>
+        </div>
+    </aside>
+    <main class="content">
+        @RenderBody()
+    </main>
+</div>
+</body>
+</html>
+
