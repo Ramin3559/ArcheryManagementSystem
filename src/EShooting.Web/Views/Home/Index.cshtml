@@ -1045,6 +1045,7 @@
             </div>
             <div class="row" id="instantLaneRow">
                 <select id="laneNumber">
+                    <option value="0">Sistem təyin etsin</option>
                     <option value="1">Zolaq 1 (Həvəskar)</option>
                     <option value="2">Zolaq 2 (Həvəskar)</option>
                     <option value="3">Zolaq 3 (Həvəskar)</option>
@@ -1056,6 +1057,11 @@
                     <option value="9">Zolaq 9 (Peşəkar)</option>
                     <option value="10">Zolaq 10 (Peşəkar)</option>
                     <option value="11">Zolaq 11 (Peşəkar)</option>
+                </select>
+                <select id="instantPreferredLaneType" title="Sistem təyin etsin seçiləndə xətt tipi">
+                    <option value="0">Qarışıq (1–11)</option>
+                    <option value="1">Yalnız qısa (1–8)</option>
+                    <option value="2">Yalnız uzun (9–11)</option>
                 </select>
                 <input id="durationMinutes" type="number" min="1" max="240" value="3" />
                 <button id="scheduleBtn" class="btn btn-primary">Qeydiyyat və planlama</button>
@@ -1284,6 +1290,7 @@
     const registrationModeInput = document.getElementById("registrationMode");
     const membershipTypeInput = document.getElementById("membershipType");
     const laneNumberInput = document.getElementById("laneNumber");
+    const instantPreferredLaneTypeInput = document.getElementById("instantPreferredLaneType");
     const instantLaneRow = document.getElementById("instantLaneRow");
     const durationMinutesInput = document.getElementById("durationMinutes");
     const isEquipmentIssuedInput = document.getElementById("isEquipmentIssued");
@@ -1526,6 +1533,11 @@
 
         Array.from(laneNumberInput.options).forEach(opt => {
             const lane = Number(opt.value);
+            if (lane === 0) {
+                opt.disabled = false;
+                opt.textContent = "Sistem təyin etsin";
+                return;
+            }
             const allowed = categoryAllowsLane(catVal, lane);
             const disabled = !allowed;
 
@@ -1542,6 +1554,26 @@
 
         if (laneNumberInput.selectedOptions.length && !laneNumberInput.selectedOptions[0].disabled) {
             lastValidLaneNumber = laneNumberInput.value;
+        }
+
+        // Preferred lane type only matters when lane is auto (0).
+        if (instantPreferredLaneTypeInput instanceof HTMLSelectElement) {
+            const cat = Number(categoryInput?.value ?? "0");
+            const isAmateur = cat === 0;
+            const laneSelected = Number(laneNumberInput.value);
+            instantPreferredLaneTypeInput.disabled = laneSelected !== 0;
+
+            if (isAmateur) {
+                // Amateur: only Short lanes.
+                instantPreferredLaneTypeInput.value = "1";
+                Array.from(instantPreferredLaneTypeInput.options).forEach(o => {
+                    o.disabled = o.value !== "1";
+                });
+            } else {
+                Array.from(instantPreferredLaneTypeInput.options).forEach(o => {
+                    o.disabled = false;
+                });
+            }
         }
     }
 
@@ -1607,6 +1639,7 @@
         };
         const existingTimes = {};
         const existingLanes = {};
+        const existingPrefs = {};
         const existingAvailDates = {};
         subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-time").forEach(inp => {
             if (!(inp instanceof HTMLInputElement)) return;
@@ -1619,6 +1652,12 @@
             const day = sel.getAttribute("data-day");
             if (!day) return;
             existingLanes[day] = sel.value;
+        });
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-pref").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            const day = sel.getAttribute("data-day");
+            if (!day) return;
+            existingPrefs[day] = sel.value;
         });
         subscriptionLaneTypesByDayEl.querySelectorAll(".sub-avail-date").forEach(inp => {
             if (!(inp instanceof HTMLInputElement)) return;
@@ -1648,6 +1687,11 @@
                 <select data-day="${d}" class="sub-day-lane">
                     ${getLaneSelectOptionsHtml(maxLane)}
                 </select>
+                <select data-day="${d}" class="sub-day-pref" title="Sistem təyin etsin seçiləndə xətt tipi">
+                    <option value="0">Qarışıq</option>
+                    <option value="1">Yalnız qısa (1–8)</option>
+                    <option value="2">Yalnız uzun (9–11)</option>
+                </select>
             </div>
             <div class="notice" data-avail-root="${d}" style="display:none; width:100%; margin-top:6px;">
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
@@ -1669,11 +1713,40 @@
                 sel.value = v;
             }
         });
+        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-pref").forEach(sel => {
+            if (!(sel instanceof HTMLSelectElement)) return;
+            const day = sel.getAttribute("data-day");
+            if (!day) return;
+            const v = existingPrefs[day];
+            if (v && Array.from(sel.options).some(o => o.value === v)) {
+                sel.value = v;
+            }
+        });
+
+        // enforce category rule + toggle pref selector depending on lane selection
+        const syncPrefForRow = (day) => {
+            const laneSel = subscriptionLaneTypesByDayEl.querySelector(`select.sub-day-lane[data-day="${CSS.escape(String(day))}"]`);
+            const prefSel = subscriptionLaneTypesByDayEl.querySelector(`select.sub-day-pref[data-day="${CSS.escape(String(day))}"]`);
+            if (!(laneSel instanceof HTMLSelectElement) || !(prefSel instanceof HTMLSelectElement)) return;
+            const laneNumber = Number(laneSel.value ?? "0");
+            prefSel.disabled = laneNumber !== 0;
+            if (isAmateur) {
+                prefSel.value = "1";
+                Array.from(prefSel.options).forEach(o => { o.disabled = o.value !== "1"; });
+            } else {
+                Array.from(prefSel.options).forEach(o => { o.disabled = false; });
+            }
+        };
+        days.forEach(syncPrefForRow);
 
         // bind availability (only for specific lane selection)
         subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
             if (!(sel instanceof HTMLSelectElement)) return;
-            sel.addEventListener("change", () => { refreshLaneAvailabilityForSubscriptionRow(sel); });
+            sel.addEventListener("change", () => {
+                refreshLaneAvailabilityForSubscriptionRow(sel);
+                const day = sel.getAttribute("data-day");
+                if (day) syncPrefForRow(day);
+            });
         });
 
         // initial availability render (if manual lane selected)
@@ -2255,9 +2328,13 @@
         }
 
         const data = await response.json();
-        sessionInfo.textContent = `Abunə ləğv edildi. Söndürülən plan: ${data.cancelledSchedules}`;
+        sessionInfo.textContent = `Abunəlik dayandırıldı. Söndürülən plan sayı: ${data.cancelledSchedules}`;
         closeCancelSubscriptionModal();
         clearReceptionPersonFields();
+        // Cache + UI refresh (əks halda siyahıda hələ abunəçi kimi görünə bilər)
+        try { allAthletesCache = []; } catch { }
+        try { athletesCacheLoadedAtMs = 0; } catch { }
+        await ensureAthletesCacheFresh();
         await loadSubscriptionSchedules();
     }
 
@@ -3116,6 +3193,14 @@
                 laneByDay[String(day)] = Number(sel.value ?? "0");
             });
 
+            const prefByDay = {};
+            document.querySelectorAll(".sub-day-pref").forEach(sel => {
+                if (!(sel instanceof HTMLSelectElement)) return;
+                const day = sel.getAttribute("data-day");
+                if (!day) return;
+                prefByDay[String(day)] = Number(sel.value ?? "0");
+            });
+
             const durationMinutes = computeMinutesPerSelectedDay(totalMonthlyHours, selectedDays.length);
 
             async function resolveConflictsAndCreateForDay(payload, dayLabel) {
@@ -3170,6 +3255,8 @@
 
             for (const d of selectedDays) {
                 const laneNumber = laneByDay[String(d)] ?? 0;
+                const prefRaw = prefByDay[String(d)] ?? 0;
+                const preferredLaneType = isAmateur ? 1 : prefRaw; // Amateur => Short only
                 const payload = {
                     athleteFullName,
                     athleteId,
@@ -3178,7 +3265,7 @@
                     durationMinutes,
                     activeFromDateLocal: new Date(`${startDate}T00:00:00`).toISOString(),
                     activeToDateLocal: new Date(`${endDate}T00:00:00`).toISOString(),
-                    preferredLaneType: 0,
+                    preferredLaneType,
                     laneNumber,
                     isFullPackage: false
                 };
@@ -3624,6 +3711,7 @@
                         body: JSON.stringify({
                             athleteId,
                             laneNumber: Number(laneNumberInput.value),
+                            preferredLaneType: Number(instantPreferredLaneTypeInput?.value ?? "0"),
                             startTimeUtc: new Date().toISOString(),
                             durationMinutes: durationValue,
                             isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked)
@@ -3661,6 +3749,7 @@
                 body: JSON.stringify({
                     athleteId,
                     laneNumber: Number(laneNumberInput.value),
+                    preferredLaneType: Number(instantPreferredLaneTypeInput?.value ?? "0"),
                     startTimeUtc: new Date().toISOString(),
                     durationMinutes: durationValue,
                     isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked)
@@ -4010,7 +4099,19 @@
     try { document.getElementById("submitScoreBtn")?.addEventListener("click", submitScore); } catch (e) { console.error(e); }
 
     try { cancelSubscriptionBtn?.addEventListener("click", openCancelSubscriptionModal); } catch (e) { console.error(e); }
-    try { updateAthleteBtn?.addEventListener("click", updateAthleteFromReception); } catch (e) { console.error(e); }
+    try {
+        updateAthleteBtn?.addEventListener("click", async () => {
+            if (!receptionMatchedAthleteId) {
+                alert("Yeniləmə üçün əvvəlcə şəxsi axtarışla seçin.");
+                return;
+            }
+            const fullName = `${(firstNameInput?.value ?? "").trim()} ${(lastNameInput?.value ?? "").trim()}`.trim();
+            const label = fullName ? `\n\n${fullName}` : "";
+            const ok = window.confirm(`Seçilmiş şəxsin məlumatlarını yeniləmək istəyirsiniz?${label}`);
+            if (!ok) return;
+            await updateAthleteFromReception();
+        });
+    } catch (e) { console.error(e); }
     try { infoBtn?.addEventListener("click", openInfoModal); } catch (e) { console.error(e); }
     try { infoCloseBtn?.addEventListener("click", closeInfoModal); } catch (e) { console.error(e); }
     try {
@@ -4068,6 +4169,10 @@
             if (!(btn instanceof HTMLElement)) return;
             const id = btn.getAttribute("data-cancel-athlete");
             if (!id) return;
+            const person = (Array.isArray(allAthletesCache) ? allAthletesCache : []).find(x => String(x.id) === String(id));
+            const name = (person?.fullName ?? `${person?.firstName ?? ""} ${person?.lastName ?? ""}`.trim() ?? "").trim() || "seçilmiş şəxs";
+            const ok = window.confirm(`Seçilmiş şəxsin abunəliyini dayandırmaq istəyirsiniz?\n\n${name}`);
+            if (!ok) return;
             cancelSubscription(id);
         });
     } catch (e) { console.error(e); }
@@ -4141,6 +4246,7 @@
                 return;
             }
             lastValidLaneNumber = laneNumberInput.value;
+            refreshLaneOptions(); // auto lane mode => enable preferred lane type selector
         });
     } catch (e) { console.error(e); }
 

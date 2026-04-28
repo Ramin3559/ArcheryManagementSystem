@@ -16,6 +16,11 @@ public sealed class ScheduleSessionRequest
     public int LaneNumber { get; set; }
 
     /// <summary>
+    /// Lane auto secilende (LaneNumber=0) prefer olunan xett tipi.
+    /// </summary>
+    public EShooting.Domain.Enums.PreferredLaneType PreferredLaneType { get; set; } = EShooting.Domain.Enums.PreferredLaneType.Any;
+
+    /// <summary>
     /// Sessiyanin UTC formatinda baslama vaxti.
     /// </summary>
     public DateTime StartTimeUtc { get; set; }

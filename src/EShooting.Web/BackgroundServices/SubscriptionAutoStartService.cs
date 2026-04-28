@@ -120,7 +120,8 @@ public sealed class SubscriptionAutoStartService(
                         selectedLane.Number,
                         startUtc,
                         schedule.DurationMinutes,
-                        false),
+                        false,
+                        schedule.PreferredLaneType),
                     cancellationToken);
 
                 schedule.LastAssignedLaneNumber = selectedLane.Number;

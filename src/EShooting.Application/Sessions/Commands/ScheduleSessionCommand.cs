@@ -11,7 +11,8 @@ public sealed record ScheduleSessionCommand(
     int LaneNumber,
     DateTime StartTimeUtc,
     int DurationMinutes,
-    bool IsEquipmentIssued) : IRequest<Guid>;
+    bool IsEquipmentIssued,
+    EShooting.Domain.Enums.PreferredLaneType PreferredLaneType) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -28,14 +29,105 @@ public sealed class ScheduleSessionCommandHandler(
         var isOpenEnded = request.DurationMinutes == 0;
         var nowUtc = DateTime.UtcNow;
 
-        var lane = await repository.GetLaneByNumberAsync(request.LaneNumber, cancellationToken)
-            ?? throw new InvalidOperationException($"{request.LaneNumber} nömrəli zolaq mövcud deyil.");
         var lanes = await repository.GetLanesAsync(cancellationToken);
+        var athletes = await repository.GetAthletesAsync(cancellationToken);
+        var athlete = athletes.FirstOrDefault(x => x.Id == request.AthleteId)
+            ?? throw new InvalidOperationException("İdmançı tapılmadı.");
 
         var requestedEndTimeUtc = isOpenEnded
             ? startTimeUtc
             : startTimeUtc.AddMinutes(request.DurationMinutes);
         var allSessions = await repository.GetSessionsAsync(cancellationToken);
+        var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+
+        static bool IsShortLane(int number) => number is >= 1 and <= 8;
+        static bool IsLongLane(int number) => number is >= 9 and <= 11;
+
+        // Category rules: Amateur can only use short lanes.
+        if (athlete.Category == CustomerCategory.Amateur)
+        {
+            if (request.LaneNumber > 0 && !IsShortLane(request.LaneNumber))
+            {
+                throw new InvalidOperationException("Həvəskar yalnız 1-8 zolaqlarda ola bilər.");
+            }
+
+            if (request.LaneNumber == 0 && request.PreferredLaneType == PreferredLaneType.Long)
+            {
+                throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
+            }
+        }
+
+        // Pick lane: manual (LaneNumber>0) or auto (LaneNumber==0).
+        Lane? lane;
+        if (request.LaneNumber > 0)
+        {
+            lane = lanes.FirstOrDefault(l => l.Number == request.LaneNumber);
+            if (lane is null)
+            {
+                throw new InvalidOperationException($"{request.LaneNumber} nömrəli zolaq mövcud deyil.");
+            }
+        }
+        else
+        {
+            var preferred = request.PreferredLaneType;
+            if (athlete.Category == CustomerCategory.Amateur)
+            {
+                preferred = PreferredLaneType.Short;
+            }
+
+            var candidates = preferred switch
+            {
+                PreferredLaneType.Short => lanes.Where(l => IsShortLane(l.Number)).ToList(),
+                PreferredLaneType.Long => lanes.Where(l => IsLongLane(l.Number)).ToList(),
+                _ => lanes.ToList()
+            };
+
+            // Ensure global manual capacity keeps subscriber slots free.
+            if (!isOpenEnded && request.DurationMinutes > 0
+                && !LaneReservationRules.HasManualCapacityForSlot(
+                    lanes,
+                    allSessions,
+                    subscriptionSchedules,
+                    startTimeUtc,
+                    requestedEndTimeUtc,
+                    nowUtc))
+            {
+                throw new InvalidOperationException(
+                    "Bu vaxt üçün zolaq təyin edilə bilməz. Abunəçilər üçün rezerv olunmuş boş yerlər saxlanılmalıdır.");
+            }
+
+            lane = candidates
+                .OrderBy(x => x.Number)
+                .FirstOrDefault(l =>
+                {
+                    // Avoid lanes reserved by subscription schedule on that time.
+                    if (!isOpenEnded && request.DurationMinutes > 0
+                        && LaneReservationRules.HasSubscriberConflictOnLane(
+                            subscriptionSchedules,
+                            l.Number,
+                            startTimeUtc,
+                            requestedEndTimeUtc))
+                    {
+                        return false;
+                    }
+
+                    return allSessions
+                        .Where(s => s.LaneId == l.Id)
+                        .All(s => !LaneReservationRules.OverlapsSession(s, startTimeUtc, requestedEndTimeUtc, nowUtc));
+                });
+
+            if (lane is null)
+            {
+                var label = preferred switch
+                {
+                    PreferredLaneType.Long => "uzun (9-11)",
+                    PreferredLaneType.Short => "qısa (1-8)",
+                    _ => "uyğun"
+                };
+                throw new InvalidOperationException($"Təəssüf ki, seçdiyiniz vaxtda bütün {label} xətlər doludur. Zəhmət olmasa başqa vaxt seçin.");
+            }
+        }
+
         var existingLaneSessions = allSessions
             .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
 
@@ -59,7 +151,6 @@ public sealed class ScheduleSessionCommandHandler(
                 .Select(s => new { Session = s, Start = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc), End = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc) })
                 .FirstOrDefault(x => LaneReservationRules.OverlapsSession(x.Session, startTimeUtc, requestedEndTimeUtc, nowUtc));
 
-            var athletes = await repository.GetAthletesAsync(cancellationToken);
             var who = conflict is null
                 ? "başqa müştəri"
                 : (athletes.FirstOrDefault(a => a.Id == conflict.Session.AthleteId)?.FullName ?? "başqa müştəri");
@@ -70,8 +161,6 @@ public sealed class ScheduleSessionCommandHandler(
 
         if (!isOpenEnded)
         {
-            var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-
             if (!LaneReservationRules.HasManualCapacityForSlot(
                     lanes,
                     allSessions,
@@ -86,12 +175,12 @@ public sealed class ScheduleSessionCommandHandler(
 
             if (LaneReservationRules.HasSubscriberConflictOnLane(
                     subscriptionSchedules,
-                    request.LaneNumber,
+                    lane.Number,
                     startTimeUtc,
                     requestedEndTimeUtc))
             {
                 throw new InvalidOperationException(
-                    $"{request.LaneNumber} nömrəli zolaq həmin vaxt aralığında abunə rezervasiyası ilə üst-üstə düşür.");
+                    $"{lane.Number} nömrəli zolaq həmin vaxt aralığında abunə rezervasiyası ilə üst-üstə düşür.");
             }
         }
 

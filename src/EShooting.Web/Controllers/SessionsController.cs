@@ -120,9 +120,16 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 request.LaneNumber,
                 request.StartTimeUtc,
                 request.DurationMinutes,
-                request.IsEquipmentIssued), cancellationToken);
+                request.IsEquipmentIssued,
+                request.PreferredLaneType), cancellationToken);
 
-            return Ok(new { sessionId, laneNumber = request.LaneNumber });
+            var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
+            var lanes = await repository.GetLanesAsync(cancellationToken);
+            var laneNumber = session is null
+                ? request.LaneNumber
+                : (lanes.FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? request.LaneNumber);
+
+            return Ok(new { sessionId, laneNumber });
         }
         catch (InvalidOperationException ex)
         {
@@ -135,18 +142,34 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 || ex.Message.Contains("doludur", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("busy", StringComparison.OrdinalIgnoreCase))
             {
+                if (request.LaneNumber <= 0)
+                {
+                    return Conflict(new { error = ex.Message });
+                }
+
                 var athletes = await repository.GetAthletesAsync(cancellationToken);
                 var athlete = athletes.FirstOrDefault(x => x.Id == request.AthleteId);
                 var allowed = athlete?.Category == CustomerCategory.Amateur
                     ? Enumerable.Range(1, 8).ToList()
-                    : Enumerable.Range(1, 11).ToList();
+                    : request.PreferredLaneType switch
+                    {
+                        PreferredLaneType.Short => Enumerable.Range(1, 8).ToList(),
+                        PreferredLaneType.Long => Enumerable.Range(9, 3).ToList(),
+                        _ => Enumerable.Range(1, 11).ToList()
+                    };
 
                 foreach (var alt in allowed.Where(x => x != request.LaneNumber))
                 {
                     try
                     {
                         var sid = await mediator.Send(
-                            new ScheduleSessionCommand(request.AthleteId, alt, request.StartTimeUtc, request.DurationMinutes, request.IsEquipmentIssued),
+                            new ScheduleSessionCommand(
+                                request.AthleteId,
+                                alt,
+                                request.StartTimeUtc,
+                                request.DurationMinutes,
+                                request.IsEquipmentIssued,
+                                request.PreferredLaneType),
                             cancellationToken);
                         return Ok(new
                         {
@@ -412,7 +435,13 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         try
         {
             var sessionId = await mediator.Send(
-                new ScheduleSessionCommand(athlete.Id, selected.Number, startUtc, duration, request.IsEquipmentIssued),
+                new ScheduleSessionCommand(
+                    athlete.Id,
+                    selected.Number,
+                    startUtc,
+                    duration,
+                    request.IsEquipmentIssued,
+                    PreferredLaneType.Any),
                 cancellationToken);
 
             return Ok(new { sessionId, laneNumber = selected.Number });

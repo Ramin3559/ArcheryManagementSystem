@@ -30,7 +30,24 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 return Task.CompletedTask;
             }
 
-            if (context.Request.Path.StartsWithSegments("/admin"))
+            if (context.Request.Path.StartsWithSegments("/admin")
+                && !context.Request.Path.StartsWithSegments("/admin/login")
+                && !context.Request.Path.StartsWithSegments("/admin/logout"))
+            {
+                var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
+                context.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
+
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/admin")
+                && !context.Request.Path.StartsWithSegments("/admin/login")
+                && !context.Request.Path.StartsWithSegments("/admin/logout"))
             {
                 var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
                 context.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
@@ -44,10 +61,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .RequireRole("Reception", "Admin")
-        .Build();
+    // Controllers/actions already use [Authorize]/[AllowAnonymous].
+    // Avoid a global fallback policy here to prevent accidental login redirect loops.
 });
 
 builder.Services.AddApplication();
@@ -72,6 +87,11 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Guarantee admin login URL never gets auth-challenged (prevents redirect loops).
+app.MapGet("/admin/login", (HttpContext context) =>
+    Results.Redirect($"/Account/Login?returnUrl={Uri.EscapeDataString("/admin")}"))
+    .AllowAnonymous();
 
 app.MapControllers();
 app.MapControllerRoute(

@@ -6,16 +6,22 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Route("admin")]
+[Route("admin-auth")]
+[AllowAnonymous]
 public sealed class AdminAuthController : Controller
 {
     [HttpGet("login")]
     [AllowAnonymous]
-    public IActionResult Login(string? returnUrl = null)
+    public async Task<IActionResult> Login(string? returnUrl = null)
     {
         if (User.Identity?.IsAuthenticated == true && User.IsInRole("Admin"))
         {
             return RedirectToLocal(returnUrl);
+        }
+
+        if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }
 
         ViewData["ReturnUrl"] = returnUrl;
