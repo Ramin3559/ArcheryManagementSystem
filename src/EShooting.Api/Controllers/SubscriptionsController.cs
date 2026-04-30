@@ -24,12 +24,16 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
         {
             var id = await mediator.Send(
                 new CreateSubscriptionScheduleCommand(
+                    request.AthleteId,
                     request.AthleteFullName,
                     request.DayOfWeek,
                     startTimeLocal,
                     request.DurationMinutes,
                     request.ActiveFromDateLocal,
-                    request.ActiveToDateLocal),
+                    request.ActiveToDateLocal,
+                    request.PreferredLaneType,
+                    request.LaneNumber,
+                    request.IsFullPackage),
                 cancellationToken);
 
             return Ok(new { id });
@@ -59,6 +63,8 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
 
         try
         {
+            var preferredLaneTypesByDay = request.PreferredLaneTypesByDayOfWeek
+                ?? new Dictionary<int, EShooting.Domain.Enums.PreferredLaneType>();
             var result = await mediator.Send(
                 new CreateSubscriptionPackageCommand(
                     request.AthleteFullName,
@@ -66,7 +72,9 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
                     request.VisitsCount,
                     startTimeLocal,
                     request.DurationMinutes,
-                    request.StartDateLocal),
+                    request.StartDateLocal,
+                    preferredLaneTypesByDay,
+                    request.IsFullPackage),
                 cancellationToken);
 
             return Ok(new

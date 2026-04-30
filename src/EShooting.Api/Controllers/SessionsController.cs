@@ -1,5 +1,6 @@
 using EShooting.Web.Contracts.Sessions;
 using EShooting.Application.Sessions.Commands;
+using EShooting.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,7 +23,8 @@ public sealed class SessionsController(IMediator mediator) : ControllerBase
                 request.LaneNumber,
                 request.StartTimeUtc,
                 request.DurationMinutes,
-                request.IsEquipmentIssued), cancellationToken);
+                request.IsEquipmentIssued,
+                request.PreferredLaneType), cancellationToken);
 
             return Ok(new { sessionId });
         }

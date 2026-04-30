@@ -1,6 +1,7 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Sessions.Commands;
+using EShooting.Domain.Enums;
 using MediatR;
 
 namespace EShooting.Web.BackgroundServices;
@@ -100,7 +101,8 @@ public sealed class SubscriptionAutoStartService(
                         selectedLane.Number,
                         startUtc,
                         schedule.DurationMinutes,
-                        false),
+                        false,
+                        PreferredLaneType.Any),
                     cancellationToken);
 
                 schedule.LastAssignedLaneNumber = selectedLane.Number;

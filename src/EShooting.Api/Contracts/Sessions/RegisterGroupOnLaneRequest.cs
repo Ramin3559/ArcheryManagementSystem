@@ -6,4 +6,5 @@ public sealed class RegisterGroupOnLaneRequest
     public int LaneNumber { get; set; }
     public DateTime StartTimeUtc { get; set; }
     public int DurationMinutes { get; set; } = 60;
+    public bool IsEquipmentIssued { get; set; }
 }

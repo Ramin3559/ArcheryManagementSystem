@@ -1,4 +1,5 @@
 namespace EShooting.Web.Contracts.Subscriptions;
+using EShooting.Domain.Enums;
 
 public sealed class CreateSubscriptionPackageRequest
 {
@@ -8,4 +9,6 @@ public sealed class CreateSubscriptionPackageRequest
     public string StartTimeLocal { get; set; } = "19:00";
     public int DurationMinutes { get; set; } = 60;
     public DateTime StartDateLocal { get; set; }
+    public Dictionary<int, PreferredLaneType>? PreferredLaneTypesByDayOfWeek { get; set; }
+    public bool IsFullPackage { get; set; } = false;
 }

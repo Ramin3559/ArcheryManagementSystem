@@ -18,7 +18,7 @@ public sealed class OpenEndedSessionFlowTests
         var startUtc = DateTime.UtcNow.AddSeconds(-3);
 
         var sessionId = await handler.Handle(
-            new ScheduleSessionCommand(athlete.Id, lane.Number, startUtc, 0, false),
+            new ScheduleSessionCommand(athlete.Id, lane.Number, startUtc, 0, false, PreferredLaneType.Any),
             CancellationToken.None);
 
         var created = await repository.GetSessionByIdAsync(sessionId, CancellationToken.None);
@@ -206,7 +206,7 @@ public sealed class OpenEndedSessionFlowTests
         var handler = new ScheduleSessionCommandHandler(repository, notifier);
 
         var action = () => handler.Handle(
-            new ScheduleSessionCommand(athlete.Id, lane.Number, reservedStartUtc, 60, false),
+            new ScheduleSessionCommand(athlete.Id, lane.Number, reservedStartUtc, 60, false, PreferredLaneType.Any),
             CancellationToken.None);
 
         await Assert.ThrowsAsync<InvalidOperationException>(action);
@@ -267,7 +267,7 @@ public sealed class OpenEndedSessionFlowTests
         var handler = new ScheduleSessionCommandHandler(repository, notifier);
 
         var action = () => handler.Handle(
-            new ScheduleSessionCommand(athlete.Id, lane2.Number, slotStartUtc, 60, false),
+            new ScheduleSessionCommand(athlete.Id, lane2.Number, slotStartUtc, 60, false, PreferredLaneType.Any),
             CancellationToken.None);
 
         await Assert.ThrowsAsync<InvalidOperationException>(action);
@@ -327,7 +327,7 @@ public sealed class OpenEndedSessionFlowTests
         var handler = new ScheduleSessionCommandHandler(repository, notifier);
 
         var createdSessionId = await handler.Handle(
-            new ScheduleSessionCommand(manualAthlete.Id, lane2.Number, slotStartUtc, 60, false),
+            new ScheduleSessionCommand(manualAthlete.Id, lane2.Number, slotStartUtc, 60, false, PreferredLaneType.Any),
             CancellationToken.None);
 
         Assert.NotEqual(Guid.Empty, createdSessionId);

@@ -17,7 +17,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     public async Task<IActionResult> Register([FromBody] RegisterAthleteRequest request, CancellationToken cancellationToken)
     {
         var id = await mediator.Send(
-            new RegisterAthleteCommand(request.FullName, request.IsSubscriber),
+            new RegisterAthleteCommand(
+                request.FirstName,
+                request.LastName,
+                request.PhoneNumber,
+                request.Email,
+                request.IdCardNumber,
+                request.Category,
+                request.IsSubscriber,
+                request.MembershipType),
             cancellationToken);
 
         return Ok(new { id });

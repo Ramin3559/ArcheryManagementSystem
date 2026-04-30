@@ -1,4 +1,5 @@
 namespace EShooting.Web.Contracts.Sessions;
+using EShooting.Domain.Enums;
 
 /// <summary>
 /// Sessiya planlamasi ucun request modeli.
@@ -24,4 +25,8 @@ public sealed class ScheduleSessionRequest
     /// Sessiyanin deqiqe ile muddeti.
     /// </summary>
     public int DurationMinutes { get; set; } = 60;
+
+    public bool IsEquipmentIssued { get; set; }
+
+    public PreferredLaneType PreferredLaneType { get; set; } = PreferredLaneType.Any;
 }
