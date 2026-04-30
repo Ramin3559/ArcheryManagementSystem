@@ -7,7 +7,7 @@ namespace EShooting.Web.Controllers;
 /// Hər zolaq üçün ayrı tam ekran URL (televizor nümayişi).
 /// Məs: /zolaq/3
 /// </summary>
-[Authorize]
+[AllowAnonymous]
 public sealed class LaneScreenController : Controller
 {
     [HttpGet("/zolaq/{laneNumber:int}")]

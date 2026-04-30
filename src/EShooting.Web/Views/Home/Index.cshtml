@@ -2183,6 +2183,8 @@
         if (categoryInput instanceof HTMLSelectElement) categoryInput.value = "";
         if (registrationModeInput instanceof HTMLSelectElement) registrationModeInput.value = "";
         if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "";
+        // Reception panel duration should also reset after successful actions.
+        if (durationMinutesInput instanceof HTMLInputElement) durationMinutesInput.value = "3";
         if (isEquipmentIssuedInput instanceof HTMLInputElement) isEquipmentIssuedInput.checked = false;
         receptionMatchedAthleteId = null;
         receptionMatchedSnapshot = null;

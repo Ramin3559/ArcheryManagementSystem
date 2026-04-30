@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 public sealed class TabletController : Controller
 {
     [HttpGet("/tablet")]
