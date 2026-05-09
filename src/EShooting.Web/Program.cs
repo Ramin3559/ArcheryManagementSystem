@@ -69,7 +69,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<SubscriptionAutoStartService>();
 
@@ -91,6 +91,12 @@ app.UseAuthorization();
 // Guarantee admin login URL never gets auth-challenged (prevents redirect loops).
 app.MapGet("/admin/login", (HttpContext context) =>
     Results.Redirect($"/Account/Login?returnUrl={Uri.EscapeDataString("/admin")}"))
+    .AllowAnonymous();
+
+// Kiosk-friendly short URLs (TV / tablet bookmarks).
+app.MapGet("/qeydiyyat", () => Results.Redirect("/"))
+    .AllowAnonymous();
+app.MapGet("/admin-panel", () => Results.Redirect("/admin"))
     .AllowAnonymous();
 
 app.MapControllers();

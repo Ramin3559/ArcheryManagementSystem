@@ -20,21 +20,27 @@
 
         * { box-sizing: border-box; }
 
+        html, body { height: 100%; }
+
         body.lane-tv-body {
             margin: 0;
-            min-height: 100vh;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
             color: var(--text);
             background: radial-gradient(circle at top, #15244a 0, #0b1220 55%);
             font-family: "Segoe UI", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
         }
 
         .lane-tv-top {
+            flex: 0 0 auto;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-            padding: 12px 20px;
+            gap: 12px;
+            padding: clamp(4px, 0.6vw, 8px) clamp(10px, 1.6vw, 18px);
             border-bottom: 1px solid var(--border);
         }
 
@@ -42,22 +48,22 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 4px;
-            padding: 8px 14px;
-            border-radius: 12px;
+            gap: 2px;
+            padding: 4px 10px;
+            border-radius: 10px;
             border: 1px solid var(--border);
             background: rgba(17, 26, 46, 0.85);
         }
 
         .lane-tv-top .header-clock__label {
-            font-size: clamp(10px, 1.2vw, 12px);
-            letter-spacing: 0.1em;
+            font-size: clamp(9px, 1vw, 11px);
+            letter-spacing: 0.08em;
             text-transform: uppercase;
             color: var(--text-muted);
         }
 
         .lane-tv-top .header-clock__value {
-            font-size: clamp(1.1rem, 2.8vw, 1.75rem);
+            font-size: clamp(0.95rem, 2.2vw, 1.4rem);
             font-weight: 700;
             font-variant-numeric: tabular-nums;
             color: #f0f4ff;
@@ -65,21 +71,31 @@
 
         .lane-tv-top h1 {
             margin: 0;
-            font-size: clamp(1rem, 2.5vw, 1.75rem);
+            font-size: clamp(0.9rem, 2vw, 1.35rem);
             font-weight: 700;
         }
 
         .lane-tv-wrap {
+            flex: 1 1 auto;
             display: flex;
             align-items: stretch;
             justify-content: center;
-            padding: clamp(8px, 2vw, 24px);
-            min-height: calc(100vh - 70px);
+            padding: clamp(6px, 1.4vw, 18px);
+            min-height: 0;
+            overflow: hidden;
         }
 
         .lane-tv-inner {
             width: 100%;
+            height: 100%;
             max-width: min(1400px, 96vw);
+            display: flex;
+        }
+
+        .lane-tv-inner > * {
+            flex: 1 1 auto;
+            width: 100%;
+            min-height: 0;
         }
 
         /* TV: yalnız nümayiş — xal daxiletmə və sessiya seçimi gizlədilir */
@@ -153,8 +169,13 @@
             background: var(--panel-soft);
             border: 1px solid var(--border);
             border-radius: clamp(12px, 2vw, 20px);
-            padding: clamp(16px, 3vw, 36px);
+            padding: clamp(10px, 1.6vw, 22px);
             font-size: clamp(16px, 2.2vw, 28px);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .lane-head {
@@ -196,16 +217,25 @@
         }
 
         .lane-tv-body .countdown-ring-wrap {
-            --ring-track: rgba(255, 255, 255, 0.1);
+            --ring-track: rgba(255, 255, 255, 0.10);
             --ring-accent: #3ee8a8;
-            --ring-glow: rgba(62, 232, 168, 0.4);
+            --ring-glow: rgba(62, 232, 168, 0.35);
             position: relative;
-            width: min(360px, 62vw);
-            height: min(360px, 62vw);
-            margin: clamp(12px, 2vw, 28px) auto;
+            width: min(40vh, 52vw, 380px);
+            height: min(40vh, 52vw, 380px);
+            margin: clamp(6px, 1vw, 14px) auto;
+            align-self: center;
+            background: transparent;
+            border: 0;
+            border-radius: 50%;
+            padding: 0;
+            box-shadow: none;
+            overflow: visible;
+            box-sizing: border-box;
         }
 
         .lane-tv-body .countdown-ring__svg {
+            display: block;
             width: 100%;
             height: 100%;
             transform: rotate(-90deg);
@@ -239,35 +269,43 @@
         }
 
         .lane-tv-body .countdown-ring__timer {
-            font-size: clamp(2rem, 8vw, 4.5rem);
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             line-height: 1;
             color: #f5f8ff;
+            white-space: nowrap;
+            max-width: 100%;
+            font-size: 4rem;
         }
 
         .lane-tv-body .countdown-ring__caption {
-            margin-top: clamp(8px, 1.5vw, 14px);
-            font-size: clamp(12px, 2vw, 22px);
+            margin-top: clamp(6px, 1.2vw, 12px);
+            font-size: clamp(11px, 1.6vw, 18px);
             font-weight: 600;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: var(--text-muted);
+            line-height: 1.2;
+        }
+
+        /* TV-də alt zolğ görünmür — dairəvi progress kifayətdir */
+        .lane-tv-body .countdown-ring__bartrack {
+            display: none;
         }
 
         .lane-tv-body .countdown-ring-wrap.is-pending {
             --ring-accent: #f6b73c;
-            --ring-glow: rgba(246, 183, 60, 0.5);
+            --ring-glow: rgba(246, 183, 60, 0.45);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-warn:not(.is-critical) {
             --ring-accent: #ffb020;
-            --ring-glow: rgba(255, 176, 32, 0.5);
+            --ring-glow: rgba(255, 176, 32, 0.45);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-critical {
             --ring-accent: #ff4d4d;
-            --ring-glow: rgba(255, 77, 77, 0.6);
+            --ring-glow: rgba(255, 77, 77, 0.55);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer {
@@ -339,25 +377,73 @@
         const COUNTDOWN_CRIT_SEC = 120; // 2 dəqiqə
         const SESSION_BUFFER_MS = 0;
 
-        function applyRingRemaining(circle, fractionRemaining) {
-            const f = Math.max(0, Math.min(1, fractionRemaining));
-            const r = circle instanceof SVGCircleElement ? circle.r.baseVal.value : 42;
-            const len = 2 * Math.PI * r;
-            circle.style.strokeDasharray = String(len);
-            circle.style.strokeDashoffset = String(len * (1 - f));
+        function applyRingRemaining(ringEl, fractionRemaining) {
+            var f = Math.max(0, Math.min(1, fractionRemaining));
+            var circle = ringEl.querySelector(".countdown-ring__progress");
+            if (circle instanceof SVGCircleElement) {
+                var r = circle.r.baseVal.value;
+                var len = 2 * Math.PI * r;
+                circle.style.strokeDasharray = String(len);
+                circle.style.strokeDashoffset = String(len * (1 - f));
+            }
+            var bar = ringEl.querySelector("[data-role=\"countdown-bar-fill\"]");
+            if (bar instanceof HTMLElement) {
+                bar.style.transformOrigin = "left center";
+                bar.style.transform = "scaleX(" + f + ")";
+            }
+        }
+
+        // Dairənin içində vaxt mətni daireye sığsın deyə şrifti dinamik kiçildirik.
+        function fitLaneTvCountdownTimer(ringEl) {
+            if (!(ringEl instanceof HTMLElement)) return;
+            var timer = ringEl.querySelector("[data-role=\"timer\"]");
+            if (!(timer instanceof HTMLElement)) return;
+            var cap = ringEl.querySelector("[data-role=\"caption\"]");
+            var diameter = Math.min(ringEl.clientWidth, ringEl.clientHeight);
+            if (diameter < 60) return;
+            // Dairənin daxili kvadratı təxminən diametr * 0.72-dir.
+            var inner = diameter * 0.72;
+            var maxW = Math.max(40, inner);
+            var capH = 0;
+            if (cap instanceof HTMLElement && cap.textContent && String(cap.textContent).trim()) {
+                // alt yazı şriftini daireye nisbətən kiçik tuturuq, taxmini hündürlüyü:
+                capH = Math.max(14, Math.round(diameter * 0.06));
+            }
+            var maxH = inner - capH - 8;
+            if (maxH < 24) maxH = 24;
+            timer.style.whiteSpace = "nowrap";
+            timer.style.fontSize = "";
+            var low = 12;
+            var high = Math.floor(diameter * 0.42);
+            if (high < low) high = low;
+            var best = low;
+            while (low <= high) {
+                var mid = (low + high) >> 1;
+                timer.style.fontSize = mid + "px";
+                var tw = timer.scrollWidth;
+                var th = timer.scrollHeight;
+                if (tw <= maxW && th <= maxH) {
+                    best = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            timer.style.fontSize = best + "px";
         }
 
         function updateCountdownRings() {
-            document.querySelectorAll("[data-countdown-ring]").forEach(el => {
+            document.querySelectorAll("[data-countdown-ring]").forEach(function (el) {
                 if (!(el instanceof HTMLElement)) return;
-                const start = el.dataset.start ?? "";
-                const end = el.dataset.end ?? "";
-                const status = el.dataset.status ?? "";
+                const start = el.dataset.start || "";
+                const end = el.dataset.end || "";
+                const status = el.dataset.status || "";
                 const timerEl = el.querySelector("[data-role=\"timer\"]");
                 const captionEl = el.querySelector("[data-role=\"caption\"]");
                 const progressEl = el.querySelector(".countdown-ring__progress");
                 if (!timerEl || !(progressEl instanceof SVGGraphicsElement)) return;
 
+                try {
                 const card = el.closest(".lane-card");
                 const statusPill = card instanceof HTMLElement ? card.querySelector(".status-pill") : null;
                 const bottomHint = card instanceof HTMLElement ? card.querySelector("[data-role=\"lane-bottom-hint\"]") : null;
@@ -380,7 +466,7 @@
                     if (captionEl) captionEl.textContent = "Boş";
                     setBottomHint("", "");
                     setCleanupMode(false);
-                    applyRingRemaining(progressEl, 0);
+                    applyRingRemaining(el, 0);
                     return;
                 }
 
@@ -395,7 +481,7 @@
                     if (captionEl) captionEl.textContent = "Sessiya";
                     setBottomHint("", "");
                     setCleanupMode(true);
-                    applyRingRemaining(progressEl, 0);
+                    applyRingRemaining(el, 0);
                     return;
                 }
 
@@ -410,7 +496,7 @@
                         timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
                         if (captionEl) captionEl.textContent = "Planlı";
                         setBottomHint("", "");
-                        applyRingRemaining(progressEl, 1);
+                        applyRingRemaining(el, 1);
                         return;
                     }
 
@@ -423,7 +509,7 @@
                         setBottomHint("", "");
                     }
                     setCleanupMode(false);
-                    applyRingRemaining(progressEl, 1);
+                    applyRingRemaining(el, 1);
                     return;
                 }
 
@@ -437,7 +523,7 @@
                         statusPill.textContent = "Bitib";
                         statusPill.className = "status-pill Completed";
                     }
-                    applyRingRemaining(progressEl, 0);
+                    applyRingRemaining(el, 0);
                     return;
                 }
 
@@ -457,7 +543,7 @@
                         statusPill.textContent = "Bitib";
                         statusPill.className = "status-pill Completed";
                     }
-                    applyRingRemaining(progressEl, 0);
+                    applyRingRemaining(el, 0);
                     return;
                 }
 
@@ -475,26 +561,181 @@
                     setBottomHint("", "");
                 }
                 setCleanupMode(false);
-                applyRingRemaining(progressEl, frac);
+                applyRingRemaining(el, frac);
+                } finally {
+                    fitLaneTvCountdownTimer(el);
+                }
             });
         }
 
-        async function apiFetch(input, init = {}) {
-            const response = await fetch(input, { ...init, credentials: "same-origin" });
-            if (response.status === 401) {
-                window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
-                throw new Error("İcazə yoxdur");
-            }
-            return response;
+        function apiFetch(input, init) {
+            init = init || {};
+            var url = (typeof input === "string")
+                ? input + (input.indexOf("?") >= 0 ? "&" : "?") + "_=" + Date.now()
+                : input;
+            init.credentials = "same-origin";
+            init.cache = "no-store";
+            return fetch(url, init);
         }
 
-        async function loadLane() {
-            const res = await apiFetch(`/dashboard/lanes/partial/card/${laneNumber}`);
-            if (!res.ok) return;
-            const root = document.getElementById("laneRoot");
-            root.innerHTML = await res.text();
-            updateCountdownRings();
+        var lastLaneHtml = "";
+        var laneLoadInFlight = false;
+        var pendingReload = false;
+
+        // Dairənin ölçüsünü qalan boş yerə görə hesablayır ki, mətn sətirləri nə qədər olsa da kəsilməsin.
+        function sizeCountdownRing() {
+            var card = document.querySelector(".lane-tv-body .lane-card");
+            if (!card) return;
+            var ring = card.querySelector(".countdown-ring-wrap");
+            if (!ring) return;
+
+            ring.style.width = "0px";
+            ring.style.height = "0px";
+
+            var cs = window.getComputedStyle(card);
+            var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+            var padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+            var availW = card.clientWidth - padX;
+            var availH = card.clientHeight - padY;
+
+            var usedH = 0;
+            var children = card.children;
+            for (var i = 0; i < children.length; i++) {
+                var ch = children[i];
+                if (ch === ring) continue;
+                var st = window.getComputedStyle(ch);
+                if (st.display === "none") continue;
+                if (st.position === "absolute" || st.position === "fixed") continue;
+                var rect = ch.getBoundingClientRect();
+                usedH += rect.height + (parseFloat(st.marginTop) || 0) + (parseFloat(st.marginBottom) || 0);
+            }
+
+            var rs = window.getComputedStyle(ring);
+            var ringMarginY = (parseFloat(rs.marginTop) || 0) + (parseFloat(rs.marginBottom) || 0);
+            var safeMargin = 12;
+
+            var size = Math.floor(Math.min(availH - usedH - ringMarginY - safeMargin, availW));
+            if (!isFinite(size) || size < 160) size = 160;
+            if (size > 460) size = 460;
+
+            ring.style.width = size + "px";
+            ring.style.height = size + "px";
+
+            fitLaneTvCountdownTimer(ring);
         }
+
+        var sizeRingPending = false;
+        function scheduleSizeRing() {
+            if (sizeRingPending) return;
+            sizeRingPending = true;
+            (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(function () {
+                sizeRingPending = false;
+                sizeCountdownRing();
+            });
+        }
+
+        window.addEventListener("resize", scheduleSizeRing);
+
+        // Tam innerHTML dəyişdirməsi köhnə WebView-də yanıb-sönmə yaradır.
+        // Strukturu eyni qaldıqda yalnız mətn/atributu dəyişən elementləri yeniləyirik.
+        function patchLaneDom(newHtml) {
+            var root = document.getElementById("laneRoot");
+            if (!root) return;
+            if (!root.firstElementChild) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                return;
+            }
+            var staging = document.createElement("div");
+            staging.innerHTML = newHtml;
+            var fresh = staging.firstElementChild;
+            var live = root.firstElementChild;
+            if (!fresh || !live || fresh.tagName !== live.tagName) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                scheduleSizeRing();
+                return;
+            }
+
+            function patchTextNodes(liveEl, freshEl) {
+                if (!liveEl || !freshEl) return;
+                if (liveEl.innerHTML !== freshEl.innerHTML) {
+                    liveEl.innerHTML = freshEl.innerHTML;
+                }
+            }
+            function patchClassAndText(liveEl, freshEl) {
+                if (!liveEl || !freshEl) return;
+                if (liveEl.className !== freshEl.className) liveEl.className = freshEl.className;
+                if (liveEl.textContent !== freshEl.textContent) liveEl.textContent = freshEl.textContent;
+            }
+
+            patchClassAndText(live.querySelector(".lane-title"), fresh.querySelector(".lane-title"));
+            patchClassAndText(live.querySelector(".status-pill"), fresh.querySelector(".status-pill"));
+            patchTextNodes(live.querySelector(".lane-type"), fresh.querySelector(".lane-type"));
+
+            var liveMetas = live.querySelectorAll(".lane-meta");
+            var freshMetas = fresh.querySelectorAll(".lane-meta");
+            var metaCountChanged = liveMetas.length !== freshMetas.length;
+            if (metaCountChanged) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                scheduleSizeRing();
+                return;
+            }
+            for (var i = 0; i < liveMetas.length; i++) {
+                patchTextNodes(liveMetas[i], freshMetas[i]);
+            }
+
+            var liveRing = live.querySelector("[data-countdown-ring]");
+            var freshRing = fresh.querySelector("[data-countdown-ring]");
+            if (liveRing && freshRing) {
+                var attrs = ["data-start", "data-end", "data-status"];
+                for (var k = 0; k < attrs.length; k++) {
+                    var a = attrs[k];
+                    var nv = freshRing.getAttribute(a) || "";
+                    if ((liveRing.getAttribute(a) || "") !== nv) {
+                        liveRing.setAttribute(a, nv);
+                    }
+                }
+            }
+
+            updateCountdownRings();
+            scheduleSizeRing();
+        }
+
+        function loadLane() {
+            if (laneLoadInFlight) { pendingReload = true; return; }
+            laneLoadInFlight = true;
+            return apiFetch("/dashboard/lanes/partial/card/" + laneNumber)
+                .then(function (res) {
+                    if (!res || !res.ok) return null;
+                    return res.text();
+                })
+                .then(function (text) {
+                    if (text == null) return;
+                    if (text === lastLaneHtml) return;
+                    lastLaneHtml = text;
+                    patchLaneDom(text);
+                })["catch"](function () { /* səssiz keç */ })
+                .then(function () {
+                    laneLoadInFlight = false;
+                    if (pendingReload) {
+                        pendingReload = false;
+                        setTimeout(loadLane, 50);
+                    }
+                });
+        }
+
+        // ---- Polling fallback ----
+        var POLL_INTERVAL_MS = 10000;
+        function startPolling() {
+            setInterval(loadLane, POLL_INTERVAL_MS);
+        }
+
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "visible") loadLane();
+        });
+        window.addEventListener("online", loadLane);
 
         let tickerId = null;
         function startTicker() {
@@ -514,33 +755,97 @@
             tickerId = setInterval(tick, 250);
         }
 
-        async function startSignalR() {
-            const connectionBadge = document.getElementById("connectionBadge");
-            const connection = new signalR.HubConnectionBuilder()
+        function startSignalR() {
+            var connectionBadge = document.getElementById("connectionBadge");
+            if (typeof signalR === "undefined" || !signalR.HubConnectionBuilder) {
+                if (connectionBadge) {
+                    connectionBadge.textContent = "Bağlantı yoxdur";
+                    connectionBadge.className = "status-pill";
+                }
+                setTimeout(startSignalR, 5000);
+                return;
+            }
+
+            var retryPolicy = {
+                nextRetryDelayInMilliseconds: function (ctx) {
+                    var attempt = ctx && ctx.previousRetryCount ? ctx.previousRetryCount : 0;
+                    if (attempt < 1) return 1000;
+                    if (attempt < 3) return 2000;
+                    if (attempt < 6) return 5000;
+                    if (attempt < 12) return 10000;
+                    return 30000;
+                }
+            };
+
+            var connection = new signalR.HubConnectionBuilder()
                 .withUrl("/hubs/lane")
-                .withAutomaticReconnect()
+                .withAutomaticReconnect(retryPolicy)
                 .build();
 
-            connection.onreconnecting(() => {
-                connectionBadge.textContent = "Yenidən bağlanır...";
-                connectionBadge.className = "status-pill Scheduled";
-            });
+            if (typeof connection.onreconnecting === "function") {
+                connection.onreconnecting(function () {
+                    if (connectionBadge) {
+                        connectionBadge.textContent = "Yenidən bağlanır...";
+                        connectionBadge.className = "status-pill Scheduled";
+                    }
+                });
+            }
 
-            connection.onreconnected(() => {
-                connectionBadge.textContent = "Qoşuldu";
-                connectionBadge.className = "status-pill Active";
-            });
+            if (typeof connection.onreconnected === "function") {
+                connection.onreconnected(function () {
+                    if (connectionBadge) {
+                        connectionBadge.textContent = "Qoşuldu";
+                        connectionBadge.className = "status-pill Active";
+                    }
+                    loadLane();
+                });
+            }
+
+            if (typeof connection.onclose === "function") {
+                connection.onclose(function () {
+                    if (connectionBadge) {
+                        connectionBadge.textContent = "Bağlantı yoxdur";
+                        connectionBadge.className = "status-pill";
+                    }
+                    var tryAgain = function () {
+                        connection.start().then(function () {
+                            if (connectionBadge) {
+                                connectionBadge.textContent = "Qoşuldu";
+                                connectionBadge.className = "status-pill Active";
+                            }
+                            loadLane();
+                        }, function () {
+                            setTimeout(tryAgain, 5000);
+                        });
+                    };
+                    setTimeout(tryAgain, 5000);
+                });
+            }
 
             connection.on("lane-updated", loadLane);
-            connection.on("score-updated", loadLane);
+            // Bu monitorda xal göstərilmir — `score-updated` çağırışı boş yerə kart yenidən yükləyirdi
+            // və hər atışda ekranda gözəyarı yanıb-sönmə yaradırdı, ona görə dinləmirik.
 
-            await connection.start();
-            connectionBadge.textContent = "Qoşuldu";
-            connectionBadge.className = "status-pill Active";
+            connection.start().then(
+                function () {
+                    if (connectionBadge) {
+                        connectionBadge.textContent = "Qoşuldu";
+                        connectionBadge.className = "status-pill Active";
+                    }
+                },
+                function () {
+                    if (connectionBadge) {
+                        connectionBadge.textContent = "Bağlantı yoxdur";
+                        connectionBadge.className = "status-pill";
+                    }
+                    setTimeout(startSignalR, 5000);
+                }
+            );
         }
 
         loadLane();
         startTicker();
+        startPolling();
         startSignalR();
     </script>
 </body>

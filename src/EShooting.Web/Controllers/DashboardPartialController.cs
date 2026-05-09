@@ -9,7 +9,7 @@ namespace EShooting.Web.Controllers;
 /// <summary>
 /// Zolaq monitoru üçün server tərəfli partial HTML (ayrıca view-lər).
 /// </summary>
-[Authorize]
+[AllowAnonymous]
 [Route("dashboard")]
 public sealed class DashboardPartialController(IMediator mediator) : Controller
 {

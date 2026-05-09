@@ -135,4 +135,32 @@ public static class LaneDisplayHelper
 
         return u.ToLocalTime().ToString("HH:mm:ss");
     }
+
+    /// <summary>
+    /// Yerli tarix qaytarır. Bugünkü gün üçün boş sətr (göstərmirik), sabahkı üçün "Sabah",
+    /// dünənki üçün "Dünən", əks halda "9 May, Şənbə" formatında çıxır.
+    /// </summary>
+    public static string FormatDateLocal(DateTime? utc)
+    {
+        if (utc is null)
+        {
+            return string.Empty;
+        }
+
+        var u = utc.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc)
+            : utc.Value.ToUniversalTime();
+
+        var local = u.ToLocalTime().Date;
+        var today = DateTime.Now.Date;
+        var diffDays = (local - today).Days;
+
+        // Bu gündürsə tarix göstərmirik — yer qənaət etmək üçün boş qaytarırıq.
+        if (diffDays == 0) return string.Empty;
+        if (diffDays == 1) return "Sabah";
+        if (diffDays == -1) return "Dünən";
+
+        var az = new System.Globalization.CultureInfo("az-AZ");
+        return local.ToString("d MMMM, dddd", az);
+    }
 }

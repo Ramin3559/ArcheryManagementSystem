@@ -31,6 +31,9 @@ public sealed class GetSubscriptionSchedulesQueryHandler(ITrainingCenterReposito
                 ActiveFromDateLocal = x.ActiveFromDateLocal,
                 ActiveToDateLocal = x.ActiveToDateLocal,
                 IsEnabled = x.IsEnabled,
+                LaneNumber = x.LaneNumber,
+                PreferredLaneType = x.PreferredLaneType,
+                IsFullPackage = x.IsFullPackage,
                 LastAssignedLaneNumber = x.LastAssignedLaneNumber,
                 LastAutoStartedAtUtc = x.LastAutoStartedAtUtc
             })

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Authorize(Roles = "Admin")]
+[AllowAnonymous]
 [Route("admin")]
 public sealed class AdminController(ITrainingCenterRepository repository) : Controller
 {

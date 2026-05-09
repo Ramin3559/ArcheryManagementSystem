@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 [ApiController]
 [Route("reports")]
 public sealed class ReportsController(ITrainingCenterRepository repository) : ControllerBase

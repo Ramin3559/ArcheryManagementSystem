@@ -489,6 +489,11 @@
             color: #7a86a8;
         }
 
+        /* TV zolaq ekranı üçün zolğ; əsas paneldə görünməsin */
+        .countdown-ring__bartrack {
+            display: none;
+        }
+
         .lane-card {
             position: relative;
         }
@@ -936,6 +941,48 @@
             flex: 0 0 auto;
             min-width: 220px;
             white-space: nowrap;
+        }
+
+        .athlete-suggest {
+            position: fixed;
+            z-index: 1100;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 14px 32px rgba(96, 87, 157, 0.18);
+            max-height: 280px;
+            overflow-y: auto;
+            min-width: 240px;
+        }
+
+        .athlete-suggest__row {
+            padding: 9px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(122, 138, 178, 0.16);
+            font-size: 13px;
+            color: #2a3260;
+            line-height: 1.35;
+        }
+
+        .athlete-suggest__row:last-child { border-bottom: 0; }
+        .athlete-suggest__row:hover, .athlete-suggest__row.is-active {
+            background: rgba(99, 132, 255, 0.12);
+        }
+
+        .athlete-suggest__name {
+            font-weight: 700;
+        }
+
+        .athlete-suggest__meta {
+            color: #65719b;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .athlete-suggest__empty {
+            padding: 9px 12px;
+            color: var(--text-muted);
+            font-size: 13px;
         }
     </style>
 </head>
@@ -1923,7 +1970,7 @@
     }
 
     function normalizeDigits(value) {
-        return String(value ?? "").replaceAll(/\\D+/g, "");
+        return String(value ?? "").replace(/\D+/g, "");
     }
 
     function normalizeText(value) {
@@ -2066,6 +2113,242 @@
         setLookupHint(`Məlumatlar yeniləndi: ${(firstNameInput?.value ?? "").trim()} ${(lastNameInput?.value ?? "").trim()}`.trim());
         syncUpdateAthleteButton();
         return true;
+    }
+
+    // Backenddən gələn idmançını reception xanalarına yerləşdirir və "matched" snapshot-u qurur.
+    function applyAthleteToReception(best) {
+        console.log("[autocomplete] applyAthleteToReception çağrıldı", best);
+        if (!best) {
+            console.warn("[autocomplete] applyAthleteToReception: boş obyekt verildi", best);
+            return;
+        }
+        isAutoFillingReception = true;
+        try {
+            receptionMatchedAthleteId = best.id || null;
+
+            const fullName = best.fullName || "";
+            const fnFromFull = fullName ? fullName.split(" ")[0] : "";
+            const lnFromFull = fullName ? fullName.split(" ").slice(1).join(" ") : "";
+
+            // Sadə dəyər təyini: heç bir hadisə dispatch etmirik ki, başqa listenerlər
+            // nəyisə təkrar yoxlamaya başlamasın və dəyərləri silməsin.
+            if (firstNameInput instanceof HTMLInputElement) {
+                firstNameInput.value = best.firstName != null ? best.firstName : fnFromFull;
+            }
+            if (lastNameInput instanceof HTMLInputElement) {
+                lastNameInput.value = best.lastName != null ? best.lastName : lnFromFull;
+            }
+            if (phoneNumberInput instanceof HTMLInputElement) {
+                phoneNumberInput.value = best.phoneNumber || "";
+            }
+            if (emailInput instanceof HTMLInputElement) {
+                emailInput.value = best.email || "";
+            }
+            if (idCardNumberInput instanceof HTMLInputElement) {
+                idCardNumberInput.value = best.idCardNumber || "";
+            }
+
+            if (categoryInput instanceof HTMLSelectElement && best.category !== undefined && best.category !== null && String(best.category) !== "") {
+                const catRaw = best.category;
+                const catVal = (typeof catRaw === "number")
+                    ? String(catRaw)
+                    : (String(catRaw).toLowerCase() === "amateur" ? "0"
+                        : String(catRaw).toLowerCase() === "professional" ? "1"
+                        : String(catRaw).toLowerCase() === "coach" ? "2"
+                        : String(catRaw));
+                categoryInput.value = catVal;
+                try { refreshLaneOptions(); } catch (e) { /* ignore */ }
+            }
+            if (membershipTypeInput instanceof HTMLSelectElement && best.membershipType !== undefined && best.membershipType !== null && String(best.membershipType) !== "") {
+                const memRaw = best.membershipType;
+                const mVal = (typeof memRaw === "number")
+                    ? String(memRaw)
+                    : (String(memRaw).toLowerCase() === "archeryonly" ? "0"
+                        : String(memRaw).toLowerCase() === "gymonly" ? "1"
+                        : String(memRaw).toLowerCase() === "fullcombo" ? "2"
+                        : String(memRaw));
+                membershipTypeInput.value = mVal;
+            }
+
+            receptionMatchedSnapshot = buildReceptionCurrentSnapshot();
+            const displayName = fullName || (`${best.firstName || ""} ${best.lastName || ""}`).trim() || "—";
+            setLookupHint(`Müştəri seçildi: ${displayName}`);
+            syncUpdateAthleteButton();
+            try { syncSubscriptionAthleteNameFromReception(); } catch (e) { /* ignore */ }
+            console.log("[autocomplete] xanalar dolduruldu", {
+                first: firstNameInput && firstNameInput.value,
+                last: lastNameInput && lastNameInput.value,
+                phone: phoneNumberInput && phoneNumberInput.value,
+                email: emailInput && emailInput.value,
+                idCard: idCardNumberInput && idCardNumberInput.value
+            });
+        } catch (err) {
+            console.error("[autocomplete] applyAthleteToReception failed", err);
+        } finally {
+            isAutoFillingReception = false;
+        }
+    }
+
+    // ====== Reception sahələri üçün avtomatik tamamlama (yazdıqca açılan siyahı) ======
+    const _athleteSuggestEl = (function () {
+        const el = document.createElement("div");
+        el.className = "athlete-suggest";
+        el.style.display = "none";
+        el.setAttribute("role", "listbox");
+        document.body.appendChild(el);
+        return el;
+    })();
+    let _athleteSuggestAnchor = null;
+    let _athleteSuggestItems = [];
+
+    function hideAthleteSuggest() {
+        _athleteSuggestEl.style.display = "none";
+        _athleteSuggestEl.innerHTML = "";
+        _athleteSuggestAnchor = null;
+        _athleteSuggestItems = [];
+    }
+
+    function escapeForHtml(s) {
+        return String(s ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function renderAthleteSuggestItems(items) {
+        // Köhnə listenerlərin yığılmaması üçün hər render əvvəli içəriyi tamamilə təmizləyirik.
+        while (_athleteSuggestEl.firstChild) {
+            _athleteSuggestEl.removeChild(_athleteSuggestEl.firstChild);
+        }
+        if (!Array.isArray(items) || items.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "athlete-suggest__empty";
+            empty.textContent = "Uyğun nəticə yoxdur";
+            _athleteSuggestEl.appendChild(empty);
+            return;
+        }
+
+        items.forEach(function (it) {
+            const fullName = it.fullName || (`${it.firstName || ""} ${it.lastName || ""}`).trim() || "—";
+            const row = document.createElement("div");
+            row.className = "athlete-suggest__row";
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "athlete-suggest__name";
+            nameEl.textContent = fullName;
+            row.appendChild(nameEl);
+
+            const metaParts = [];
+            if (it.phoneNumber) metaParts.push(it.phoneNumber);
+            if (it.email) metaParts.push(it.email);
+            if (it.idCardNumber) metaParts.push("FİN: " + it.idCardNumber);
+            if (metaParts.length) {
+                const meta = document.createElement("div");
+                meta.className = "athlete-suggest__meta";
+                meta.textContent = metaParts.join(" · ");
+                row.appendChild(meta);
+            }
+
+            // Birbaşa hər sətrə öz handler-i — delegasiya yox.
+            const onSelect = function (ev) {
+                if (ev) {
+                    try { ev.preventDefault(); } catch (e) { /* ignore */ }
+                    try { ev.stopPropagation(); } catch (e) { /* ignore */ }
+                }
+                console.log("[autocomplete] row seçildi", it);
+                applyAthleteToReception(it);
+                hideAthleteSuggest();
+            };
+            row.addEventListener("mousedown", function (ev) {
+                _isClickingAthleteSuggest = true;
+                onSelect(ev);
+            });
+            row.addEventListener("touchend", function (ev) { onSelect(ev); });
+
+            _athleteSuggestEl.appendChild(row);
+        });
+    }
+
+    function positionAthleteSuggest(anchorInput) {
+        if (!(anchorInput instanceof HTMLElement)) return;
+        const rect = anchorInput.getBoundingClientRect();
+        const top = rect.bottom + 4;
+        const maxLeft = Math.max(8, window.innerWidth - 320);
+        const left = Math.min(rect.left, maxLeft);
+        _athleteSuggestEl.style.top = top + "px";
+        _athleteSuggestEl.style.left = left + "px";
+        _athleteSuggestEl.style.minWidth = Math.max(260, rect.width) + "px";
+    }
+
+    async function fetchAthleteSearch(q) {
+        try {
+            const res = await apiFetch(`/athletes/search?q=${encodeURIComponent(q)}&limit=10`);
+            if (!res.ok) return [];
+            const list = await res.json();
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+    }
+
+    const debouncedAthleteSearch = debounce(async function (input) {
+        if (!(input instanceof HTMLInputElement)) return;
+        // Avtomatik dolduran zaman yenidən axtarış göstərmək lazım deyil.
+        if (isAutoFillingReception) return;
+        const q = (input.value || "").trim();
+        if (q.length < 2) { hideAthleteSuggest(); return; }
+        const items = await fetchAthleteSearch(q);
+        // İstifadəçi başqa xanaya keçibsə, nəticə artıq aktual deyil.
+        if (document.activeElement !== input) return;
+        _athleteSuggestItems = items;
+        _athleteSuggestAnchor = input;
+        renderAthleteSuggestItems(items);
+        positionAthleteSuggest(input);
+        _athleteSuggestEl.style.display = "block";
+    }, 180);
+
+    let _isClickingAthleteSuggest = false;
+
+    function attachAthleteAutocomplete() {
+        const inputs = [firstNameInput, lastNameInput, phoneNumberInput, emailInput, idCardNumberInput]
+            .filter(x => x instanceof HTMLInputElement);
+        inputs.forEach(function (input) {
+            input.addEventListener("input", function () { debouncedAthleteSearch(input); });
+            input.addEventListener("focus", function () {
+                const q = (input.value || "").trim();
+                if (q.length >= 2) debouncedAthleteSearch(input);
+            });
+            input.addEventListener("blur", function () {
+                // Popover sətri üzərinə klik edirsə blur-da bağlama (mousedown _isClickingAthleteSuggest qoyur).
+                setTimeout(function () {
+                    if (_isClickingAthleteSuggest) {
+                        _isClickingAthleteSuggest = false;
+                        return;
+                    }
+                    hideAthleteSuggest();
+                }, 200);
+            });
+        });
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") hideAthleteSuggest();
+        });
+        // Pəncərə resize / scroll olduqda popover yerini itirməsin deyə bağlayırıq.
+        window.addEventListener("resize", hideAthleteSuggest);
+        document.addEventListener("scroll", function (e) {
+            // Popover öz daxili scroll-u olarsa onu nəzərə alma.
+            if (_athleteSuggestEl.contains(e.target)) return;
+            hideAthleteSuggest();
+        }, true);
+
+        // Pəncərənin başqa yerində klik olarsa popoveri bağla.
+        document.addEventListener("mousedown", function (e) {
+            const t = e.target;
+            if (!(t instanceof Node)) return;
+            if (_athleteSuggestEl.contains(t)) return; // popoverin öz daxili klik
+            if (inputs.some(function (inp) { return inp === t; })) return; // input özüdür
+            hideAthleteSuggest();
+        });
     }
 
     function debounce(fn, waitMs) {
@@ -2244,23 +2527,91 @@
         return { first, last, phone, email, idCard, category, membership };
     }
 
+    // Yoxlanış yalnız 5 əsas sahəyə görədir: ad, soyad, telefon, email, FİN.
+    // Kateqoriya və abunəlik növü "dəyişdi" hesab edilmir (xəbərdarlıq tetiklənmir).
     function isReceptionDirtyComparedToSnapshot() {
         if (!receptionMatchedAthleteId || !receptionMatchedSnapshot) return false;
         const cur = buildReceptionCurrentSnapshot();
         const prev = receptionMatchedSnapshot;
-        return cur.first !== prev.first
-            || cur.last !== prev.last
-            || cur.phone !== prev.phone
-            || cur.email !== prev.email
-            || cur.idCard !== prev.idCard
-            || cur.category !== prev.category
-            || cur.membership !== prev.membership;
+        const diffs = {};
+        if (cur.first !== prev.first) diffs.first = { cur: cur.first, prev: prev.first };
+        if (cur.last !== prev.last) diffs.last = { cur: cur.last, prev: prev.last };
+        if (cur.phone !== prev.phone) diffs.phone = { cur: cur.phone, prev: prev.phone };
+        if (cur.email !== prev.email) diffs.email = { cur: cur.email, prev: prev.email };
+        if (cur.idCard !== prev.idCard) diffs.idCard = { cur: cur.idCard, prev: prev.idCard };
+        const dirty = Object.keys(diffs).length > 0;
+        if (dirty) console.log("[reception] dirty check fərqlər:", diffs);
+        return dirty;
     }
 
+    // Verilən bazadakı qeyddən reception snapshot strukturunda obyekt qurur.
+    // Yalnız 5 əsas sahə dolduralacaq, kateqoriya/abunəlik müqayisəyə daxil deyil.
+    function receptionSnapshotFromExisting(existing) {
+        return {
+            first: (existing.firstName ?? "").trim(),
+            last: (existing.lastName ?? "").trim(),
+            phone: normalizeDigits(existing.phoneNumber),
+            email: normalizeText(existing.email),
+            idCard: normalizeText(existing.idCardNumber)
+        };
+    }
+
+    // Cari xanalarda yazılmış dəyərləri bazadakı qeyddən fərqliliklə müqayisə edir.
+    // Yalnız ad, soyad, telefon, email, FİN-ə baxılır.
+    // Qayda: cari xana boşdursa, müqayisə edilmir (yəni boş yazmaq fərq sayılmır).
+    // Yalnız cari xanada DƏYƏR varsa və DB-dəki ilə fərqlidirsə, fərq qeyd olunur.
+    function receptionDiffersFromExisting(existing) {
+        const diffs = collectReceptionDiffs(existing);
+        return Object.keys(diffs).length > 0;
+    }
+
+    function collectReceptionDiffs(existing) {
+        const cur = buildReceptionCurrentSnapshot();
+        const ex = receptionSnapshotFromExisting(existing);
+        const diffs = {};
+        // Yalnız AD və SOYAD müqayisə olunur. Boş yazılan ad/soyad fərq sayılmır.
+        // Telefon/email/FİN — bu sahələrdəki dəyişiklik xəbərdarlıq tetikləmir.
+        if (cur.first && cur.first !== ex.first) diffs.first = { current: cur.first, db: ex.first };
+        if (cur.last && cur.last !== ex.last) diffs.last = { current: cur.last, db: ex.last };
+        return diffs;
+    }
+
+    function diffsToHumanLabels(diffs) {
+        const labels = {
+            first: "Ad",
+            last: "Soyad"
+        };
+        const lines = [];
+        Object.keys(diffs).forEach(function (k) {
+            const d = diffs[k];
+            const dbVal = d.db && String(d.db).length ? d.db : "(boş)";
+            lines.push(`• ${labels[k]}: "${d.current}" (yazılan) vs "${dbVal}" (bazadakı)`);
+        });
+        return lines.join("\n");
+    }
+
+    // Bu funksiya artıq snapshot ilə yoxlama etmir; yalnız əməliyyatdan əvvəl
+    // bir şey edilməsini lazım bilirsə true qaytarır. Əsl müqayisə (DB-yə qarşı)
+    // `maybePromptUpdateForFoundAthlete` daxilində — lookup-dan sonra olur.
     async function maybeUpdateAthleteIfDirtyBeforeAction() {
-        if (!receptionMatchedAthleteId) return true;
-        if (!isReceptionDirtyComparedToSnapshot()) return true;
-        const ok = window.confirm("Məlumatlar dəyişdirilib. Yenilənsin?");
+        return true;
+    }
+
+    // Lookup nəticəsində mövcud şəxs tapıldıqda yazılmış məlumatların DB-dəki ilə fərqi varsa
+    // "yenilənsin?" sualı verir və istifadəçi razı olarsa DB-ni yeniləyir.
+    // Yalnız 5 unik sahə (ad, soyad, telefon, email, FİN) müqayisə olunur.
+    // Boş yazılmış xana fərq sayılmır.
+    async function maybePromptUpdateForFoundAthlete(foundAthlete) {
+        if (!foundAthlete || !foundAthlete.id) return true;
+        receptionMatchedAthleteId = foundAthlete.id;
+        const diffs = collectReceptionDiffs(foundAthlete);
+        if (Object.keys(diffs).length === 0) return true;
+        console.log("[reception] DB ilə fərq aşkarlandı", diffs);
+        const detail = diffsToHumanLabels(diffs);
+        const ok = window.confirm(
+            "Bu şəxs sistemdə artıq qeydiyyatdadır, lakin yazılan məlumatlar fərqlidir:\n\n" +
+            detail + "\n\n" +
+            "Bazadakı məlumatlar yenilənsin?");
         if (!ok) return true;
         const updated = await updateAthleteFromReception({ silentSuccess: true });
         return Boolean(updated);
@@ -3055,11 +3406,12 @@
 
             // Ensure athlete exists in DB: lookup by identifiers; if not found, register first.
             let athleteId = receptionMatchedAthleteId;
-            if (!athleteId) {
-                try {
-                    const phoneQ = normalizeDigits(phoneNumberInput?.value);
-                    const emailQ = normalizeText(emailInput?.value);
-                    const idQ = normalizeText(idCardNumberInput?.value);
+            let foundAthleteForSub = null;
+            try {
+                const phoneQ = normalizeDigits(phoneNumberInput?.value);
+                const emailQ = normalizeText(emailInput?.value);
+                const idQ = normalizeText(idCardNumberInput?.value);
+                if (phoneQ || emailQ || idQ) {
                     const qs = new URLSearchParams();
                     if (phoneQ) qs.set("phone", phoneQ);
                     if (emailQ) qs.set("email", emailQ);
@@ -3067,11 +3419,18 @@
                     const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`);
                     if (lookupRes.ok) {
                         const found = await lookupRes.json();
-                        athleteId = found?.id ?? null;
+                        athleteId = found?.id ?? athleteId;
+                        foundAthleteForSub = found;
                         receptionMatchedAthleteId = athleteId;
                         syncUpdateAthleteButton();
                     }
-                } catch { /* ignore */ }
+                }
+            } catch { /* ignore */ }
+
+            // DB-də olan şəxsdə yazılmış 5 sahədən fərq varsa, bir dəfə soruşaq.
+            if (foundAthleteForSub) {
+                const proceed = await maybePromptUpdateForFoundAthlete(foundAthleteForSub);
+                if (!proceed) return;
             }
 
             if (!athleteId) {
@@ -3623,6 +3982,13 @@
                 }
             } catch { /* ignore */ }
 
+            // Lookup mövcud şəxsi tapdısa və yazılmış 5 unik sahədə fərq varsa,
+            // burada bir dəfə "yenilənsin?" sualı verilir. Razı olunsa DB yenilənir.
+            if (foundAthlete) {
+                const proceed = await maybePromptUpdateForFoundAthlete(foundAthlete);
+                if (!proceed) return;
+            }
+
             // Əgər artıq sistemdə varsa: aktiv zolaq yoxlaması + ağıllı davranış
             if (athleteId) {
                 // Hazırda hər hansı zolaqda aktivdirsə: yeni zolağa yazmaq olmaz
@@ -3659,16 +4025,30 @@
                         let payload = null;
                         try { payload = await athleteResponse.json(); } catch { }
                         const existingId = payload?.existingId ?? null;
+                        const existing = payload?.existing ?? null;
                         if (existingId) {
                             receptionMatchedAthleteId = existingId;
                             athleteId = existingId;
                             syncUpdateAthleteButton();
                             setLookupHint("Müştəri tapıldı (təkrar qeydiyyat əvəzinə mövcud şəxs seçildi).");
 
-                            const wantsUpdate = window.confirm("Bu şəxs artıq sistemdə qeydiyyatdadır. Məlumatlarını dəyişmək istəyirsinizmi?");
-                            if (wantsUpdate) {
-                                const ok = await updateAthleteFromReception({ silentSuccess: true });
-                                if (!ok) return;
+                            // Yalnız yazılmış məlumatlar bazadakından həqiqətən fərqlidirsə xəbərdarlıq verilsin.
+                            // Eyni isə səssiz davam edirik və sessiyanı planlaşdırırıq.
+                            const isDirtyVsExisting = existing
+                                ? receptionDiffersFromExisting(existing)
+                                : true;
+
+                            if (existing) {
+                                // Snapshot bazadakı dəyərlərlə eyniləşdirilir ki, sonrakı dirty-check-lər doğru işləsin.
+                                receptionMatchedSnapshot = receptionSnapshotFromExisting(existing);
+                            }
+
+                            if (isDirtyVsExisting) {
+                                const wantsUpdate = window.confirm("Bu şəxs sistemdə var və yazılan məlumatlardan fərqlidir. Bazadakı məlumatlar yenilənsin?");
+                                if (wantsUpdate) {
+                                    const ok = await updateAthleteFromReception({ silentSuccess: true });
+                                    if (!ok) return;
+                                }
                             }
                         } else {
                             const message = payload?.error ?? "Bu məlumatlarla artıq qeydiyyat mövcuddur.";
@@ -4252,6 +4632,7 @@
         });
     } catch (e) { console.error(e); }
 
+    try { attachAthleteAutocomplete(); } catch (e) { console.error("attachAthleteAutocomplete error", e); }
     try { syncFullPackageUi(); } catch (e) { console.error(e); }
     try { loadDashboard(); } catch (e) { console.error("loadDashboard error", e); }
     try { loadSubscriptionSchedules(); } catch (e) { console.error("loadSubscriptionSchedules error", e); }

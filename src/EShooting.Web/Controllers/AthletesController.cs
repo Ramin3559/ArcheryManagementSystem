@@ -35,7 +35,21 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 return Conflict(new
                 {
                     error = "Bu şəxs artıq sistemdə qeydiyyatdadır.",
-                    existingId = existing.Id
+                    existingId = existing.Id,
+                    existing = new
+                    {
+                        existing.Id,
+                        existing.FullName,
+                        existing.FirstName,
+                        existing.LastName,
+                        existing.PhoneNumber,
+                        existing.Email,
+                        existing.IdCardNumber,
+                        existing.Category,
+                        existing.MembershipType,
+                        existing.IsSubscriber,
+                        existing.IsFullPackage
+                    }
                 });
             }
         }
@@ -132,6 +146,90 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         {
             return Conflict(new { error = "Bu telefon/email/FİN artıq başqa bir şəxsə aiddir." });
         }
+    }
+
+    /// <summary>
+    /// Yazdıqca avtomatik tamamlama üçün ad/soyad/telefon/email/FİN üzrə sürətli axtarış.
+    /// Verilmiş `q` ən azı 2 simvol olduqda işə düşür.
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<IActionResult> Search([FromQuery] string? q, [FromQuery] int limit, CancellationToken cancellationToken)
+    {
+        var query = (q ?? string.Empty).Trim();
+        if (query.Length < 2)
+        {
+            return Ok(Array.Empty<object>());
+        }
+
+        var take = limit <= 0 ? 10 : Math.Min(limit, 25);
+
+        var qLower = query.ToLowerInvariant();
+        var qDigits = NormalizeDigits(query);
+
+        var athletes = await repository.GetAthletesAsync(cancellationToken);
+        var matches = athletes
+            .Select(a =>
+            {
+                var firstLower = (a.FirstName ?? string.Empty).ToLowerInvariant();
+                var lastLower = (a.LastName ?? string.Empty).ToLowerInvariant();
+                var fullLower = (a.FullName ?? string.Empty).ToLowerInvariant();
+                var emailLower = (a.Email ?? string.Empty).ToLowerInvariant();
+                var idLower = (a.IdCardNumber ?? string.Empty).ToLowerInvariant();
+                var phoneDigits = NormalizeDigits(a.PhoneNumber);
+
+                var score = 0;
+                if (!string.IsNullOrEmpty(qDigits) && phoneDigits.Length > 0)
+                {
+                    if (phoneDigits == qDigits) score += 200;
+                    else if (phoneDigits.StartsWith(qDigits, StringComparison.Ordinal)) score += 120;
+                    else if (phoneDigits.Contains(qDigits, StringComparison.Ordinal)) score += 60;
+                }
+
+                if (firstLower.StartsWith(qLower, StringComparison.Ordinal)) score += 90;
+                else if (firstLower.Contains(qLower, StringComparison.Ordinal)) score += 30;
+
+                if (lastLower.StartsWith(qLower, StringComparison.Ordinal)) score += 90;
+                else if (lastLower.Contains(qLower, StringComparison.Ordinal)) score += 30;
+
+                if (fullLower.StartsWith(qLower, StringComparison.Ordinal)) score += 70;
+                else if (fullLower.Contains(qLower, StringComparison.Ordinal)) score += 25;
+
+                if (!string.IsNullOrEmpty(emailLower))
+                {
+                    if (emailLower.StartsWith(qLower, StringComparison.Ordinal)) score += 80;
+                    else if (emailLower.Contains(qLower, StringComparison.Ordinal)) score += 25;
+                }
+
+                if (!string.IsNullOrEmpty(idLower))
+                {
+                    if (idLower == qLower) score += 150;
+                    else if (idLower.StartsWith(qLower, StringComparison.Ordinal)) score += 80;
+                    else if (idLower.Contains(qLower, StringComparison.Ordinal)) score += 30;
+                }
+
+                return new { Athlete = a, Score = score };
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Athlete.FullName)
+            .Take(take)
+            .Select(x => new
+            {
+                x.Athlete.Id,
+                x.Athlete.FullName,
+                x.Athlete.FirstName,
+                x.Athlete.LastName,
+                x.Athlete.PhoneNumber,
+                x.Athlete.Email,
+                x.Athlete.IdCardNumber,
+                x.Athlete.Category,
+                x.Athlete.MembershipType,
+                x.Athlete.IsSubscriber,
+                x.Athlete.IsFullPackage
+            })
+            .ToList();
+
+        return Ok(matches);
     }
 
     [HttpGet("lookup")]

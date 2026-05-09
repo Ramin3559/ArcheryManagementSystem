@@ -16,6 +16,13 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         CancellationToken cancellationToken)
     {
         var nowUtc = DateTime.UtcNow;
+
+        // Yalnız bu günün (yerli vaxtla) planlı sessiyalarını göstəririk.
+        // Sabahkı və ya gələcək günün planları "Planlaşdırılıb" kimi görünməyəcək.
+        var localNow = nowUtc.ToLocalTime();
+        var localTomorrowMidnight = localNow.Date.AddDays(1);
+        var endOfTodayUtc = localTomorrowMidnight.ToUniversalTime();
+
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
@@ -35,10 +42,19 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     .OrderByDescending(x => x.StartTimeUtc)
                     .ToList();
 
-                // Canlı pəncərə: yalnız vaxt UTC-də düzgün müqayisə olunduqda (EF çox vaxt Unspecified qaytarır).
-                var activeSession = laneSessions
-                    .FirstOrDefault(x => IsInLiveWindow(x, nowUtc))
-                    ?? laneSessions.FirstOrDefault();
+                // 1) Hazırda canlı pəncərədə olan sessiya.
+                // 2) Yoxdursa: yalnız BUGÜNÜN gələcək saatları üçün ən tez planlı sessiya.
+                //    Sabah üçün və ya keçmişdə qalmış planlı sessiyalar Planlı kimi göstərilməyəcək —
+                //    zolaq Boş olaraq qalacaq.
+                var activeSession = laneSessions.FirstOrDefault(x => IsInLiveWindow(x, nowUtc))
+                    ?? laneSessions
+                        .Where(x =>
+                        {
+                            var startUtc = DateTimeAssumedUtc.AsUtc(x.StartTimeUtc);
+                            return startUtc > nowUtc && startUtc < endOfTodayUtc;
+                        })
+                        .OrderBy(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
+                        .FirstOrDefault();
 
                 var athleteName = activeSession is null
                     ? null
