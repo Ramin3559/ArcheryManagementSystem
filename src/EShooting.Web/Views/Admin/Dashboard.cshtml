@@ -58,7 +58,7 @@
         <div class="statValue" data-stat="activeSubscribers">@subs</div>
     </div>
     <div class="card">
-        <div class="statLabel">Bu günkü sessiyalar</div>
+        <div class="statLabel">Bu günkü seanslar</div>
         <div class="statValue" data-stat="todaysSessions">@today</div>
     </div>
     <div class="card">
@@ -102,14 +102,35 @@
     <div class="chart-summary" id="laSummary">
         @if (la != null)
         {
+            var avgMin = la.SessionTotal > 0 ? (int)Math.Round((la.HoursTotal / la.SessionTotal) * 60) : 0;
             <span><b>Ən yüklü zolaq:</b> @(la.BusiestLaneNumber.HasValue ? $"Zolaq {la.BusiestLaneNumber}" : "—")</span>
-            <span><b>Sessiya:</b> @la.SessionTotal</span>
+            <span><b>Seans:</b> @la.SessionTotal</span>
             <span><b>Ümumi saat:</b> @la.HoursTotal.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)</span>
+            <span><b>Orta seans:</b> @(la.SessionTotal > 0 ? $"{avgMin} dəq" : "—")</span>
         }
     </div>
 
     <div class="chart-host">
         <canvas id="laneChart"></canvas>
+    </div>
+
+    <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:#374151;">
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(22,163,74,0.85);"></span>
+            Yüksək aktivlik (≥ 66%)
+        </span>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(59,130,246,0.85);"></span>
+            Orta aktivlik (33–66%)
+        </span>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(245,158,11,0.85);"></span>
+            Aşağı aktivlik (&lt; 33%)
+        </span>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(229,231,235,0.85); border:1px solid rgba(156,163,175,1);"></span>
+            Aktivlik yoxdur
+        </span>
     </div>
 </div>
 
@@ -142,6 +163,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
 <script>
     (function () {
@@ -286,20 +308,55 @@
             return analyticsUrl + "?" + params.toString();
         }
 
+        function fmtHours(n) {
+            var v = Number(n || 0);
+            return (Math.round(v * 100) / 100).toFixed(2);
+        }
+
         function renderChart(data) {
             var canvas = document.getElementById("laneChart");
             if (!canvas) return;
             if (typeof Chart === "undefined") return;
-            var labels = (data.byLane || []).map(function (r) { return "Zolaq " + r.laneNumber; });
-            var hours = (data.byLane || []).map(function (r) { return Number(r.totalHours || 0); });
-            var sessions = (data.byLane || []).map(function (r) { return Number(r.sessionCount || 0); });
+            try {
+                if (typeof ChartDataLabels !== "undefined") {
+                    Chart.register(ChartDataLabels);
+                }
+            } catch (e) { /* ignore */ }
+
+            var rows = (data.byLane || []).slice().sort(function (a, b) {
+                return (a.laneNumber || 0) - (b.laneNumber || 0);
+            });
+            var labels = rows.map(function (r) { return "Zolaq " + r.laneNumber; });
+            var hours = rows.map(function (r) { return Number(r.totalHours || 0); });
+            var sessions = rows.map(function (r) { return Number(r.sessionCount || 0); });
+
+            var maxHours = hours.reduce(function (m, v) { return v > m ? v : m; }, 0);
+            function activityColor(v) {
+                if (!(v > 0) || maxHours <= 0) return "rgba(229,231,235,0.85)";
+                var ratio = v / maxHours;
+                if (ratio >= 0.66) return "rgba(22,163,74,0.85)";   // yaşıl — yüksək
+                if (ratio >= 0.33) return "rgba(59,130,246,0.85)";  // göy — orta
+                return "rgba(245,158,11,0.85)";                     // sarı — aşağı
+            }
+            function activityBorder(v) {
+                if (!(v > 0) || maxHours <= 0) return "rgba(156,163,175,1)";
+                var ratio = v / maxHours;
+                if (ratio >= 0.66) return "rgba(22,163,74,1)";
+                if (ratio >= 0.33) return "rgba(59,130,246,1)";
+                return "rgba(245,158,11,1)";
+            }
+            var barColors = hours.map(activityColor);
+            var hoverColors = hours.map(activityBorder);
+
             var ctx = canvas.getContext("2d");
             if (!ctx) return;
 
             if (laChart) {
                 laChart.data.labels = labels;
                 laChart.data.datasets[0].data = hours;
-                laChart.data.datasets[1].data = sessions;
+                laChart.data.datasets[0].backgroundColor = barColors;
+                laChart.data.datasets[0].hoverBackgroundColor = hoverColors;
+                laChart.data.datasets[0]._sessions = sessions;
                 laChart.update();
                 return;
             }
@@ -312,50 +369,64 @@
                         {
                             label: "Saat",
                             data: hours,
-                            backgroundColor: "rgba(79,70,229,0.78)",
-                            borderRadius: 6,
-                            yAxisID: "y"
-                        },
-                        {
-                            label: "Sessiya",
-                            data: sessions,
-                            backgroundColor: "rgba(22,163,74,0.78)",
-                            borderRadius: 6,
-                            yAxisID: "y1"
+                            _sessions: sessions,
+                            backgroundColor: barColors,
+                            hoverBackgroundColor: hoverColors,
+                            borderRadius: 8,
+                            maxBarThickness: 64
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: { padding: { top: 28 } },
                     interaction: { mode: "index", intersect: false },
                     plugins: {
-                        legend: { position: "bottom" },
+                        legend: { display: false },
                         tooltip: {
                             callbacks: {
+                                title: function (items) {
+                                    return items && items[0] ? items[0].label : "";
+                                },
                                 label: function (ctx) {
-                                    var v = ctx.parsed.y;
-                                    if (ctx.dataset.label === "Saat") {
-                                        return "Saat: " + (Math.round(v * 100) / 100).toFixed(2);
-                                    }
-                                    return "Sessiya: " + v;
+                                    var idx = ctx.dataIndex;
+                                    var ds = ctx.dataset || {};
+                                    var hrs = Number(ctx.parsed.y || 0);
+                                    var ses = Number((ds._sessions || [])[idx] || 0);
+                                    var avg = ses > 0 ? (hrs / ses) * 60 : 0;
+                                    return [
+                                        "Saat: " + fmtHours(hrs),
+                                        "Seans: " + ses,
+                                        "Orta seans: " + (ses > 0 ? (Math.round(avg) + " dəq") : "—")
+                                    ];
                                 }
                             }
-                        }
+                        },
+                        datalabels: (typeof ChartDataLabels !== "undefined") ? {
+                            anchor: "end",
+                            align: "end",
+                            offset: 4,
+                            clip: false,
+                            color: "#1f2937",
+                            font: { weight: "700", size: 12 },
+                            formatter: function (value, ctx) {
+                                var idx = ctx.dataIndex;
+                                var ses = Number(((ctx.dataset || {})._sessions || [])[idx] || 0);
+                                var hrs = Number(value || 0);
+                                if (hrs <= 0 && ses <= 0) return "";
+                                return ses + " seans · " + fmtHours(hrs) + " s";
+                            }
+                        } : undefined
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            position: "left",
                             title: { display: true, text: "Saat" },
                             ticks: { precision: 0 }
                         },
-                        y1: {
-                            beginAtZero: true,
-                            position: "right",
-                            grid: { drawOnChartArea: false },
-                            title: { display: true, text: "Sessiya" },
-                            ticks: { precision: 0 }
+                        x: {
+                            grid: { display: false }
                         }
                     }
                 }
@@ -368,10 +439,13 @@
             if (label) label.textContent = safeText(data.label);
             if (!sum) return;
             var busiest = data.busiestLaneNumber != null ? "Zolaq " + data.busiestLaneNumber : "—";
-            var hoursTxt = (Math.round(Number(data.hoursTotal || 0) * 100) / 100).toFixed(2);
+            var hoursTotal = Number(data.hoursTotal || 0);
+            var sessionTotal = Number(data.sessionTotal || 0);
+            var avgMin = sessionTotal > 0 ? Math.round((hoursTotal / sessionTotal) * 60) : 0;
             sum.innerHTML = "<span><b>Ən yüklü zolaq:</b> " + busiest + "</span>"
-                + "<span><b>Sessiya:</b> " + safeText(data.sessionTotal) + "</span>"
-                + "<span><b>Ümumi saat:</b> " + hoursTxt + "</span>";
+                + "<span><b>Seans:</b> " + safeText(sessionTotal) + "</span>"
+                + "<span><b>Ümumi saat:</b> " + fmtHours(hoursTotal) + "</span>"
+                + "<span><b>Orta seans:</b> " + (sessionTotal > 0 ? (avgMin + " dəq") : "—") + "</span>";
         }
 
         function loadAnalytics() {
