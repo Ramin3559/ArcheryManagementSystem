@@ -1308,14 +1308,17 @@
         </div>
 
         <div class="notice" id="infoResultHint" style="margin-top:10px; display:none;"></div>
+        <div id="infoPackagesSummary" style="margin-top:10px; display:none; font-size:13px; color:#4a5a78; line-height:1.45;"></div>
         <div class="table-wrap" style="margin-top:10px; max-height:55vh; overflow:auto; display:none;" id="infoTableWrap">
             <table class="subscription-table">
                 <thead>
                 <tr>
-                    <th>Ad və Soyad</th>
-                    <th>Aralıq</th>
-                    <th>Günlər</th>
-                    <th>Seanslar (tarix · saat · müddət)</th>
+                    <th>Tarix</th>
+                    <th>Gün</th>
+                    <th>Saat</th>
+                    <th>Müddət</th>
+                    <th>Zolaq</th>
+                    <th>Əməliyyat</th>
                 </tr>
                 </thead>
                 <tbody id="infoTableBody"></tbody>
@@ -1324,9 +1327,216 @@
     </div>
 </div>
 
+<!-- Abunə qrafikinin redaktə modalı -->
+<div id="scheduleEditModal"
+     style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.5); backdrop-filter: blur(5px); z-index:10000; padding:16px;">
+    <div style="max-width:680px; margin:6vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:16px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#1a2650; font-size:18px;">Abunə qrafikini dəyiş</div>
+            <button id="scheduleEditCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+        <div id="scheduleEditAthlete" style="margin-top:6px; color:#7a86a8; font-size:13px;"></div>
+
+        <div class="row" style="margin-top:14px; gap:10px;">
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Həftə günü</span>
+                <select id="scheduleEditDayOfWeek">
+                    <option value="1">B.e (Bazar ertəsi)</option>
+                    <option value="2">Ç.a (Çərşənbə axşamı)</option>
+                    <option value="3">Ç (Çərşənbə)</option>
+                    <option value="4">C.a (Cümə axşamı)</option>
+                    <option value="5">C (Cümə)</option>
+                    <option value="6">Ş (Şənbə)</option>
+                    <option value="0">B (Bazar)</option>
+                </select>
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Saat (HH:mm)</span>
+                <input id="scheduleEditStartTime" type="time" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Müddət (dəqiqə)</span>
+                <input id="scheduleEditDuration" type="number" min="1" max="600" step="1" />
+            </label>
+        </div>
+
+        <div class="row" style="margin-top:10px; gap:10px;">
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Zolaq növü</span>
+                <select id="scheduleEditPreferredLaneType">
+                    <option value="0">İstənilən</option>
+                    <option value="1">Qısa (1-8)</option>
+                    <option value="2">Uzun (9-11)</option>
+                </select>
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Zolaq (0 = sistem seçsin)</span>
+                <select id="scheduleEditLaneNumber">
+                    <option value="0">Sistem seçsin</option>
+                    <option value="1">Zolaq 1</option>
+                    <option value="2">Zolaq 2</option>
+                    <option value="3">Zolaq 3</option>
+                    <option value="4">Zolaq 4</option>
+                    <option value="5">Zolaq 5</option>
+                    <option value="6">Zolaq 6</option>
+                    <option value="7">Zolaq 7</option>
+                    <option value="8">Zolaq 8</option>
+                    <option value="9">Zolaq 9</option>
+                    <option value="10">Zolaq 10</option>
+                    <option value="11">Zolaq 11</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="row" style="margin-top:10px; gap:10px;">
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Başlama tarixi</span>
+                <input id="scheduleEditFromDate" type="date" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Bitmə tarixi</span>
+                <input id="scheduleEditToDate" type="date" />
+            </label>
+        </div>
+
+        <div id="scheduleEditHint" class="notice" style="margin-top:10px; display:none;"></div>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap;">
+            <button id="scheduleEditCancelBtn" type="button" class="btn btn-ghost">Ləğv et</button>
+            <button id="scheduleEditSaveBtn" type="button" class="btn btn-primary">Yadda saxla</button>
+        </div>
+    </div>
+</div>
+
+<!-- Tək seans (tarix) redaktə modalı — Məlumat paneli -->
+<div id="occurrenceEditModal"
+     style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.5); backdrop-filter: blur(5px); z-index:10001; padding:16px;">
+    <div style="max-width:560px; margin:6vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:16px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#1a2650; font-size:18px;">Seansı dəyiş</div>
+            <button id="occurrenceEditCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+        <div id="occurrenceEditAthlete" style="margin-top:6px; color:#7a86a8; font-size:13px;"></div>
+        <div id="occurrenceEditDateSummary" style="margin-top:8px; font-weight:700; color:#1a2650;"></div>
+        <input type="hidden" id="occurrenceEditScheduleId" />
+        <input type="hidden" id="occurrenceEditDateLocal" />
+
+        <div class="row" style="margin-top:14px; gap:10px;">
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Başlanğıc (HH:mm)</span>
+                <input id="occurrenceEditStartTime" type="time" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Müddət (dəqiqə)</span>
+                <input id="occurrenceEditDuration" type="number" min="1" max="600" step="1" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Zolaq (0 = sistem)</span>
+                <select id="occurrenceEditLaneNumber">
+                    <option value="0">Sistem seçsin</option>
+                    <option value="1">Zolaq 1</option>
+                    <option value="2">Zolaq 2</option>
+                    <option value="3">Zolaq 3</option>
+                    <option value="4">Zolaq 4</option>
+                    <option value="5">Zolaq 5</option>
+                    <option value="6">Zolaq 6</option>
+                    <option value="7">Zolaq 7</option>
+                    <option value="8">Zolaq 8</option>
+                    <option value="9">Zolaq 9</option>
+                    <option value="10">Zolaq 10</option>
+                    <option value="11">Zolaq 11</option>
+                </select>
+            </label>
+        </div>
+
+        <div id="occurrenceEditHint" class="notice" style="margin-top:10px; display:none;"></div>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap;">
+            <button id="occurrenceEditCancelBtn" type="button" class="btn btn-ghost">Ləğv et</button>
+            <button id="occurrenceEditSaveBtn" type="button" class="btn btn-primary">Yadda saxla</button>
+        </div>
+    </div>
+</div>
+
+<!-- Flatpickr (Azerbaijani locale, 24h time) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/az.js"></script>
+
 <!-- SignalR JS (iki CDN fallback) -->
 <script src="https://cdn.jsdelivr.net/npm/%40microsoft/signalr%408.0.7/dist/browser/signalr.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    // Tarix və saat seçicilərini Azerbaycan dilində + 24 saat formatında istifadə et.
+    (function () {
+        function isFlatpickrReady() {
+            return typeof window.flatpickr === "function";
+        }
+        function applyAzLocale() {
+            try {
+                if (isFlatpickrReady() && window.flatpickr.l10ns && window.flatpickr.l10ns.az) {
+                    window.flatpickr.localize(window.flatpickr.l10ns.az);
+                }
+            } catch (e) { /* ignore */ }
+        }
+        function bindOne(el) {
+            if (!(el instanceof HTMLInputElement)) return;
+            if (el.dataset.fpBound === "1") return;
+            var type = (el.getAttribute("type") || "").toLowerCase();
+            if (type !== "date" && type !== "time" && type !== "datetime-local") return;
+            try {
+                var opts = { locale: "az", allowInput: true, time_24hr: true };
+                if (type === "time") {
+                    opts.enableTime = true;
+                    opts.noCalendar = true;
+                    opts.dateFormat = "H:i";
+                } else if (type === "datetime-local") {
+                    opts.enableTime = true;
+                    opts.dateFormat = "Y-m-d H:i";
+                } else {
+                    opts.dateFormat = "Y-m-d";
+                }
+                window.flatpickr(el, opts);
+                el.dataset.fpBound = "1";
+            } catch (e) { /* ignore individual binding errors */ }
+        }
+        function bindAll(root) {
+            if (!isFlatpickrReady()) return;
+            applyAzLocale();
+            var scope = (root instanceof Element || root instanceof Document) ? root : document;
+            scope.querySelectorAll('input[type="date"], input[type="time"], input[type="datetime-local"]').forEach(bindOne);
+        }
+        window.applyFlatpickrAz = function () { bindAll(document); };
+        function init() {
+            bindAll(document);
+            try {
+                var obs = new MutationObserver(function (mutations) {
+                    if (!isFlatpickrReady()) return;
+                    for (var i = 0; i < mutations.length; i++) {
+                        var m = mutations[i];
+                        if (!m.addedNodes) continue;
+                        for (var j = 0; j < m.addedNodes.length; j++) {
+                            var n = m.addedNodes[j];
+                            if (!(n instanceof Element)) continue;
+                            if (n.matches && n.matches('input[type="date"], input[type="time"], input[type="datetime-local"]')) {
+                                bindOne(n);
+                            }
+                            if (n.querySelectorAll) {
+                                n.querySelectorAll('input[type="date"], input[type="time"], input[type="datetime-local"]').forEach(bindOne);
+                            }
+                        }
+                    }
+                });
+                obs.observe(document.body, { childList: true, subtree: true });
+            } catch (e) { /* ignore observer errors */ }
+        }
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", init);
+        } else {
+            init();
+        }
+    })();
+</script>
 <script>
     const firstNameInput = document.getElementById("firstName");
     const lastNameInput = document.getElementById("lastName");
@@ -1394,6 +1604,7 @@
     const infoResultHint = document.getElementById("infoResultHint");
     const infoTableWrap = document.getElementById("infoTableWrap");
     const infoTableBody = document.getElementById("infoTableBody");
+    const infoPackagesSummary = document.getElementById("infoPackagesSummary");
     const cancelSubscriptionModal = document.getElementById("cancelSubscriptionModal");
     const cancelSubscriptionCloseBtn = document.getElementById("cancelSubscriptionCloseBtn");
     const cancelSubscriptionSearch = document.getElementById("cancelSubscriptionSearch");
@@ -2381,6 +2592,10 @@
         if (infoTableBody instanceof HTMLElement) {
             infoTableBody.innerHTML = "";
         }
+        if (infoPackagesSummary instanceof HTMLElement) {
+            infoPackagesSummary.style.display = "none";
+            infoPackagesSummary.innerHTML = "";
+        }
         try { infoPhone?.focus(); } catch { }
     }
 
@@ -2433,28 +2648,285 @@
         if (!(infoTableBody instanceof HTMLElement) || !(infoTableWrap instanceof HTMLElement)) return;
         infoTableBody.innerHTML = "";
 
-        for (const p of packages) {
-            const occ = Array.isArray(p?.occurrences) ? p.occurrences : [];
-            const occHtml = occ.map(o => {
-                const date = escapeHtml2(o?.dateLocal);
-                const day = escapeHtml2(o?.dayLabel);
-                const start = escapeHtml2(o?.startTime);
-                const end = escapeHtml2(o?.endTime);
-                const dur = escapeHtml2(o?.durationHours);
-                return `<div style="white-space:nowrap; margin:2px 0;">${date} (${day}) · ${start}-${end} · ${dur} saat</div>`;
-            }).join("");
+        _currentInfoAthleteName = data?.fullName || "—";
 
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${escapeHtml2(p.fullName)}</td>
-                <td>${escapeHtml2(p.fromLocal)} — ${escapeHtml2(p.toLocal)}</td>
-                <td>${escapeHtml2(p.days)}</td>
-                <td>${occHtml || "<span style='color:#7a86a8'>—</span>"}</td>
-            `;
-            infoTableBody.appendChild(tr);
+        if (infoPackagesSummary instanceof HTMLElement) {
+            if (packages.length) {
+                infoPackagesSummary.style.display = "block";
+                infoPackagesSummary.innerHTML = packages.map(p => {
+                    const fp = p.isFullPackage ? " <span style='color:#7a86a8'>(tam paket)</span>" : "";
+                    return `<div><strong>${escapeHtml2(p.fromLocal)} — ${escapeHtml2(p.toLocal)}</strong> · ${escapeHtml2(p.days)}${fp}</div>`;
+                }).join("");
+            } else {
+                infoPackagesSummary.style.display = "none";
+                infoPackagesSummary.innerHTML = "";
+            }
         }
 
+        const occ = Array.isArray(data?.occurrencesFlat) ? data.occurrencesFlat : [];
+        _occurrencesFlat = occ;
+
+        if (!occ.length) {
+            infoTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#7a86a8;">Aktiv təkrarlanan seans tapılmadı.</td></tr>`;
+        } else {
+            for (const o of occ) {
+                const sid = escapeHtml2(o?.scheduleId ?? "");
+                const d = escapeHtml2(o?.dateLocal ?? "");
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${escapeHtml2(o?.dateLocal)}</td>
+                    <td>${escapeHtml2(o?.dayLabel)}</td>
+                    <td>${escapeHtml2(o?.startTime)}–${escapeHtml2(o?.endTime)}</td>
+                    <td>${escapeHtml2(o?.durationMinutes)} dəq</td>
+                    <td>${escapeHtml2(o?.laneLabel)}</td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn btn-ghost btn-sm" data-edit-occurrence-schedule="${sid}" data-edit-occurrence-date="${d}">Dəyişdir</button>
+                        <button type="button" class="btn btn-danger btn-sm" data-exclude-occurrence-schedule="${sid}" data-exclude-occurrence-date="${d}">Ləğv et</button>
+                    </td>`;
+                infoTableBody.appendChild(tr);
+            }
+        }
+
+        infoTableBody.onclick = function (ev) {
+            var t = ev && ev.target;
+            if (!(t instanceof HTMLElement)) return;
+            var es = t.getAttribute("data-edit-occurrence-schedule");
+            var ed = t.getAttribute("data-edit-occurrence-date");
+            if (es && ed) {
+                openOccurrenceEditModal(es, ed);
+                return;
+            }
+            var xs = t.getAttribute("data-exclude-occurrence-schedule");
+            var xd = t.getAttribute("data-exclude-occurrence-date");
+            if (xs && xd) {
+                excludeOccurrenceFromInfo(xs, xd);
+            }
+        };
+
         infoTableWrap.style.display = "block";
+    }
+
+    var _infoSchedulesById = {};
+    var _occurrencesFlat = [];
+    var _currentInfoAthleteName = "—";
+    var _editingScheduleId = null;
+
+    function setScheduleEditHint(text, kind) {
+        var el = document.getElementById("scheduleEditHint");
+        if (!(el instanceof HTMLElement)) return;
+        el.textContent = text || "";
+        el.style.display = text ? "block" : "none";
+        el.className = kind === "ok" ? "notice notice--ok" : kind === "error" ? "notice notice--error" : "notice";
+    }
+
+    function openScheduleEditModal(scheduleId) {
+        var item = _infoSchedulesById[scheduleId];
+        if (!item) {
+            alert("Bu abunə qrafiki yüklənməyib. Zəhmət olmasa məlumatı yenidən axtarın.");
+            return;
+        }
+        _editingScheduleId = scheduleId;
+        var modal = document.getElementById("scheduleEditModal");
+        if (!(modal instanceof HTMLElement)) return;
+
+        var dow = document.getElementById("scheduleEditDayOfWeek");
+        var st = document.getElementById("scheduleEditStartTime");
+        var dur = document.getElementById("scheduleEditDuration");
+        var plt = document.getElementById("scheduleEditPreferredLaneType");
+        var lane = document.getElementById("scheduleEditLaneNumber");
+        var fromD = document.getElementById("scheduleEditFromDate");
+        var toD = document.getElementById("scheduleEditToDate");
+        var ath = document.getElementById("scheduleEditAthlete");
+        if (dow instanceof HTMLSelectElement) dow.value = String(item.dayOfWeek != null ? item.dayOfWeek : 1);
+        if (st instanceof HTMLInputElement) st.value = String(item.startTimeLocal || "10:00");
+        if (dur instanceof HTMLInputElement) dur.value = String(item.durationMinutes || 60);
+        if (plt instanceof HTMLSelectElement) plt.value = String(item.preferredLaneType != null ? item.preferredLaneType : 0);
+        if (lane instanceof HTMLSelectElement) lane.value = String(item.laneNumber != null ? item.laneNumber : 0);
+        if (fromD instanceof HTMLInputElement) fromD.value = String(item.activeFromDateLocal || "");
+        if (toD instanceof HTMLInputElement) toD.value = String(item.activeToDateLocal || "");
+        if (ath instanceof HTMLElement) ath.textContent = "Müştəri: " + _currentInfoAthleteName;
+
+        setScheduleEditHint("", "");
+        modal.style.display = "block";
+    }
+
+    function closeScheduleEditModal() {
+        var modal = document.getElementById("scheduleEditModal");
+        if (modal instanceof HTMLElement) modal.style.display = "none";
+        _editingScheduleId = null;
+        setScheduleEditHint("", "");
+    }
+
+    async function saveScheduleEdit() {
+        var id = _editingScheduleId;
+        if (!id) return;
+        var item = _infoSchedulesById[id];
+        var dow = Number(document.getElementById("scheduleEditDayOfWeek")?.value || 0);
+        var startTimeLocal = String(document.getElementById("scheduleEditStartTime")?.value || "").trim();
+        var duration = Number(document.getElementById("scheduleEditDuration")?.value || 0);
+        var preferredLaneType = Number(document.getElementById("scheduleEditPreferredLaneType")?.value || 0);
+        var laneNumber = Number(document.getElementById("scheduleEditLaneNumber")?.value || 0);
+        var fromD = String(document.getElementById("scheduleEditFromDate")?.value || "").trim();
+        var toD = String(document.getElementById("scheduleEditToDate")?.value || "").trim();
+
+        if (!startTimeLocal) { setScheduleEditHint("Saatı daxil edin (HH:mm).", "error"); return; }
+        if (!Number.isInteger(duration) || duration <= 0) { setScheduleEditHint("Müddət müsbət olmalıdır.", "error"); return; }
+        if (!fromD || !toD) { setScheduleEditHint("Başlama və bitmə tarixini daxil edin.", "error"); return; }
+        if (new Date(toD) < new Date(fromD)) { setScheduleEditHint("Bitmə tarixi başlanğıcdan əvvəl ola bilməz.", "error"); return; }
+
+        setScheduleEditHint("Yadda saxlanılır...", "warn");
+        try {
+            var body = {
+                athleteId: null,
+                athleteFullName: "",
+                dayOfWeek: dow,
+                startTimeLocal: startTimeLocal,
+                durationMinutes: duration,
+                activeFromDateLocal: fromD,
+                activeToDateLocal: toD,
+                preferredLaneType: preferredLaneType,
+                laneNumber: laneNumber,
+                isFullPackage: item && item.isFullPackage ? true : false
+            };
+            var res = await apiFetch("/subscriptions/schedules/" + encodeURIComponent(id), {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                var msg = await readErrorMessage(res);
+                setScheduleEditHint(msg || "Yadda saxlanılmadı.", "error");
+                return;
+            }
+            setScheduleEditHint("Uğurla yadda saxlanıldı.", "ok");
+            // Yenidən yüklə.
+            await infoShow();
+            try { await loadSubscriptionSchedules(); } catch (e) { /* ignore */ }
+            setTimeout(closeScheduleEditModal, 600);
+        } catch (e) {
+            setScheduleEditHint("Xəta: " + getExceptionMessage(e), "error");
+        }
+    }
+
+    async function disableScheduleFromInfo(scheduleId) {
+        if (!scheduleId) return;
+        var ok = window.confirm("Bu abunə qrafikini dayandırmaq istəyirsiniz?");
+        if (!ok) return;
+        try {
+            var res = await apiFetch("/subscriptions/schedules/" + encodeURIComponent(scheduleId) + "/disable", {
+                method: "POST"
+            });
+            if (!res.ok) {
+                var msg = await readErrorMessage(res);
+                alert(msg || "Dayandırılmadı.");
+                return;
+            }
+            await infoShow();
+            try { await loadSubscriptionSchedules(); } catch (e) { /* ignore */ }
+        } catch (e) {
+            alert("Xəta: " + getExceptionMessage(e));
+        }
+    }
+
+    function setOccurrenceEditHint(text, kind) {
+        var el = document.getElementById("occurrenceEditHint");
+        if (!(el instanceof HTMLElement)) return;
+        el.textContent = text || "";
+        el.style.display = text ? "block" : "none";
+        el.className = kind === "ok" ? "notice notice--ok" : kind === "error" ? "notice notice--error" : "notice";
+    }
+
+    function closeOccurrenceEditModal() {
+        var modal = document.getElementById("occurrenceEditModal");
+        if (modal instanceof HTMLElement) modal.style.display = "none";
+        setOccurrenceEditHint("", "");
+    }
+
+    function openOccurrenceEditModal(scheduleId, dateLocal) {
+        var row = (_occurrencesFlat || []).find(function (o) {
+            return String(o && o.scheduleId) === String(scheduleId) && String(o && o.dateLocal) === String(dateLocal);
+        });
+        if (!row) {
+            alert("Bu seans tapılmadı. Məlumatı yenidən axtarın.");
+            return;
+        }
+        var modal = document.getElementById("occurrenceEditModal");
+        if (!(modal instanceof HTMLElement)) return;
+        var sidEl = document.getElementById("occurrenceEditScheduleId");
+        var dEl = document.getElementById("occurrenceEditDateLocal");
+        var ath = document.getElementById("occurrenceEditAthlete");
+        var sum = document.getElementById("occurrenceEditDateSummary");
+        var st = document.getElementById("occurrenceEditStartTime");
+        var dur = document.getElementById("occurrenceEditDuration");
+        var lane = document.getElementById("occurrenceEditLaneNumber");
+        if (sidEl instanceof HTMLInputElement) sidEl.value = String(scheduleId);
+        if (dEl instanceof HTMLInputElement) dEl.value = String(dateLocal);
+        if (ath instanceof HTMLElement) ath.textContent = "Müştəri: " + _currentInfoAthleteName;
+        if (sum instanceof HTMLElement) sum.textContent = String(row.dateLocal || "") + " · " + String(row.dayLabel || "");
+        if (st instanceof HTMLInputElement) st.value = String(row.startTime || "").trim() || "10:00";
+        if (dur instanceof HTMLInputElement) dur.value = String(row.durationMinutes != null ? row.durationMinutes : 60);
+        if (lane instanceof HTMLSelectElement) lane.value = String(row.laneNumber != null ? row.laneNumber : 0);
+        setOccurrenceEditHint("", "");
+        modal.style.display = "block";
+    }
+
+    async function saveOccurrenceOverride() {
+        var sidEl = document.getElementById("occurrenceEditScheduleId");
+        var dEl = document.getElementById("occurrenceEditDateLocal");
+        var sid = sidEl instanceof HTMLInputElement ? sidEl.value.trim() : "";
+        var dateLocal = dEl instanceof HTMLInputElement ? dEl.value.trim() : "";
+        var startTimeLocal = String(document.getElementById("occurrenceEditStartTime")?.value || "").trim();
+        var duration = Number(document.getElementById("occurrenceEditDuration")?.value || 0);
+        var laneNumber = Number(document.getElementById("occurrenceEditLaneNumber")?.value || 0);
+        if (!sid || !dateLocal) return;
+        if (!startTimeLocal) { setOccurrenceEditHint("Saatı daxil edin.", "error"); return; }
+        if (!Number.isInteger(duration) || duration <= 0) { setOccurrenceEditHint("Müddət müsbət olmalıdır.", "error"); return; }
+        setOccurrenceEditHint("Yadda saxlanılır...", "warn");
+        try {
+            var res = await apiFetch("/subscriptions/schedules/" + encodeURIComponent(sid) + "/occurrence-override", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    dateLocal: dateLocal,
+                    startTimeLocal: startTimeLocal,
+                    laneNumber: laneNumber,
+                    durationMinutes: duration
+                })
+            });
+            if (!res.ok) {
+                var msg = await readErrorMessage(res);
+                setOccurrenceEditHint(msg || "Yadda saxlanılmadı.", "error");
+                return;
+            }
+            setOccurrenceEditHint("Uğurla yadda saxlanıldı.", "ok");
+            await infoShow();
+            try { await loadSubscriptionSchedules(); } catch (e) { /* ignore */ }
+            setTimeout(closeOccurrenceEditModal, 600);
+        } catch (e) {
+            setOccurrenceEditHint("Xəta: " + getExceptionMessage(e), "error");
+        }
+    }
+
+    async function excludeOccurrenceFromInfo(scheduleId, dateLocal) {
+        if (!scheduleId || !dateLocal) return;
+        var ok = window.confirm("Bu konkret tarix üçün seansı ləğv etmək istəyirsiniz?");
+        if (!ok) return;
+        try {
+            var res = await apiFetch("/subscriptions/schedules/" + encodeURIComponent(scheduleId) + "/exclude-occurrence", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dateLocal: dateLocal })
+            });
+            if (!res.ok) {
+                var msg = await readErrorMessage(res);
+                alert(msg || "Ləğv edilmədi.");
+                return;
+            }
+            await infoShow();
+            try { await loadSubscriptionSchedules(); } catch (e) { /* ignore */ }
+        } catch (e) {
+            alert("Xəta: " + getExceptionMessage(e));
+        }
     }
 
     function clearReceptionPersonFields() {
@@ -2590,11 +3062,19 @@
         return lines.join("\n");
     }
 
-    // Bu funksiya artıq snapshot ilə yoxlama etmir; yalnız əməliyyatdan əvvəl
-    // bir şey edilməsini lazım bilirsə true qaytarır. Əsl müqayisə (DB-yə qarşı)
-    // `maybePromptUpdateForFoundAthlete` daxilində — lookup-dan sonra olur.
+    // Hər düymədən öncə: əgər artıq autocomplete/lookup ilə şəxs seçilibsə,
+    // həmin id üzrə bazadakı qeydi tap və 5 sahə üzrə müqayisə et.
+    // Lookup minimum uzunluq tələbinə (telefon>=4) görə qısa telefon yazılışlarında
+    // axtarış işə düşmür, ona görə bu yardımçı id-yə əsasən cache-dən tapır.
     async function maybeUpdateAthleteIfDirtyBeforeAction() {
-        return true;
+        if (!receptionMatchedAthleteId) return true;
+        try {
+            await ensureAthletesCacheFresh();
+        } catch (e) { /* ignore */ }
+        var list = Array.isArray(allAthletesCache) ? allAthletesCache : [];
+        var existing = list.find(function (a) { return a && String(a.id) === String(receptionMatchedAthleteId); });
+        if (!existing) return true;
+        return await maybePromptUpdateForFoundAthlete(existing);
     }
 
     // Lookup nəticəsində mövcud şəxs tapıldıqda yazılmış məlumatların DB-dəki ilə fərqi varsa
@@ -3924,7 +4404,6 @@
     async function registerAndSchedule() {
         try {
             if (!(await maybeUpdateAthleteIfDirtyBeforeAction())) return;
-            receptionMatchedAthleteId = null;
             const firstName = firstNameInput?.value?.trim() ?? "";
             const lastName = lastNameInput?.value?.trim() ?? "";
             const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
@@ -4502,6 +4981,22 @@
         });
     } catch (e) { console.error(e); }
     try { infoShowBtn?.addEventListener("click", infoShow); } catch (e) { console.error(e); }
+    try {
+        document.getElementById("scheduleEditCloseBtn")?.addEventListener("click", closeScheduleEditModal);
+        document.getElementById("scheduleEditCancelBtn")?.addEventListener("click", closeScheduleEditModal);
+        document.getElementById("scheduleEditSaveBtn")?.addEventListener("click", saveScheduleEdit);
+        document.getElementById("scheduleEditModal")?.addEventListener("click", function (e) {
+            if (e.target && e.target.id === "scheduleEditModal") closeScheduleEditModal();
+        });
+    } catch (e) { console.error(e); }
+    try {
+        document.getElementById("occurrenceEditCloseBtn")?.addEventListener("click", closeOccurrenceEditModal);
+        document.getElementById("occurrenceEditCancelBtn")?.addEventListener("click", closeOccurrenceEditModal);
+        document.getElementById("occurrenceEditSaveBtn")?.addEventListener("click", saveOccurrenceOverride);
+        document.getElementById("occurrenceEditModal")?.addEventListener("click", function (e) {
+            if (e.target && e.target.id === "occurrenceEditModal") closeOccurrenceEditModal();
+        });
+    } catch (e) { console.error(e); }
     try {
         [infoPhone, infoEmail, infoIdCard].forEach(el => {
             if (!(el instanceof HTMLElement)) return;

@@ -4,6 +4,16 @@
     ViewData["Title"] = "Tarixçə";
     var rows = (List<HistoryRow>?)ViewData["Rows"] ?? new List<HistoryRow>();
     var f = (HistoryFilter?)ViewData["Filter"] ?? new HistoryFilter();
+    var identityNoMatch = ViewData["IdentitySearchNoMatch"] is bool b && b;
+}
+
+@if (identityNoMatch)
+{
+    <div class="card" style="margin-bottom:12px; border-color:#f59e0b; background:#fffbeb;">
+        <strong style="color:#92400e;">İdmançı tapılmadı.</strong>
+        <span style="color:#78350f;"> Telefon / e-poçt / Ş-V üzrə heç bir qeydiyyat tam uyğun gəlmədi; nəticə boşdur.</span>
+        <div style="margin-top:6px; font-size:13px; color:#92400e;">Telefon üçün yalnız rəqəmlər istifadə olunur; uyğunluq <strong>tam üst-üstə düşmə</strong>dir (hissəvi axtarış yoxdur).</div>
+    </div>
 }
 
 <div class="topbar">
@@ -43,6 +53,11 @@
     </form>
 </div>
 
+@{
+    var grandTotalScore = rows.Sum(x => x.TotalScore);
+    var grandScoreCount = rows.Sum(x => x.ScoreCount);
+}
+
 <div class="card">
     <div class="tableWrap">
         <table>
@@ -55,6 +70,8 @@
                 <th>Zolaq</th>
                 <th>Giriş</th>
                 <th>Çıxış</th>
+                <th style="text-align:right;">Atış sayı</th>
+                <th style="text-align:right;">Cəmi xal</th>
             </tr>
             </thead>
             <tbody>
@@ -68,9 +85,18 @@
                     <td>@(r.LaneNumber <= 0 ? "—" : r.LaneNumber)</td>
                     <td>@r.StartTimeLocal</td>
                     <td>@r.EndTimeLocal</td>
+                    <td style="text-align:right;">@r.ScoreCount</td>
+                    <td style="text-align:right; font-weight:800;">@r.TotalScore</td>
                 </tr>
             }
             </tbody>
+            <tfoot>
+            <tr style="background:#f3f4f6; font-weight:900;">
+                <td colspan="7" style="text-align:right;">Yekun (@rows.Count sətir):</td>
+                <td style="text-align:right;">@grandScoreCount</td>
+                <td style="text-align:right;">@grandTotalScore</td>
+            </tr>
+            </tfoot>
         </table>
     </div>
 </div>

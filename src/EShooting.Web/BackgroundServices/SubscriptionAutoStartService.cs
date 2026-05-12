@@ -1,3 +1,5 @@
+using System.Globalization;
+using EShooting.Web;
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Sessions.Commands;
@@ -66,7 +68,41 @@ public sealed class SubscriptionAutoStartService(
                 continue;
             }
 
-            var scheduledLocal = todayLocal.Add(schedule.StartTimeLocal);
+            var todayKey = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson).Contains(todayKey))
+            {
+                continue;
+            }
+
+            var effStart = schedule.StartTimeLocal;
+            var effDur = schedule.DurationMinutes;
+            var effLane = schedule.LaneNumber;
+            foreach (var ov in OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson))
+            {
+                if (!string.Equals(ov.DateLocal?.Trim(), todayKey, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(ov.StartTimeLocal) && TimeSpan.TryParse(ov.StartTimeLocal, out var st))
+                {
+                    effStart = st;
+                }
+
+                if (ov.DurationMinutes is > 0)
+                {
+                    effDur = ov.DurationMinutes.Value;
+                }
+
+                if (ov.LaneNumber is > 0)
+                {
+                    effLane = ov.LaneNumber.Value;
+                }
+
+                break;
+            }
+
+            var scheduledLocal = todayLocal.Add(effStart);
             var sinceScheduled = nowLocal - scheduledLocal;
             if (sinceScheduled < -EarlyTolerance)
             {
@@ -83,9 +119,9 @@ public sealed class SubscriptionAutoStartService(
             {
                 var sessions = await repository.GetSessionsAsync(cancellationToken);
                 var startUtc = scheduledUtc > DateTime.UtcNow ? scheduledUtc : DateTime.UtcNow;
-                var endUtc = startUtc.AddMinutes(schedule.DurationMinutes);
-                var candidates = schedule.LaneNumber > 0
-                    ? lanes.Where(l => l.Number == schedule.LaneNumber)
+                var endUtc = startUtc.AddMinutes(effDur);
+                var candidates = effLane > 0
+                    ? lanes.Where(l => l.Number == effLane)
                     : LaneReservationRules.FilterLanesByPreferredType(lanes, schedule.PreferredLaneType);
 
                 // buffer ləğv edildi
@@ -119,7 +155,7 @@ public sealed class SubscriptionAutoStartService(
                         schedule.AthleteId,
                         selectedLane.Number,
                         startUtc,
-                        schedule.DurationMinutes,
+                        effDur,
                         false,
                         schedule.PreferredLaneType),
                     cancellationToken);

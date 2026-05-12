@@ -16,6 +16,8 @@ public static class AdminExcelExporter
         ws.Cell(1, 5).Value = "Zolaq";
         ws.Cell(1, 6).Value = "Giriş";
         ws.Cell(1, 7).Value = "Çıxış";
+        ws.Cell(1, 8).Value = "Atış sayı";
+        ws.Cell(1, 9).Value = "Cəmi xal";
 
         var rowIdx = 2;
         foreach (var r in rows)
@@ -27,10 +29,22 @@ public static class AdminExcelExporter
             ws.Cell(rowIdx, 5).Value = r.LaneNumber <= 0 ? "" : r.LaneNumber;
             ws.Cell(rowIdx, 6).Value = r.StartTimeLocal;
             ws.Cell(rowIdx, 7).Value = r.EndTimeLocal;
+            ws.Cell(rowIdx, 8).Value = r.ScoreCount;
+            ws.Cell(rowIdx, 9).Value = r.TotalScore;
             rowIdx++;
         }
 
-        var header = ws.Range(1, 1, 1, 7);
+        if (rows.Count > 0)
+        {
+            ws.Cell(rowIdx, 1).Value = "Yekun";
+            ws.Cell(rowIdx, 8).Value = rows.Sum(x => x.ScoreCount);
+            ws.Cell(rowIdx, 9).Value = rows.Sum(x => x.TotalScore);
+            var totalRow = ws.Range(rowIdx, 1, rowIdx, 9);
+            totalRow.Style.Font.Bold = true;
+            totalRow.Style.Fill.BackgroundColor = XLColor.FromHtml("#F3F4F6");
+        }
+
+        var header = ws.Range(1, 1, 1, 9);
         header.Style.Font.Bold = true;
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F5E9");
         ws.Columns().AdjustToContents();

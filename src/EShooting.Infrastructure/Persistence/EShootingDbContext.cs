@@ -98,6 +98,8 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
                 .HasMaxLength(20)
                 .HasDefaultValue(PreferredLaneType.Any);
             entity.Property(x => x.IsFullPackage).HasDefaultValue(false);
+            entity.Property(x => x.ExcludedOccurrenceDatesJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.OccurrenceOverridesJson).HasColumnType("nvarchar(max)");
 
             entity.HasOne<Athlete>()
                 .WithMany()

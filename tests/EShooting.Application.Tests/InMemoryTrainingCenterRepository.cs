@@ -162,6 +162,10 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.LastAssignedLaneNumber = schedule.LastAssignedLaneNumber;
         existing.LastAutoStartedAtUtc = schedule.LastAutoStartedAtUtc;
         existing.CreatedAtUtc = schedule.CreatedAtUtc;
+        existing.PreferredLaneType = schedule.PreferredLaneType;
+        existing.IsFullPackage = schedule.IsFullPackage;
+        existing.ExcludedOccurrenceDatesJson = schedule.ExcludedOccurrenceDatesJson;
+        existing.OccurrenceOverridesJson = schedule.OccurrenceOverridesJson;
         return Task.CompletedTask;
     }
 

@@ -1,3 +1,4 @@
+@using EShooting.Web.Controllers.Admin
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     ViewData["Title"] = "Dashboard";
@@ -5,28 +6,449 @@
     var subs = (int)(ViewData["ActiveSubscribers"] ?? 0);
     var today = (int)(ViewData["TodaysSessions"] ?? 0);
     var popular = (string)(ViewData["PopularLane"] ?? "—");
+    var la = ViewData["LaneAnalyticsToday"] as AdminLaneAnalytics.RangeResult;
 }
+
+<style>
+    .preset-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .preset-btn {
+        border-radius:999px;
+        border:1px solid var(--border);
+        background:#fff;
+        padding:6px 14px;
+        font-weight:700;
+        cursor:pointer;
+        font-size:13px;
+        color:#253060;
+    }
+    .preset-btn:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
+    .preset-btn.active {
+        background: var(--primary);
+        color:#fff;
+        border-color: rgba(79,70,229,0.35);
+    }
+    .range-controls {
+        display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:10px;
+    }
+    .range-controls label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); font-weight:700; }
+    .range-controls input { min-width: 160px; }
+    .chart-summary {
+        display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:#374151; margin: 10px 0 6px;
+    }
+    .chart-summary b { color:#111827; }
+    .chart-host { position: relative; height: 360px; }
+    @@media (max-width: 720px){ .chart-host { height: 280px; } }
+</style>
 
 <div class="topbar">
     <h1>Dashboard</h1>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span id="adminRefreshHint" style="font-size:12px; color: var(--muted);">Avtomatik yenilənir</span>
+        <button type="button" class="btn" id="adminRefreshBtn" title="Indi yenilə">Yenilə</button>
+    </div>
 </div>
 
 <div class="grid4">
     <div class="card">
         <div class="statLabel">Ümumi qeydiyyat sayı</div>
-        <div class="statValue">@total</div>
+        <div class="statValue" data-stat="totalRegistrations">@total</div>
     </div>
     <div class="card">
         <div class="statLabel">Aktiv abunəçilər</div>
-        <div class="statValue">@subs</div>
+        <div class="statValue" data-stat="activeSubscribers">@subs</div>
     </div>
     <div class="card">
         <div class="statLabel">Bu günkü sessiyalar</div>
-        <div class="statValue">@today</div>
+        <div class="statValue" data-stat="todaysSessions">@today</div>
     </div>
     <div class="card">
         <div class="statLabel">Populyar zolaq</div>
-        <div class="statValue">@popular</div>
+        <div class="statValue" data-stat="popularLane">@popular</div>
     </div>
 </div>
 
+<div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+        <div>
+            <div class="statLabel">Zolaqlar üzrə aktivlik</div>
+            <div style="font-weight:800; font-size:18px; margin-top:2px;" id="laAnalLabel">@(la?.Label ?? "")</div>
+        </div>
+        <div class="preset-row">
+            <button type="button" class="preset-btn active" data-mode="today">Bu gün</button>
+            <button type="button" class="preset-btn" data-mode="yesterday">Dünən</button>
+            <button type="button" class="preset-btn" data-mode="last7">Son 7 gün</button>
+            <button type="button" class="preset-btn" data-mode="month">Cari ay</button>
+            <button type="button" class="preset-btn" data-mode="range">Aralıq</button>
+        </div>
+    </div>
+
+    <div class="range-controls" id="laRangeRow" style="display:none;">
+        <label>Başlanğıc tarixi
+            <input type="date" id="laFromDate" />
+        </label>
+        <label>Bitmə tarixi
+            <input type="date" id="laToDate" />
+        </label>
+        <button type="button" class="btn btn-primary" id="laRangeApply">Tətbiq et</button>
+    </div>
+
+    <div class="range-controls" id="laMonthRow" style="display:none;">
+        <label>Ay seç
+            <input type="month" id="laMonthPicker" />
+        </label>
+        <button type="button" class="btn btn-primary" id="laMonthApply">Tətbiq et</button>
+    </div>
+
+    <div class="chart-summary" id="laSummary">
+        @if (la != null)
+        {
+            <span><b>Ən yüklü zolaq:</b> @(la.BusiestLaneNumber.HasValue ? $"Zolaq {la.BusiestLaneNumber}" : "—")</span>
+            <span><b>Sessiya:</b> @la.SessionTotal</span>
+            <span><b>Ümumi saat:</b> @la.HoursTotal.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)</span>
+        }
+    </div>
+
+    <div class="chart-host">
+        <canvas id="laneChart"></canvas>
+    </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div>
+            <div class="statLabel">Zolaqların canlı vəziyyəti</div>
+            <div style="font-weight:800; font-size:18px; margin-top:2px;">Aktiv / Növbədə</div>
+        </div>
+        <span id="lanesUpdatedAt" style="font-size:12px; color: var(--muted);">—</span>
+    </div>
+    <div class="tableWrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Zolaq</th>
+                    <th>Status</th>
+                    <th>Atıcı</th>
+                    <th>Başlanğıc</th>
+                    <th>Son</th>
+                    <th>Qalan vaxt</th>
+                    <th>Növbə</th>
+                </tr>
+            </thead>
+            <tbody id="adminLanesBody">
+                <tr><td colspan="7" style="text-align:center; color: var(--muted);">Yüklənir...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    (function () {
+        var statsUrl = "/admin/stats";
+        var lanesUrl = "/dashboard/lanes";
+        var analyticsUrl = "/admin/lane-analytics";
+        var lastLanesJson = "";
+
+        var laMode = "today";
+        var laChart = null;
+
+        function safeText(v) { return (v == null ? "" : String(v)); }
+
+        function parseUtc(value) {
+            if (!value) return null;
+            var s = typeof value === "string" && !/[zZ]|[+\-]\d{2}:\d{2}$/.test(value) ? value + "Z" : value;
+            var d = new Date(s);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function fmtHm(d) {
+            if (!d) return "—";
+            var hh = String(d.getHours()).padStart(2, "0");
+            var mm = String(d.getMinutes()).padStart(2, "0");
+            return hh + ":" + mm;
+        }
+
+        function formatRemaining(endUtc) {
+            var end = parseUtc(endUtc);
+            if (!end) return "—";
+            var ms = end.getTime() - Date.now();
+            if (ms <= 0) return "Bitib";
+            var s = Math.floor(ms / 1000);
+            var h = Math.floor(s / 3600);
+            var m = Math.floor((s % 3600) / 60);
+            var sec = s % 60;
+            var pad = function (x) { return String(x).padStart(2, "0"); };
+            return (h > 0 ? pad(h) + ":" : "") + pad(m) + ":" + pad(sec);
+        }
+
+        function statusPill(status) {
+            var label = "Boş";
+            var color = "#e5e7eb";
+            var txt = "#374151";
+            if (status === "Active") { label = "Aktiv"; color = "rgba(22,163,74,0.18)"; txt = "#15803d"; }
+            else if (status === "Scheduled") { label = "Planlı"; color = "rgba(246,183,60,0.18)"; txt = "#92400e"; }
+            else if (status === "Completed") { label = "Bitib"; color = "rgba(79,70,229,0.18)"; txt = "#3730a3"; }
+            return '<span style="display:inline-block; padding:3px 10px; border-radius:999px; font-weight:800; font-size:12px; background:' + color + '; color:' + txt + ';">' + label + '</span>';
+        }
+
+        function loadStats() {
+            return fetch(statsUrl + "?_=" + Date.now(), { credentials: "same-origin", cache: "no-store" })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (!d) return;
+                    document.querySelectorAll("[data-stat]").forEach(function (el) {
+                        var k = el.getAttribute("data-stat");
+                        if (k && d[k] !== undefined) el.textContent = safeText(d[k]);
+                    });
+                })["catch"](function () { });
+        }
+
+        function loadLanes() {
+            return fetch(lanesUrl + "?_=" + Date.now(), { credentials: "same-origin", cache: "no-store" })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (lanes) {
+                    if (!Array.isArray(lanes)) return;
+                    var key = JSON.stringify(lanes.map(function (l) {
+                        return [l.laneNumber, l.status, l.athleteName, l.startTimeUtc, l.endTimeUtc, (l.queueAthleteNames || []).join("|")];
+                    }));
+                    if (key !== lastLanesJson) {
+                        lastLanesJson = key;
+                        renderLanes(lanes);
+                    }
+                    var hint = document.getElementById("lanesUpdatedAt");
+                    if (hint) hint.textContent = "Yeniləndi: " + fmtHm(new Date()) + ":" + String(new Date().getSeconds()).padStart(2, "0");
+                })["catch"](function () { });
+        }
+
+        function renderLanes(lanes) {
+            var tbody = document.getElementById("adminLanesBody");
+            if (!tbody) return;
+            if (lanes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--muted);">Zolaq yoxdur.</td></tr>';
+                return;
+            }
+            var rows = lanes.map(function (l) {
+                var start = parseUtc(l.startTimeUtc);
+                var end = parseUtc(l.endTimeUtc);
+                var queue = (l.queueAthleteNames || []).slice(0, 3).join(", ");
+                if ((l.queueAthleteNames || []).length > 3) queue += "...";
+                var name = l.athleteName || "—";
+                var remaining = '<span data-remaining-end="' + (l.endTimeUtc || "") + '" data-status="' + (l.status || "") + '">' + formatRemaining(l.endTimeUtc) + '</span>';
+                return '<tr>'
+                    + '<td><b>Zolaq ' + safeText(l.laneNumber) + '</b></td>'
+                    + '<td>' + statusPill(l.status) + '</td>'
+                    + '<td>' + safeText(name) + '</td>'
+                    + '<td>' + fmtHm(start) + '</td>'
+                    + '<td>' + fmtHm(end) + '</td>'
+                    + '<td style="font-variant-numeric: tabular-nums;">' + remaining + '</td>'
+                    + '<td style="color: var(--muted);">' + (queue || "—") + '</td>'
+                    + '</tr>';
+            });
+            tbody.innerHTML = rows.join("");
+        }
+
+        function tickRemaining() {
+            document.querySelectorAll("[data-remaining-end]").forEach(function (el) {
+                var status = el.getAttribute("data-status") || "";
+                var endVal = el.getAttribute("data-remaining-end") || "";
+                if (status === "Completed") { el.textContent = "Bitib"; return; }
+                el.textContent = formatRemaining(endVal);
+            });
+        }
+
+        // ---- Lane analytics chart ----
+        function syncModeUi() {
+            document.querySelectorAll(".preset-btn").forEach(function (b) {
+                b.classList.toggle("active", b.getAttribute("data-mode") === laMode);
+            });
+            var rangeRow = document.getElementById("laRangeRow");
+            var monthRow = document.getElementById("laMonthRow");
+            if (rangeRow) rangeRow.style.display = laMode === "range" ? "flex" : "none";
+            if (monthRow) monthRow.style.display = laMode === "month" ? "flex" : "none";
+        }
+
+        function buildAnalyticsUrl() {
+            var params = new URLSearchParams();
+            params.set("mode", laMode);
+            params.set("_", String(Date.now()));
+            if (laMode === "month") {
+                var mp = document.getElementById("laMonthPicker");
+                if (mp instanceof HTMLInputElement && mp.value) {
+                    params.set("month", mp.value);
+                }
+            } else if (laMode === "range") {
+                var f = document.getElementById("laFromDate");
+                var t = document.getElementById("laToDate");
+                if (f instanceof HTMLInputElement && f.value) params.set("fromDate", f.value);
+                if (t instanceof HTMLInputElement && t.value) params.set("toDate", t.value);
+            }
+            return analyticsUrl + "?" + params.toString();
+        }
+
+        function renderChart(data) {
+            var canvas = document.getElementById("laneChart");
+            if (!canvas) return;
+            if (typeof Chart === "undefined") return;
+            var labels = (data.byLane || []).map(function (r) { return "Zolaq " + r.laneNumber; });
+            var hours = (data.byLane || []).map(function (r) { return Number(r.totalHours || 0); });
+            var sessions = (data.byLane || []).map(function (r) { return Number(r.sessionCount || 0); });
+            var ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            if (laChart) {
+                laChart.data.labels = labels;
+                laChart.data.datasets[0].data = hours;
+                laChart.data.datasets[1].data = sessions;
+                laChart.update();
+                return;
+            }
+
+            laChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: "Saat",
+                            data: hours,
+                            backgroundColor: "rgba(79,70,229,0.78)",
+                            borderRadius: 6,
+                            yAxisID: "y"
+                        },
+                        {
+                            label: "Sessiya",
+                            data: sessions,
+                            backgroundColor: "rgba(22,163,74,0.78)",
+                            borderRadius: 6,
+                            yAxisID: "y1"
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
+                    plugins: {
+                        legend: { position: "bottom" },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    var v = ctx.parsed.y;
+                                    if (ctx.dataset.label === "Saat") {
+                                        return "Saat: " + (Math.round(v * 100) / 100).toFixed(2);
+                                    }
+                                    return "Sessiya: " + v;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            position: "left",
+                            title: { display: true, text: "Saat" },
+                            ticks: { precision: 0 }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: "right",
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: "Sessiya" },
+                            ticks: { precision: 0 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderSummary(data) {
+            var sum = document.getElementById("laSummary");
+            var label = document.getElementById("laAnalLabel");
+            if (label) label.textContent = safeText(data.label);
+            if (!sum) return;
+            var busiest = data.busiestLaneNumber != null ? "Zolaq " + data.busiestLaneNumber : "—";
+            var hoursTxt = (Math.round(Number(data.hoursTotal || 0) * 100) / 100).toFixed(2);
+            sum.innerHTML = "<span><b>Ən yüklü zolaq:</b> " + busiest + "</span>"
+                + "<span><b>Sessiya:</b> " + safeText(data.sessionTotal) + "</span>"
+                + "<span><b>Ümumi saat:</b> " + hoursTxt + "</span>";
+        }
+
+        function loadAnalytics() {
+            return fetch(buildAnalyticsUrl(), { credentials: "same-origin", cache: "no-store" })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (!d) return;
+                    renderSummary(d);
+                    renderChart(d);
+                })["catch"](function () { });
+        }
+
+        document.querySelectorAll(".preset-btn").forEach(function (b) {
+            b.addEventListener("click", function () {
+                laMode = b.getAttribute("data-mode") || "today";
+                syncModeUi();
+                if (laMode === "month") {
+                    var mp = document.getElementById("laMonthPicker");
+                    if (mp instanceof HTMLInputElement && !mp.value) {
+                        var now = new Date();
+                        mp.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+                    }
+                    loadAnalytics();
+                } else if (laMode === "range") {
+                    var f = document.getElementById("laFromDate");
+                    var t = document.getElementById("laToDate");
+                    var today = new Date();
+                    var iso = today.toISOString().slice(0, 10);
+                    if (f instanceof HTMLInputElement && !f.value) f.value = iso;
+                    if (t instanceof HTMLInputElement && !t.value) t.value = iso;
+                    loadAnalytics();
+                } else {
+                    loadAnalytics();
+                }
+            });
+        });
+
+        document.getElementById("laRangeApply")?.addEventListener("click", loadAnalytics);
+        document.getElementById("laMonthApply")?.addEventListener("click", loadAnalytics);
+        document.getElementById("laMonthPicker")?.addEventListener("change", loadAnalytics);
+        document.getElementById("laFromDate")?.addEventListener("change", loadAnalytics);
+        document.getElementById("laToDate")?.addEventListener("change", loadAnalytics);
+
+        function refreshAll() {
+            return Promise.all([loadStats(), loadLanes(), loadAnalytics()]);
+        }
+
+        // SignalR ilə anlıq yenilənmə.
+        function startSignalR() {
+            if (typeof signalR === "undefined" || !signalR.HubConnectionBuilder) {
+                setTimeout(startSignalR, 5000);
+                return;
+            }
+            var retry = {
+                nextRetryDelayInMilliseconds: function (c) {
+                    var a = c && c.previousRetryCount ? c.previousRetryCount : 0;
+                    if (a < 1) return 1000; if (a < 3) return 2000; if (a < 6) return 5000; if (a < 12) return 10000; return 30000;
+                }
+            };
+            var conn = new signalR.HubConnectionBuilder().withUrl("/hubs/lane").withAutomaticReconnect(retry).build();
+            conn.on("lane-updated", refreshAll);
+            conn.on("score-updated", loadStats);
+            if (conn.onreconnected) conn.onreconnected(refreshAll);
+            conn.start().then(refreshAll, function () { setTimeout(startSignalR, 5000); });
+        }
+
+        document.getElementById("adminRefreshBtn")?.addEventListener("click", refreshAll);
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "visible") refreshAll();
+        });
+        window.addEventListener("online", refreshAll);
+
+        syncModeUi();
+        // Default seçim "Bu gün" — server-side render olunan ilk məlumat var, amma chart üçün API-dən gətirək.
+        refreshAll();
+        setInterval(refreshAll, 10000);
+        setInterval(tickRemaining, 1000);
+        startSignalR();
+    })();
+</script>

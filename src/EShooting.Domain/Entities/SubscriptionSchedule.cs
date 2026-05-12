@@ -18,4 +18,14 @@ public sealed class SubscriptionSchedule
     public int? LastAssignedLaneNumber { get; set; }
     public DateTime? LastAutoStartedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// JSON massivi: ["yyyy-MM-dd", ...] — bu tarixlərdə təkrarlanan seans göstərilmir və avtomatik başlamır.
+    /// </summary>
+    public string? ExcludedOccurrenceDatesJson { get; set; }
+
+    /// <summary>
+    /// JSON massivi: [{ "dateLocal":"yyyy-MM-dd", "startTimeLocal":"HH:mm", "laneNumber":n, "durationMinutes":m }, ...]
+    /// </summary>
+    public string? OccurrenceOverridesJson { get; set; }
 }

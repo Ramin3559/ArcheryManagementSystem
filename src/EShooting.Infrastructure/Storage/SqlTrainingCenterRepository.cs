@@ -178,9 +178,13 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.ActiveFromDateLocal = schedule.ActiveFromDateLocal;
         existing.ActiveToDateLocal = schedule.ActiveToDateLocal;
         existing.IsEnabled = schedule.IsEnabled;
+        existing.PreferredLaneType = schedule.PreferredLaneType;
+        existing.IsFullPackage = schedule.IsFullPackage;
         existing.LastAssignedLaneNumber = schedule.LastAssignedLaneNumber;
         existing.LastAutoStartedAtUtc = schedule.LastAutoStartedAtUtc;
         existing.CreatedAtUtc = schedule.CreatedAtUtc;
+        existing.ExcludedOccurrenceDatesJson = schedule.ExcludedOccurrenceDatesJson;
+        existing.OccurrenceOverridesJson = schedule.OccurrenceOverridesJson;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

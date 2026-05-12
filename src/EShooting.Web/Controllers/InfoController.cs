@@ -1,4 +1,6 @@
 using EShooting.Application.Common.Interfaces;
+using EShooting.Domain.Entities;
+using EShooting.Web;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers;
@@ -35,12 +37,8 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         }
 
         var sessions = await repository.GetSessionsAsync(cancellationToken);
-        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var schedules = (await repository.GetSubscriptionSchedulesAsync(cancellationToken)).ToList();
 
-        // Group subscription schedules by package period (from-to) so we can show:
-        // - aralıq (ayın neçəsindən neçəsinə)
-        // - həftə günləri (məs: B.e, Ç, C)
-        // - hər seansın tarixi + saatı + müddəti
         var packages = schedules
             .Where(x => x.AthleteId == athlete.Id && x.IsEnabled)
             .GroupBy(x => new { From = x.ActiveFromDateLocal.Date, To = x.ActiveToDateLocal.Date, x.IsFullPackage })
@@ -54,41 +52,20 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                     .Distinct()
                     .ToList();
 
-                var occurrences = new List<object>();
-                foreach (var s in g.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTimeLocal))
-                {
-                    var endTimeLocal = s.StartTimeLocal.Add(TimeSpan.FromMinutes(s.DurationMinutes));
-                    for (var day = from; day <= to; day = day.AddDays(1))
-                    {
-                        if ((int)day.DayOfWeek != s.DayOfWeek) continue;
-                        occurrences.Add(new
-                        {
-                            dateLocal = day.ToString("yyyy-MM-dd"),
-                            dayLabel = DayLabelAz(s.DayOfWeek),
-                            startTime = $"{s.StartTimeLocal:hh\\:mm}",
-                            endTime = $"{endTimeLocal:hh\\:mm}",
-                            durationHours = Math.Round(s.DurationMinutes / 60.0, 2)
-                        });
-                    }
-                }
-
                 return new
                 {
                     fullName = athlete.FullName,
                     fromLocal = from.ToString("yyyy-MM-dd"),
                     toLocal = to.ToString("yyyy-MM-dd"),
                     days = string.Join(", ", dayLabels),
-                    occurrences = occurrences
-                        .Cast<dynamic>()
-                        .OrderBy(x => (string)x.dateLocal)
-                        .ToList(),
                     createdAtLocal = g.Max(x => x.CreatedAtUtc).ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                     isFullPackage = g.Key.IsFullPackage
                 };
             })
             .ToList();
 
-        // Also keep last sessions (optional, for extra context in UI later)
+        var occurrencesFlat = BuildFlatOccurrences(athlete.FullName ?? "", schedules.Where(s => s.AthleteId == athlete.Id && s.IsEnabled).ToList());
+
         var lastSessions = sessions
             .Where(x => x.AthleteId == athlete.Id)
             .OrderByDescending(x => x.StartTimeUtc)
@@ -117,8 +94,69 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             athleteId = athlete.Id,
             fullName = athlete.FullName,
             packages,
+            occurrencesFlat,
             lastSessions
         });
+    }
+
+    private static List<object> BuildFlatOccurrences(string athleteFullName, List<SubscriptionSchedule> schedules)
+    {
+        var temp = new List<(string dateKey, string startKey, object row)>();
+        foreach (var s in schedules)
+        {
+            if (s.IsFullPackage) continue;
+
+            var excluded = OccurrenceJson.DeserializeExcluded(s.ExcludedOccurrenceDatesJson);
+            var overrides = OccurrenceJson.OverridesToMap(OccurrenceJson.DeserializeOverrides(s.OccurrenceOverridesJson));
+            var from = s.ActiveFromDateLocal.Date;
+            var to = s.ActiveToDateLocal.Date;
+            for (var day = from; day <= to; day = day.AddDays(1))
+            {
+                if ((int)day.DayOfWeek != s.DayOfWeek) continue;
+                var dateKey = day.ToString("yyyy-MM-dd");
+                if (excluded.Contains(dateKey)) continue;
+
+                var start = s.StartTimeLocal;
+                var dur = s.DurationMinutes;
+                var lane = s.LaneNumber;
+                if (overrides.TryGetValue(dateKey, out var ov))
+                {
+                    if (!string.IsNullOrWhiteSpace(ov.StartTimeLocal) && TimeSpan.TryParse(ov.StartTimeLocal, out var st))
+                        start = st;
+                    if (ov.DurationMinutes is > 0)
+                        dur = ov.DurationMinutes.Value;
+                    if (ov.LaneNumber is > 0)
+                        lane = ov.LaneNumber.Value;
+                }
+
+                var endT = start.Add(TimeSpan.FromMinutes(dur));
+                var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Sistem təyin edəcək";
+                var startKey = start.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture);
+                var endKey = endT.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture);
+                var row = new
+                {
+                    scheduleId = s.Id,
+                    athleteFullName,
+                    dateLocal = dateKey,
+                    dayLabel = DayLabelAz(s.DayOfWeek),
+                    startTime = startKey,
+                    endTime = endKey,
+                    durationMinutes = dur,
+                    laneNumber = lane,
+                    laneLabel,
+                    preferredLaneType = (int)s.PreferredLaneType,
+                    isFullPackage = s.IsFullPackage
+                };
+                temp.Add((dateKey, startKey, row));
+            }
+        }
+
+        return temp
+            .OrderBy(x => x.dateKey, StringComparer.Ordinal)
+            .ThenBy(x => x.startKey, StringComparer.Ordinal)
+            .Select(x => x.row)
+            .Cast<object>()
+            .ToList();
     }
 
     private static string NormalizeDigits(string? value)
@@ -140,7 +178,6 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
 
     private static string DayLabelAz(int dayOfWeek)
     {
-        // .NET: Sunday=0 ... Saturday=6
         return dayOfWeek switch
         {
             1 => "B.e",
@@ -154,4 +191,3 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         };
     }
 }
-

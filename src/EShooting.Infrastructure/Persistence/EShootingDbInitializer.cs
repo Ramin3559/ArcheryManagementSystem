@@ -234,6 +234,17 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     ADD [IsFullPackage] BIT NOT NULL CONSTRAINT [DF_SubscriptionSchedules_IsFullPackage] DEFAULT (0);
                 END
 
+                IF COL_LENGTH(N'[dbo].[SubscriptionSchedules]', N'ExcludedOccurrenceDatesJson') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[SubscriptionSchedules]
+                    ADD [ExcludedOccurrenceDatesJson] NVARCHAR(MAX) NULL;
+                END
+                IF COL_LENGTH(N'[dbo].[SubscriptionSchedules]', N'OccurrenceOverridesJson') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[SubscriptionSchedules]
+                    ADD [OccurrenceOverridesJson] NVARCHAR(MAX) NULL;
+                END
+
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_SubscriptionSchedules_Athlete_Day_Time_Lane_Enabled' AND object_id = OBJECT_ID(N'[dbo].[SubscriptionSchedules]'))
                 BEGIN
                     -- Deduplicate old data before creating a unique index (keep newest enabled row).
