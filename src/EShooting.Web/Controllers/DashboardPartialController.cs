@@ -1,6 +1,7 @@
 using EShooting.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCaching;
 
 namespace EShooting.Web.Controllers;
 
@@ -29,6 +30,7 @@ public sealed class DashboardPartialController(CachedLaneDashboardService laneDa
     /// Tək zolaq kartı (TV / tam ekran səhifələr üçün).
     /// </summary>
     [HttpGet("lanes/partial/card/{laneNumber:int}")]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> LaneCard([FromRoute] int laneNumber, CancellationToken cancellationToken)
     {
         if (laneNumber is < 1 or > 11)

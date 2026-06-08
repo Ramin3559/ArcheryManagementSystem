@@ -24,13 +24,14 @@
     var startText = LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc);
     var endText = LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc);
 }
-<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")">
+@await Html.PartialAsync("Lanes/_LaneCardTvStyles")
+<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")" data-tv-layout="v3">
     <div class="lane-tv-grid">
         <div class="lane-tv-panel lane-tv-panel--logo">
             <img class="lane-tv-brand-logo"
-                 src="/images/club-logo.jpg"
+                 src="/images/logoZolag.jpg"
                  alt="Target Archery Club"
-                 onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/lane-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
+                 onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/club-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
         </div>
 
         <div class="lane-tv-panel lane-tv-panel--zolaq">
@@ -46,17 +47,14 @@
 
         @if (hasSession)
         {
-            <div class="lane-tv-panel lane-tv-panel--athlete">
-                <div class="lane-tv-athlete lane-meta">
+            <div class="lane-tv-panel lane-tv-panel--info">
+                <div class="lane-tv-athlete">
                     @(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)
                     @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
                     {
-                        <span title="Avadanlıq verilib" class="lane-tv-equip" aria-hidden="true">🏹</span>
+                        <span class="lane-tv-equip" aria-hidden="true">🏹</span>
                     }
                 </div>
-            </div>
-
-            <div class="lane-tv-panel lane-tv-panel--schedule">
                 <div class="lane-tv-schedule" data-role="lane-schedule">
                     <span class="lane-tv-schedule__item">Başlanğıc: @startText</span>
                     <span class="lane-tv-schedule__item">Son: @endText</span>

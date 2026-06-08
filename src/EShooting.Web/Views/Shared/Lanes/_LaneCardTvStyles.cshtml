@@ -1,0 +1,358 @@
+<style id="lane-tv-styles-v3">
+    /* TV zolaq kartı — layout v3 (partial ilə birlikdə gəlir, köhnə cache-i override edir) */
+    .lane-tv-body .lane-card.is-cleanup .lane-tv-athlete {
+        display: none !important;
+    }
+
+    .lane-tv-body .lane-tv-status-pill {
+        display: none !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] {
+        position: relative;
+        background: var(--bg, #fff);
+        border: none;
+        border-radius: 0;
+        padding: clamp(8px, 2vw, 20px) clamp(10px, 2.5vw, 28px);
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        color: var(--text, #8B2318);
+        box-sizing: border-box;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-grid {
+        display: grid !important;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        grid-template-columns: 30% 40% 30% !important;
+        grid-template-rows: auto 100px auto 1fr auto !important;
+        grid-template-areas:
+            "logo  zolaq  clock"
+            ".     .      ."
+            "info  info   ring"
+            ".     .      ring"
+            "hint  hint   ring" !important;
+        column-gap: 0 !important;
+        row-gap: 0 !important;
+        align-content: stretch !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"]:not(.lane-card--tv-active) .lane-tv-grid {
+        grid-template-rows: auto minmax(0, 1fr) !important;
+        grid-template-areas:
+            "logo  zolaq  clock"
+            ".     .      ring" !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel {
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--logo {
+        grid-area: logo;
+        align-self: start;
+        justify-self: start;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--zolaq {
+        grid-area: zolaq;
+        justify-self: center;
+        align-self: start;
+        width: 100%;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--clock {
+        grid-area: clock;
+        justify-self: end;
+        align-self: start;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--info {
+        grid-area: info !important;
+        position: relative;
+        width: 100%;
+        height: 80px;
+        display: block !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--hint {
+        grid-area: hint;
+        justify-self: center;
+        align-self: end;
+        text-align: center;
+        width: 100%;
+        padding-bottom: 8px;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--ring {
+        grid-area: ring;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: visible;
+        min-height: 0;
+    }
+
+    /* Köhnə v2 grid panelləri — v3-də istifadə olunmur */
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--athlete,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--schedule {
+        display: none !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-brand-logo {
+        display: block;
+        max-height: 120px;
+        max-width: 220px;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        object-position: left top;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-lane-num {
+        margin: 0;
+        font-size: 70px;
+        font-weight: 800;
+        color: #8B2318;
+        text-align: center;
+        line-height: 1.05;
+        white-space: nowrap;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-wall-clock {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-wall-clock__label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-muted, #a04438);
+        margin-bottom: 2px;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-wall-clock__value {
+        font-size: 50px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: #8B2318;
+        line-height: 1.1;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete {
+        position: absolute;
+        left: 0;
+        top: 0;
+        font-size: 28px;
+        font-weight: 700;
+        color: #8B2318;
+        line-height: 1.25;
+        max-width: 42%;
+        word-break: break-word;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: baseline;
+        gap: 40px;
+        font-size: 28px;
+        font-weight: 700;
+        color: #8B2318;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        margin-left: 0 !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule__item {
+        display: inline-block;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-equip {
+        margin-left: 6px;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint {
+        font-size: 32px !important;
+        font-weight: 700;
+        color: #c81e1e;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+        line-height: 1.25;
+        white-space: nowrap;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint.is-show {
+        opacity: 1;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint.is-critical {
+        color: #b91c1c;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap {
+        --ring-track: rgba(139, 35, 24, 0.14);
+        --ring-accent: #8B2318;
+        --ring-glow: rgba(139, 35, 24, 0.2);
+        position: relative;
+        width: 430px !important;
+        height: 430px !important;
+        margin: 0;
+        background: transparent;
+        border: 0;
+        border-radius: 50%;
+        padding: 0;
+        box-shadow: none;
+        overflow: visible;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+        filter: drop-shadow(0 0 6px var(--ring-glow));
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__track {
+        fill: none;
+        stroke: var(--ring-track);
+        stroke-width: 6;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__progress {
+        fill: none;
+        stroke: var(--ring-accent);
+        stroke-width: 10;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 10%;
+        pointer-events: none;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__timer {
+        font-size: 100px !important;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.05;
+        color: #c81e1e;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__caption {
+        margin-top: 8px;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #8B2318;
+        line-height: 1.2;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__bartrack {
+        display: none;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-pending {
+        --ring-accent: #c45a00;
+        --ring-glow: rgba(196, 90, 0, 0.3);
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-live.is-warn:not(.is-critical) {
+        --ring-accent: #c45a00;
+        --ring-glow: rgba(196, 90, 0, 0.35);
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-live.is-critical {
+        --ring-accent: #b91c1c;
+        --ring-glow: rgba(185, 28, 28, 0.4);
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer {
+        color: #b91c1c;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-live.is-critical .countdown-ring__svg {
+        animation: lane-tv-ring-pulse-v3 0.95s ease-in-out infinite;
+    }
+
+    @@keyframes lane-tv-ring-pulse-v3 {
+        0%, 100% { filter: drop-shadow(0 0 6px var(--ring-glow)); }
+        50% { filter: drop-shadow(0 0 18px rgba(185, 28, 28, 0.55)); }
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-done,
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-idle {
+        --ring-accent: rgba(139, 35, 24, 0.35);
+        --ring-glow: transparent;
+        width: 320px !important;
+        height: 320px !important;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-idle .countdown-ring__timer {
+        font-size: 64px !important;
+        color: #8B2318;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-done .countdown-ring__timer {
+        font-size: 18px !important;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.25;
+        padding: 0 8px;
+        max-width: 92%;
+        color: #8B2318;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-done .countdown-ring__caption {
+        font-size: 14px;
+    }
+
+    @@media (max-width: 720px), (max-height: 520px) {
+        .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-grid {
+            grid-template-columns: 28% 44% 28% !important;
+            grid-template-rows: auto 72px auto 1fr auto !important;
+        }
+
+        .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-lane-num { font-size: clamp(2rem, 8vw, 70px); }
+        .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-wall-clock__value { font-size: clamp(1.5rem, 6vw, 50px); }
+        .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete { font-size: clamp(1rem, 3.5vw, 28px); }
+        .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule { font-size: clamp(0.9rem, 3.2vw, 28px); gap: clamp(12px, 3vw, 40px); }
+        .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap:not(.is-done):not(.is-idle) {
+            width: min(430px, 78vmin) !important;
+            height: min(430px, 78vmin) !important;
+        }
+        .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__timer {
+            font-size: clamp(3rem, 16vmin, 100px) !important;
+        }
+        .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint {
+            font-size: clamp(1.25rem, 4vw, 32px) !important;
+        }
+    }
+</style>

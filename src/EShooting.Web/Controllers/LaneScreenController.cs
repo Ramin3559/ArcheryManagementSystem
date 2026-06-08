@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCaching;
 
 namespace EShooting.Web.Controllers;
 
@@ -11,6 +12,7 @@ namespace EShooting.Web.Controllers;
 public sealed class LaneScreenController : Controller
 {
     [HttpGet("/zolaq/{laneNumber:int}")]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Index([FromRoute] int laneNumber)
     {
         if (laneNumber is < 1 or > 11)
