@@ -92,7 +92,7 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
                 });
 
             // Never redirect Reception to /admin (it would cause an access-denied loop).
-            if (isAdminReturnUrl) return RedirectToAction("Index", "Home");
+            if (isAdminReturnUrl) return Redirect("/qeydiyyat");
             return RedirectToLocal(returnUrl);
         }
 
@@ -117,6 +117,6 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
             return Redirect(returnUrl);
         }
 
-        return RedirectToAction("Index", "Home");
+        return Redirect("/qeydiyyat");
     }
 }

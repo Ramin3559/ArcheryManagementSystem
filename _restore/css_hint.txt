@@ -1,0 +1,58 @@
+﻿        .lane-tv-hint-bar {
+            flex: 0 0 auto;
+            width: 100%;
+            text-align: center;
+            padding: clamp(10px, 2vh, 28px) 0 clamp(6px, 1vh, 14px);
+            min-height: clamp(36px, 5vh, 56px);
+        }
+
+        .lane-tv-hint-bar .lane-bottom-hint {
+            display: inline-block;
+            margin: 0;
+        }
+
+        .lane-tv-body .lane-bottom-hint {
+            font-weight: 800;
+            font-size: clamp(22px, 3.2vw, 40px);
+            color: #c45a00;
+            opacity: 0;
+            transition: opacity 0.2s ease, color 0.2s ease;
+            pointer-events: none;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+
+        .lane-tv-body .lane-bottom-hint.is-show {
+            opacity: 1;
+        }
+
+        .lane-tv-body .lane-bottom-hint.is-critical {
+            color: #b91c1c;
+        }
+
+        .lane-tv-main {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            min-height: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .lane-tv-main-ring {
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            align-self: end;
+            width: 100%;
+            height: 100%;
+        }
+
+        .lane-tv-body .countdown-ring-wrap {
+            --ring-track: rgba(139, 35, 24, 0.15);
+            --ring-accent: #8B2318;
+            --ring-glow: rgba(139, 35, 24, 0.25);
+            position: relative;
+            width: min(52vmin, 56vw, 640px);
+            height: min(52vmin, 56vw, 640px);

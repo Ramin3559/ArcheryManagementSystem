@@ -24,11 +24,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var idQ = NormalizeText(request.IdCardNumber);
         if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ))
         {
-            var athletes = await repository.GetAthletesAsync(cancellationToken);
-            var existing = athletes.FirstOrDefault(a =>
-                (!string.IsNullOrWhiteSpace(phoneQ) && NormalizeDigits(a.PhoneNumber) == phoneQ)
-                || (!string.IsNullOrWhiteSpace(emailQ) && NormalizeText(a.Email) == emailQ)
-                || (!string.IsNullOrWhiteSpace(idQ) && NormalizeText(a.IdCardNumber) == idQ));
+            var existing = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
 
             if (existing is not null)
             {
@@ -249,29 +245,11 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return BadRequest(new { message = "Lookup requires at least phone/email/idCardNumber (min lengths: phone>=4, email>=4, id>=3)." });
         }
 
-        var athletes = await repository.GetAthletesAsync(cancellationToken);
-        var candidates = athletes
-            .Where(a =>
-            {
-                var p = NormalizeDigits(a.PhoneNumber);
-                var e = NormalizeText(a.Email);
-                var id = NormalizeText(a.IdCardNumber);
-
-                var phoneOk = string.IsNullOrWhiteSpace(phoneQ) || (!string.IsNullOrWhiteSpace(p) && p.Contains(phoneQ));
-                var emailOk = string.IsNullOrWhiteSpace(emailQ) || (!string.IsNullOrWhiteSpace(e) && e.Contains(emailQ));
-                var idOk = string.IsNullOrWhiteSpace(idQ) || (!string.IsNullOrWhiteSpace(id) && id.Contains(idQ));
-                return phoneOk && emailOk && idOk;
-            })
-            .ToList();
-
-        if (candidates.Count == 0)
+        var best = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
+        if (best is null)
         {
             return NotFound();
         }
-
-        var best = candidates
-            .OrderByDescending(a => ScoreCandidate(a, phoneQ, emailQ, idQ))
-            .First();
 
         return Ok(new
         {

@@ -1,5 +1,6 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
+using EShooting.Domain.Enums;
 using EShooting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -126,6 +127,114 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             .Include(x => x.Scores)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<TrainingSession>> GetSessionsLightAsync(CancellationToken cancellationToken)
+    {
+        return await dbContext.Sessions
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<Athlete?> GetAthleteByIdAsync(Guid athleteId, CancellationToken cancellationToken)
+    {
+        return dbContext.Athletes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == athleteId, cancellationToken);
+    }
+
+    public async Task<Athlete?> FindAthleteForLookupAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken)
+    {
+        var phoneQ = (phoneDigits ?? "").Trim();
+        var emailQ = (emailNormalized ?? "").Trim();
+        var idQ = (idCardNormalized ?? "").Trim();
+
+        var hasQuery =
+            (!string.IsNullOrWhiteSpace(phoneQ) && phoneQ.Length >= 4)
+            || (!string.IsNullOrWhiteSpace(emailQ) && emailQ.Length >= 4)
+            || (!string.IsNullOrWhiteSpace(idQ) && idQ.Length >= 3);
+
+        if (!hasQuery)
+        {
+            return null;
+        }
+
+        var candidates = await dbContext.Athletes
+            .AsNoTracking()
+            .Where(a =>
+                (string.IsNullOrEmpty(phoneQ)
+                 || (a.PhoneNumber != null && a.PhoneNumber.Contains(phoneQ)))
+                && (string.IsNullOrEmpty(emailQ)
+                    || (a.Email != null && a.Email.ToLower().Contains(emailQ)))
+                && (string.IsNullOrEmpty(idQ)
+                    || (a.IdCardNumber != null && a.IdCardNumber.ToLower().Contains(idQ))))
+            .ToListAsync(cancellationToken);
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        static int Score(Athlete a, string pQ, string eQ, string iQ)
+        {
+            var score = 0;
+            var phone = string.IsNullOrWhiteSpace(a.PhoneNumber)
+                ? ""
+                : new string(a.PhoneNumber.Where(char.IsDigit).ToArray());
+            var email = (a.Email ?? "").Trim().ToLowerInvariant();
+            var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
+
+            if (!string.IsNullOrWhiteSpace(pQ) && phone == pQ) score += 100;
+            if (!string.IsNullOrWhiteSpace(iQ) && id == iQ) score += 90;
+            if (!string.IsNullOrWhiteSpace(eQ) && email == eQ) score += 80;
+            if (!string.IsNullOrWhiteSpace(pQ) && phone.Contains(pQ, StringComparison.Ordinal)) score += Math.Min(30, pQ.Length);
+            if (!string.IsNullOrWhiteSpace(iQ) && id.Contains(iQ, StringComparison.Ordinal)) score += Math.Min(20, iQ.Length);
+            if (!string.IsNullOrWhiteSpace(eQ) && email.Contains(eQ, StringComparison.Ordinal)) score += Math.Min(25, eQ.Length);
+            return score;
+        }
+
+        return candidates
+            .OrderByDescending(a => Score(a, phoneQ, emailQ, idQ))
+            .FirstOrDefault();
+    }
+
+    public async Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(
+        Guid athleteId,
+        CancellationToken cancellationToken)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var sessions = await dbContext.Sessions
+            .AsNoTracking()
+            .Where(s => s.AthleteId == athleteId && s.Status == SessionStatus.Active)
+            .ToListAsync(cancellationToken);
+
+        var active = sessions.FirstOrDefault(s =>
+        {
+            var start = s.StartTimeUtc.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(s.StartTimeUtc, DateTimeKind.Utc)
+                : s.StartTimeUtc.ToUniversalTime();
+            var end = s.EndTimeUtc.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(s.EndTimeUtc, DateTimeKind.Utc)
+                : s.EndTimeUtc.ToUniversalTime();
+            return start <= nowUtc && nowUtc < end;
+        });
+
+        if (active is null)
+        {
+            return null;
+        }
+
+        var laneNumber = await dbContext.Lanes
+            .AsNoTracking()
+            .Where(l => l.Id == active.LaneId)
+            .Select(l => l.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return (active.Id, laneNumber);
     }
 
     public Task<Lane?> GetLaneByNumberAsync(int laneNumber, CancellationToken cancellationToken)

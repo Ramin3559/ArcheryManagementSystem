@@ -807,6 +807,13 @@
             color: #0b5a3d;
         }
 
+        .tv-link.tv-link--disabled.tv-link--active,
+        .tv-link[aria-disabled="true"].tv-link--active {
+            border-color: rgba(18, 153, 104, 0.55);
+            background: rgba(18, 153, 104, 0.18);
+            color: #0b5a3d;
+        }
+
         .tv-link.tv-link--disabled,
         .tv-link[aria-disabled="true"] {
             cursor: default;
@@ -1111,7 +1118,7 @@
                     <option value="2">Yalnız uzun (9–11)</option>
                 </select>
                 <input id="durationMinutes" type="number" min="1" max="240" value="3" />
-                <button id="scheduleBtn" class="btn btn-primary">Qeydiyyat və planlama</button>
+                <button id="scheduleBtn" type="button" class="btn btn-primary">Qeydiyyat və planlama</button>
                 <button id="updateAthleteBtn" class="btn btn-ghost" type="button" disabled>Məlumatları Yenilə</button>
                 <button id="cancelSubscriptionBtn" class="btn btn-danger" type="button">Abunəni ləğv et</button>
             </div>
@@ -1178,7 +1185,7 @@
                 <input id="subscriptionDurationMinutes" type="number" min="1" max="240" value="12" title="Aylıq paket (saat)" />
                 <input id="subscriptionStartDate" type="date" />
                 <input id="subscriptionEndDate" type="date" title="Bitmə tarixi" />
-                <button id="createSubscriptionBtn" class="btn btn-primary">Paket yarat</button>
+                <button id="createSubscriptionBtn" type="button" class="btn btn-primary">Paket yarat</button>
             </div>
             <div class="notice" id="subscriptionInfo">Həftə günlərini seçin, hər gün üçün saat və zolağı təyin edin.</div>
             <div id="upcomingSubscriptionBlock" style="display:none;">
@@ -1458,14 +1465,11 @@
     </div>
 </div>
 
-<!-- Flatpickr (Azerbaijani locale, 24h time) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/az.js"></script>
-
-<!-- SignalR JS (iki CDN fallback) -->
-<script src="https://cdn.jsdelivr.net/npm/%40microsoft/signalr%408.0.7/dist/browser/signalr.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<!-- Flatpickr + SignalR — lokal (CDN internet gözlətməsin) -->
+<link rel="stylesheet" href="/lib/flatpickr/flatpickr.min.css" />
+<script defer src="/lib/flatpickr/flatpickr.min.js"></script>
+<script defer src="/lib/flatpickr/l10n-az.js"></script>
+<script defer src="/lib/signalr/signalr.min.js"></script>
 <script>
     // Tarix və saat seçicilərini Azerbaycan dilində + 24 saat formatında istifadə et.
     (function () {
@@ -1510,31 +1514,46 @@
         function init() {
             bindAll(document);
             try {
+                var fpPending = null;
+                function shouldSkipFlatpickrNode(n) {
+                    if (!(n instanceof Element)) return true;
+                    if (n.closest && (n.closest("#laneGrid") || n.closest("#dashboardRows"))) return true;
+                    return false;
+                }
                 var obs = new MutationObserver(function (mutations) {
                     if (!isFlatpickrReady()) return;
-                    for (var i = 0; i < mutations.length; i++) {
-                        var m = mutations[i];
-                        if (!m.addedNodes) continue;
-                        for (var j = 0; j < m.addedNodes.length; j++) {
-                            var n = m.addedNodes[j];
-                            if (!(n instanceof Element)) continue;
-                            if (n.matches && n.matches('input[type="date"], input[type="time"], input[type="datetime-local"]')) {
-                                bindOne(n);
-                            }
-                            if (n.querySelectorAll) {
-                                n.querySelectorAll('input[type="date"], input[type="time"], input[type="datetime-local"]').forEach(bindOne);
+                    if (fpPending) clearTimeout(fpPending);
+                    fpPending = setTimeout(function () {
+                        fpPending = null;
+                        for (var i = 0; i < mutations.length; i++) {
+                            var m = mutations[i];
+                            if (!m.addedNodes) continue;
+                            for (var j = 0; j < m.addedNodes.length; j++) {
+                                var n = m.addedNodes[j];
+                                if (shouldSkipFlatpickrNode(n)) continue;
+                                if (n.matches && n.matches('input[type="date"], input[type="time"], input[type="datetime-local"]')) {
+                                    bindOne(n);
+                                }
+                                if (n.querySelectorAll) {
+                                    n.querySelectorAll('input[type="date"], input[type="time"], input[type="datetime-local"]').forEach(bindOne);
+                                }
                             }
                         }
-                    }
+                    }, 120);
                 });
                 obs.observe(document.body, { childList: true, subtree: true });
             } catch (e) { /* ignore observer errors */ }
         }
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", init);
-        } else {
-            init();
+        function bootFlatpickr() {
+            if (!isFlatpickrReady()) return;
+            bindAll(document);
         }
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", bootFlatpickr);
+        } else {
+            bootFlatpickr();
+        }
+        window.addEventListener("load", bootFlatpickr);
     })();
 </script>
 <script>
@@ -1625,7 +1644,6 @@
     let upcomingCountdownTimerId = null;
     let subscriptionSchedulesCache = [];
     const dayNames = ["Bazar", "Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə"];
-
     function refreshStats(lanes) {
         totalLanesEl.textContent = String(lanes.length);
         activeSessionsEl.textContent = String(lanes.filter(x => x.status === "Active").length);
@@ -1898,7 +1916,6 @@
         const existingTimes = {};
         const existingLanes = {};
         const existingPrefs = {};
-        const existingAvailDates = {};
         subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-time").forEach(inp => {
             if (!(inp instanceof HTMLInputElement)) return;
             const day = inp.getAttribute("data-day");
@@ -1917,13 +1934,6 @@
             if (!day) return;
             existingPrefs[day] = sel.value;
         });
-        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-avail-date").forEach(inp => {
-            if (!(inp instanceof HTMLInputElement)) return;
-            const day = inp.getAttribute("data-day");
-            if (!day) return;
-            if (inp.value) existingAvailDates[day] = inp.value;
-        });
-
         if (days.length === 0) {
             subscriptionLaneTypesByDayEl.innerHTML = "";
             return;
@@ -1950,14 +1960,6 @@
                     <option value="1">Yalnız qısa (1–8)</option>
                     <option value="2">Yalnız uzun (9–11)</option>
                 </select>
-            </div>
-            <div class="notice" data-avail-root="${d}" style="display:none; width:100%; margin-top:6px;">
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
-                    <div style="font-weight:900;">Zolaq qrafiki (24 saat)</div>
-                    <input type="date" class="sub-avail-date" data-day="${d}" title="Tarix" />
-                    <div style="color:#55638a; font-weight:800;">Yaşıl → boş, Qırmızı → dolu</div>
-                </div>
-                <div class="avail-grid" data-avail-grid="${d}"></div>
             </div>
         `).join("");
 
@@ -1997,37 +1999,11 @@
         };
         days.forEach(syncPrefForRow);
 
-        // bind availability (only for specific lane selection)
         subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
             if (!(sel instanceof HTMLSelectElement)) return;
             sel.addEventListener("change", () => {
-                refreshLaneAvailabilityForSubscriptionRow(sel);
                 const day = sel.getAttribute("data-day");
                 if (day) syncPrefForRow(day);
-            });
-        });
-
-        // initial availability render (if manual lane selected)
-        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-day-lane").forEach(sel => {
-            if (!(sel instanceof HTMLSelectElement)) return;
-            refreshLaneAvailabilityForSubscriptionRow(sel);
-        });
-
-        // bind availability datepicker
-        subscriptionLaneTypesByDayEl.querySelectorAll(".sub-avail-date").forEach(inp => {
-            if (!(inp instanceof HTMLInputElement)) return;
-            const d = inp.getAttribute("data-day");
-            const remembered = d ? existingAvailDates[d] : "";
-            if (remembered) {
-                inp.value = remembered;
-            } else {
-                const startDateStr = subscriptionStartDateInput?.value ?? "";
-                const dt = computeFirstDateForDayWithinStartDate(d ?? "0", startDateStr);
-                if (dt) inp.value = dt.toISOString().slice(0, 10);
-            }
-            inp.addEventListener("change", () => {
-                const laneSel = subscriptionLaneTypesByDayEl.querySelector(`select.sub-day-lane[data-day="${CSS.escape(d ?? "")}"]`);
-                if (laneSel instanceof HTMLSelectElement) refreshLaneAvailabilityForSubscriptionRow(laneSel);
             });
         });
 
@@ -2045,73 +2021,6 @@
     }
 
     // updateSubscriptionEndTimes removed (end time field removed)
-
-    function computeFirstDateForDayWithinStartDate(dayOfWeek, startDateStr) {
-        if (!startDateStr) return null;
-        const start = new Date(`${startDateStr}T00:00:00`);
-        if (!Number.isFinite(start.getTime())) return null;
-        let d = new Date(start);
-        for (let i = 0; i < 7; i++) {
-            if (d.getDay() === Number(dayOfWeek)) return d;
-            d.setDate(d.getDate() + 1);
-        }
-        return start;
-    }
-
-    async function refreshLaneAvailabilityForSubscriptionRow(laneSelectEl) {
-        if (!(laneSelectEl instanceof HTMLSelectElement)) return;
-        const day = laneSelectEl.getAttribute("data-day");
-        if (!day) return;
-        const laneNumber = Number(laneSelectEl.value ?? "0");
-        const root = subscriptionLaneTypesByDayEl?.querySelector(`[data-avail-root="${CSS.escape(day)}"]`);
-        const grid = subscriptionLaneTypesByDayEl?.querySelector(`[data-avail-grid="${CSS.escape(day)}"]`);
-        const timeInput = subscriptionLaneTypesByDayEl?.querySelector(`input.sub-day-time[data-day="${CSS.escape(day)}"]`);
-        const dateInput = subscriptionLaneTypesByDayEl?.querySelector(`input.sub-avail-date[data-day="${CSS.escape(day)}"]`);
-        if (!(root instanceof HTMLElement) || !(grid instanceof HTMLElement) || !(timeInput instanceof HTMLInputElement)) return;
-
-        if (!laneNumber || laneNumber <= 0) {
-            root.style.display = "none";
-            grid.innerHTML = "";
-            return;
-        }
-
-        const pickedDateStr = (dateInput instanceof HTMLInputElement ? dateInput.value : "") || "";
-        if (!pickedDateStr) {
-            root.style.display = "";
-            grid.innerHTML = "<div style=\"color:#55638a; font-weight:800;\">Əvvəlcə başlanğıc tarixi seçin.</div>";
-            return;
-        }
-
-        const durationMinutes = computeMinutesPerSelectedDay(Number(subscriptionDurationMinutesInput?.value ?? "0"), getSelectedSubscriptionDays().length);
-        root.style.display = "";
-        grid.innerHTML = "<div style=\"color:#55638a; font-weight:800;\">Yüklənir...</div>";
-
-        const res = await apiFetch(`/availability/lane?laneNumber=${encodeURIComponent(laneNumber)}&dateLocal=${encodeURIComponent(pickedDateStr)}&durationMinutes=${encodeURIComponent(durationMinutes)}`);
-        if (!res.ok) {
-            const msg = await readErrorMessage(res);
-            grid.innerHTML = `<div style="color:#8d2140; font-weight:900;">${escapeHtml(msg)}</div>`;
-            return;
-        }
-        const data = await res.json();
-        const slots = Array.isArray(data?.slots) ? data.slots : [];
-        grid.innerHTML = slots.map(s => {
-            const t = String(s?.startTimeLocal ?? "");
-            const busy = Boolean(s?.isBusy);
-            if (busy) {
-                return `<div class="slot slot--busy" title="Dolu">${escapeHtml(t)}</div>`;
-            }
-            return `<button type="button" class="slot slot--free" data-pick-time="${escapeHtml(t)}">${escapeHtml(t)}</button>`;
-        }).join("");
-
-        grid.querySelectorAll("[data-pick-time]").forEach(btn => {
-            if (!(btn instanceof HTMLElement)) return;
-            btn.addEventListener("click", () => {
-                const t = btn.getAttribute("data-pick-time") ?? "";
-                timeInput.value = t;
-                timeInput.dispatchEvent(new Event("input", { bubbles: true }));
-            });
-        });
-    }
 
     function computeMinutesPerSelectedDay(totalMonthlyHours, selectedDaysCount) {
         const totalMin = Math.max(0, Number(totalMonthlyHours)) * 60;
@@ -2150,13 +2059,31 @@
     // syncOpenEndedMode ləğv edildi
 
     async function apiFetch(input, init = {}) {
-        const response = await fetch(input, { ...init, credentials: "same-origin" });
-        if (response.status === 401) {
-            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
-            throw new Error("İcazə yoxdur");
+        const timeoutMs = Number(init.timeoutMs ?? 45000);
+        const fetchInit = { ...init };
+        delete fetchInit.timeoutMs;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(input, {
+                ...fetchInit,
+                credentials: "same-origin",
+                cache: "no-store",
+                signal: controller.signal
+            });
+            if (response.status === 401) {
+                window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+                throw new Error("İcazə yoxdur");
+            }
+            return response;
+        } catch (err) {
+            if (err && (err.name === "AbortError" || String(err).includes("abort"))) {
+                throw new Error("Server cavab vermədi (vaxt bitdi). Şəbəkəni və ya SQL-i yoxlayın.");
+            }
+            throw err;
+        } finally {
+            clearTimeout(timer);
         }
-
-        return response;
     }
 
     async function ensureAthletesCacheFresh() {
@@ -2283,13 +2210,13 @@
         const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
         if (!firstName || !lastName || !phoneNumber) {
             alert("Ad, Soyad və Telefon mütləqdir.");
-            return;
+            return false;
         }
 
         const membershipTypeRaw = membershipTypeInput?.value ?? "";
         const categoryRaw = categoryInput?.value ?? "";
-        if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return; }
-        if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
+        if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return false; }
+        if (!categoryRaw) { alert("Kateqoriya seçin."); return false; }
 
         const response = await apiFetch(`/athletes/${encodeURIComponent(id)}`, {
             method: "PUT",
@@ -3066,13 +2993,20 @@
     // həmin id üzrə bazadakı qeydi tap və 5 sahə üzrə müqayisə et.
     // Lookup minimum uzunluq tələbinə (telefon>=4) görə qısa telefon yazılışlarında
     // axtarış işə düşmür, ona görə bu yardımçı id-yə əsasən cache-dən tapır.
+    async function fetchAthleteById(athleteId) {
+        if (!athleteId) return null;
+        try {
+            const res = await apiFetch(`/athletes/${encodeURIComponent(athleteId)}`, { timeoutMs: 30000 });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }
+
     async function maybeUpdateAthleteIfDirtyBeforeAction() {
         if (!receptionMatchedAthleteId) return true;
-        try {
-            await ensureAthletesCacheFresh();
-        } catch (e) { /* ignore */ }
-        var list = Array.isArray(allAthletesCache) ? allAthletesCache : [];
-        var existing = list.find(function (a) { return a && String(a.id) === String(receptionMatchedAthleteId); });
+        const existing = await fetchAthleteById(receptionMatchedAthleteId);
         if (!existing) return true;
         return await maybePromptUpdateForFoundAthlete(existing);
     }
@@ -3093,6 +3027,11 @@
             detail + "\n\n" +
             "Bazadakı məlumatlar yenilənsin?");
         if (!ok) return true;
+        const missing = validateReceptionBeforeSchedule();
+        if (missing) {
+            alert(missing);
+            return false;
+        }
         const updated = await updateAthleteFromReception({ silentSuccess: true });
         return Boolean(updated);
     }
@@ -3387,66 +3326,52 @@
         });
     }
 
-    function bindLaneEvents() {
-        document.querySelectorAll(".lane-score-input").forEach(input => {
-            input.addEventListener("input", event => {
-                const target = event.currentTarget;
-                if (!(target instanceof HTMLInputElement)) {
-                    return;
-                }
+    let laneEventsDelegated = false;
 
-                const laneNumber = target.getAttribute("data-lane-number");
-                const sessionId = target.getAttribute("data-session-id");
-                if (!laneNumber && !sessionId) {
-                    return;
-                }
+    // HTML yenilənəndə təkrar listener yığmır (yeniləmə yavaşlayırdı).
+    function ensureLaneEventDelegation() {
+        if (laneEventsDelegated) return;
+        laneEventsDelegated = true;
 
-                const key = sessionId ? `session-${sessionId}` : `lane-${laneNumber}`;
-                laneScoreDraft[key] = target.value;
-            });
-        });
+        const onScoreInput = (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement) || !target.classList.contains("lane-score-input")) {
+                return;
+            }
+            const laneNumber = target.getAttribute("data-lane-number");
+            const sessionId = target.getAttribute("data-session-id");
+            if (!laneNumber && !sessionId) return;
+            const key = sessionId ? `session-${sessionId}` : `lane-${laneNumber}`;
+            laneScoreDraft[key] = target.value;
+        };
 
-        document.querySelectorAll("[data-submit-lane-score]").forEach(button => {
-            button.addEventListener("click", async event => {
-                const target = event.currentTarget;
-                if (!(target instanceof HTMLButtonElement)) {
-                    return;
-                }
+        const onLanePanelClick = async (event) => {
+            const raw = event.target;
+            if (!(raw instanceof HTMLElement)) return;
 
-                const sessionId = target.getAttribute("data-session-id");
-                const laneNumber = Number(target.getAttribute("data-lane-number"));
-                const nextRound = Number(target.getAttribute("data-next-round"));
-
+            const submitBtn = raw.closest("[data-submit-lane-score]");
+            if (submitBtn instanceof HTMLButtonElement) {
+                const sessionId = submitBtn.getAttribute("data-session-id");
+                const laneNumber = Number(submitBtn.getAttribute("data-lane-number"));
+                const nextRound = Number(submitBtn.getAttribute("data-next-round"));
                 if (!sessionId) {
                     alert("Bu zolaqda aktiv sessiya yoxdur.");
                     return;
                 }
-
                 const key = `session-${sessionId}`;
-                const rawValue = laneScoreDraft[key] ?? "";
-                const value = Number(rawValue);
-
+                const value = Number(laneScoreDraft[key] ?? "");
                 if (!Number.isFinite(value) || value < 0 || value > 10) {
                     alert("Xal 0 ilə 10 arasında olmalıdır.");
                     return;
                 }
-
                 await submitLaneScore(sessionId, laneNumber, nextRound, value);
-            });
-        });
+                return;
+            }
 
-        document.querySelectorAll(".pick-session").forEach(button => {
-            button.addEventListener("click", event => {
-                const target = event.currentTarget;
-                if (!(target instanceof HTMLElement)) {
-                    return;
-                }
-
-                const selected = target.getAttribute("data-session-id");
-                if (!selected) {
-                    return;
-                }
-
+            const pickBtn = raw.closest(".pick-session");
+            if (pickBtn instanceof HTMLElement) {
+                const selected = pickBtn.getAttribute("data-session-id");
+                if (!selected) return;
                 const pickedLane = latestLanes.find(x => x.sessionId === selected);
                 if (pickedLane?.laneNumber && tabletLaneNumberInput) {
                     tabletLaneNumberInput.value = String(pickedLane.laneNumber);
@@ -3455,23 +3380,15 @@
                     tabletSessionIdInput.value = selected;
                 }
                 syncTabletScoreContext();
-            });
-        });
+                return;
+            }
 
-        document.querySelectorAll("[data-stop-session]").forEach(button => {
-            button.addEventListener("click", async event => {
-                const target = event.currentTarget;
-                if (!(target instanceof HTMLElement)) {
-                    return;
-                }
-
-                const selected = target.getAttribute("data-stop-session");
-                if (!selected) {
-                    return;
-                }
-
-                const issued = target.getAttribute("data-equipment-issued") === "1";
-                const returned = target.getAttribute("data-equipment-returned") === "1";
+            const stopBtn = raw.closest("[data-stop-session]");
+            if (stopBtn instanceof HTMLElement) {
+                const selected = stopBtn.getAttribute("data-stop-session");
+                if (!selected) return;
+                const issued = stopBtn.getAttribute("data-equipment-issued") === "1";
+                const returned = stopBtn.getAttribute("data-equipment-returned") === "1";
                 if (issued && !returned) {
                     const ok = confirm("Avadanlıq təhvil alındımı?");
                     if (!ok) return;
@@ -3479,10 +3396,14 @@
                         await apiFetch(`/sessions/${selected}/equipment/return`, { method: "POST" });
                     } catch { }
                 }
-
                 await stopSession(selected);
-            });
-        });
+            }
+        };
+
+        laneGrid?.addEventListener("input", onScoreInput);
+        dashboardRows?.addEventListener("input", onScoreInput);
+        laneGrid?.addEventListener("click", onLanePanelClick);
+        dashboardRows?.addEventListener("click", onLanePanelClick);
     }
 
     function startCountdownTicker() {
@@ -3503,13 +3424,44 @@
         };
 
         tick();
-        countdownTimerId = setInterval(tick, 250);
+        countdownTimerId = setInterval(tick, 1000);
     }
 
-    async function loadDashboard() {
-        const response = await apiFetch("/dashboard/lanes");
+    let dashboardLoadInFlight = false;
+    let dashboardLoadQueued = false;
+    let receptionRefreshTimerId = null;
+    let lastReceptionRefreshAt = 0;
+    const RECEPTION_REFRESH_GAP_MS = 5000;
+
+    function scheduleReceptionRefresh(includeExtras) {
+        const now = Date.now();
+        const wait = Math.max(400, RECEPTION_REFRESH_GAP_MS - (now - lastReceptionRefreshAt));
+        if (receptionRefreshTimerId) return;
+        receptionRefreshTimerId = setTimeout(async () => {
+            receptionRefreshTimerId = null;
+            lastReceptionRefreshAt = Date.now();
+            try {
+                await loadDashboard({ includePartials: true });
+                if (includeExtras) {
+                    try { await loadSubscriptionSchedules(); } catch { /* ignore */ }
+                }
+            } catch (e) {
+                console.error("scheduleReceptionRefresh", e);
+            }
+        }, wait);
+    }
+
+    let dashboardPartialsInFlight = false;
+    let lastLaneGridHtml = "";
+    let lastDashboardTableHtml = "";
+
+    async function loadDashboardLanesCore() {
+        const response = await apiFetch("/dashboard/lanes", { timeoutMs: 20000 });
         if (!response.ok) {
-            return;
+            if (sessionInfo instanceof HTMLElement) {
+                sessionInfo.textContent = "Zolaq məlumatı yüklənmədi.";
+            }
+            return false;
         }
 
         const lanes = await response.json();
@@ -3517,24 +3469,68 @@
         refreshStats(lanes);
         refreshLaneOptions();
         refreshTvLaneBadges(lanes);
-
-        const gridResponse = await apiFetch("/dashboard/lanes/partial/grid");
-        if (!gridResponse.ok) {
-            return;
-        }
-
-        laneGrid.innerHTML = await gridResponse.text();
-
-        const tableResponse = await apiFetch("/dashboard/lanes/partial/table");
-        if (!tableResponse.ok) {
-            return;
-        }
-
-        dashboardRows.innerHTML = await tableResponse.text();
-
-        bindLaneEvents();
-        restoreLaneDrafts();
         syncTabletScoreContext();
+        return true;
+    }
+
+    async function loadDashboardPartials() {
+        if (dashboardPartialsInFlight) return;
+        dashboardPartialsInFlight = true;
+        try {
+            const [gridResponse, tableResponse] = await Promise.all([
+                apiFetch("/dashboard/lanes/partial/grid", { timeoutMs: 20000 }),
+                apiFetch("/dashboard/lanes/partial/table", { timeoutMs: 20000 }),
+            ]);
+
+            if (gridResponse.ok && laneGrid) {
+                const gridHtml = await gridResponse.text();
+                if (gridHtml !== lastLaneGridHtml) {
+                    lastLaneGridHtml = gridHtml;
+                    laneGrid.innerHTML = gridHtml;
+                    restoreLaneDrafts();
+                }
+            }
+            if (tableResponse.ok && dashboardRows) {
+                const tableHtml = await tableResponse.text();
+                if (tableHtml !== lastDashboardTableHtml) {
+                    lastDashboardTableHtml = tableHtml;
+                    dashboardRows.innerHTML = tableHtml;
+                }
+            }
+        } catch (e) {
+            console.error("loadDashboardPartials", e);
+        } finally {
+            dashboardPartialsInFlight = false;
+        }
+    }
+
+    async function loadDashboard(options) {
+        options = options || {};
+        const includePartials = options.includePartials !== false;
+
+        if (dashboardLoadInFlight) {
+            dashboardLoadQueued = true;
+            return;
+        }
+        dashboardLoadInFlight = true;
+        try {
+            const ok = await loadDashboardLanesCore();
+            if (!ok) return;
+            if (includePartials) {
+                await loadDashboardPartials();
+            }
+        } catch (e) {
+            console.error("loadDashboard", e);
+            if (sessionInfo instanceof HTMLElement) {
+                sessionInfo.textContent = getExceptionMessage(e) || "Zolaqlar yüklənmədi.";
+            }
+        } finally {
+            dashboardLoadInFlight = false;
+            if (dashboardLoadQueued) {
+                dashboardLoadQueued = false;
+                setTimeout(() => { void loadDashboard({ includePartials: true }); }, 400);
+            }
+        }
     }
 
     function refreshTvLaneBadges(lanes) {
@@ -3543,8 +3539,9 @@
             if (!(el instanceof HTMLElement)) return;
             const n = Number(el.getAttribute("data-tv-lane") ?? "0");
             const lane = safe.find(x => x.laneNumber === n);
-            const isActive = lane?.status === "Active";
-            el.classList.toggle("tv-link--active", Boolean(isActive));
+            const isOccupied = Boolean(lane?.sessionId)
+                && (lane.status === "Active" || lane.status === "Scheduled");
+            el.classList.toggle("tv-link--active", isOccupied);
         });
     }
 
@@ -3745,10 +3742,28 @@
             return;
         }
 
-        const response = await apiFetch("/subscriptions/schedules");
+        if (upcomingSubscriptionInfo instanceof HTMLElement) {
+            upcomingSubscriptionInfo.textContent = "Yüklənir...";
+        }
+
+        let response;
+        try {
+            response = await apiFetch("/subscriptions/schedules", { timeoutMs: 25000 });
+        } catch (e) {
+            subscriptionSchedulesCache = [];
+            if (upcomingSubscriptionInfo instanceof HTMLElement) {
+                upcomingSubscriptionInfo.textContent = "Abunə siyahısı yüklənmədi.";
+            }
+            try { await loadDayPlan(); } catch { /* ignore */ }
+            return;
+        }
+
         if (!response.ok) {
             subscriptionSchedulesCache = [];
             renderUpcomingSubscriptions(subscriptionSchedulesCache);
+            if (upcomingSubscriptionInfo instanceof HTMLElement) {
+                upcomingSubscriptionInfo.textContent = "Abunə siyahısı yüklənmədi.";
+            }
             await loadDayPlan();
             return;
         }
@@ -4401,45 +4416,66 @@
         }
     }
 
+    function validateReceptionBeforeSchedule() {
+        const firstName = firstNameInput?.value?.trim() ?? "";
+        const lastName = lastNameInput?.value?.trim() ?? "";
+        const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+        if (!firstName || !lastName || !phoneNumber) {
+            return "Ad, Soyad və Telefon mütləqdir.";
+        }
+
+        const registrationMode = registrationModeInput?.value ?? "";
+        if (!registrationMode) {
+            return "Qeydiyyat növünü seçin (Anlıq və ya Abunəlik).";
+        }
+
+        const membershipTypeRaw = membershipTypeInput?.value ?? "";
+        if (!membershipTypeRaw) {
+            return "Abunəlik növünü seçin.";
+        }
+
+        const categoryRaw = categoryInput?.value ?? "";
+        if (!categoryRaw) {
+            return "Kateqoriya seçin.";
+        }
+
+        const durationValue = Number(durationMinutesInput?.value ?? "0");
+        if (!Number.isInteger(durationValue) || durationValue < 0) {
+            return "Müddət mənfi ola bilməz.";
+        }
+        if (durationValue === 0) {
+            return "Müddət 1 və ya daha böyük olmalıdır.";
+        }
+
+        return null;
+    }
+
+    let scheduleInFlight = false;
+
     async function registerAndSchedule() {
+        const scheduleBtn = document.getElementById("scheduleBtn");
+        if (scheduleInFlight) return;
+
+        const validationError = validateReceptionBeforeSchedule();
+        if (validationError) {
+            alert(validationError);
+            return;
+        }
+
+        scheduleInFlight = true;
+        if (scheduleBtn instanceof HTMLButtonElement) {
+            scheduleBtn.disabled = true;
+            scheduleBtn.textContent = "Gözləyin...";
+        }
+
         try {
-            if (!(await maybeUpdateAthleteIfDirtyBeforeAction())) return;
             const firstName = firstNameInput?.value?.trim() ?? "";
             const lastName = lastNameInput?.value?.trim() ?? "";
             const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
-            if (!firstName || !lastName || !phoneNumber) {
-                alert("Ad, Soyad və Telefon mütləqdir.");
-                return;
-            }
-
             const registrationMode = registrationModeInput?.value ?? "";
-            if (!registrationMode) {
-                alert("Qeydiyyat növünü seçin.");
-                return;
-            }
-
             const membershipTypeRaw = membershipTypeInput?.value ?? "";
-            if (!membershipTypeRaw) {
-                alert("Abunəlik növünü seçin.");
-                return;
-            }
-
             const categoryRaw = categoryInput?.value ?? "";
-            if (!categoryRaw) {
-                alert("Kateqoriya seçin.");
-                return;
-            }
-
-            const durationValue = Number(durationMinutesInput.value);
-            if (!Number.isInteger(durationValue) || durationValue < 0) {
-                alert("Müddət mənfi ola bilməz.");
-                return;
-            }
-
-            if (durationValue === 0) {
-                alert("Müddət 1 və ya daha böyük olmalıdır.");
-                return;
-            }
+            const durationValue = Number(durationMinutesInput?.value ?? "0");
 
             // 1) OR axtarış (telefon/email/şəxsiyyət)
             let athleteId = null;
@@ -4452,7 +4488,7 @@
                 if (phoneQ) qs.set("phone", phoneQ);
                 if (emailQ) qs.set("email", emailQ);
                 if (idQ) qs.set("idCardNumber", idQ);
-                const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`);
+                const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 30000 });
                 if (lookupRes.ok) {
                     const found = await lookupRes.json();
                     athleteId = found?.id ?? null;
@@ -4472,7 +4508,7 @@
             if (athleteId) {
                 // Hazırda hər hansı zolaqda aktivdirsə: yeni zolağa yazmaq olmaz
                 try {
-                    const activeRes = await apiFetch(`/sessions/active-by-athlete/${encodeURIComponent(athleteId)}`);
+                    const activeRes = await apiFetch(`/sessions/active-by-athlete/${encodeURIComponent(athleteId)}`, { timeoutMs: 20000 });
                     if (activeRes.ok) {
                         const active = await activeRes.json();
                         const laneNo = Number(active?.laneNumber ?? 0);
@@ -4487,6 +4523,7 @@
                 const athleteResponse = await apiFetch("/athletes", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
+                    timeoutMs: 60000,
                     body: JSON.stringify({
                         firstName,
                         lastName,
@@ -4556,7 +4593,7 @@
             if (mode === "subscription") {
                 sessionInfo.textContent = "Qeydiyyat alındı. Abunə planlaması üçün aşağıdakı abunə panelindən istifadə edin.";
                 clearReceptionPersonFields();
-                await loadDashboard();
+                void loadDashboard();
                 return;
             }
 
@@ -4569,6 +4606,7 @@
                     const tryLaneResp = await apiFetch("/sessions", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
+                        timeoutMs: 90000,
                         body: JSON.stringify({
                             athleteId,
                             laneNumber: Number(laneNumberInput.value),
@@ -4588,6 +4626,7 @@
                     const assignResp = await apiFetch("/sessions/full-package/assign", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
+                        timeoutMs: 90000,
                         body: JSON.stringify({ athleteId, durationMinutes: durationValue, isEquipmentIssued: Boolean(isEquipmentIssuedInput?.checked) })
                     });
                     if (!assignResp.ok) {
@@ -4600,13 +4639,14 @@
                 }
 
                 clearReceptionPersonFields();
-                await loadDashboard();
+                void loadDashboard();
                 return;
             }
 
             const sessionResponse = await apiFetch("/sessions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                timeoutMs: 90000,
                 body: JSON.stringify({
                     athleteId,
                     laneNumber: Number(laneNumberInput.value),
@@ -4633,9 +4673,17 @@
                 tabletLaneNumberInput.value = String(Number(sessionData?.laneNumber ?? laneNumberInput.value));
             }
             clearReceptionPersonFields();
-            await loadDashboard();
+            void loadDashboard();
         } catch (error) {
             alert(`Sessiya planlaşdırılmadı. ${getExceptionMessage(error)}`);
+        } finally {
+            scheduleInFlight = false;
+            if (scheduleBtn instanceof HTMLButtonElement) {
+                scheduleBtn.disabled = false;
+                try { syncRegistrationModeUi(); } catch {
+                    scheduleBtn.textContent = "Qeydiyyat və planlama";
+                }
+            }
         }
     }
 
@@ -4763,7 +4811,7 @@
     async function loadEquipmentReturns() {
         if (!equipmentReturnsList || !equipmentFabBtn || !equipmentFabBadge) return;
         try {
-            const res = await apiFetch("/sessions/equipment/pending");
+            const res = await apiFetch("/sessions/equipment/pending", { timeoutMs: 15000 });
             if (!res.ok) {
                 equipmentFabBadge.textContent = "—";
                 return;
@@ -4881,9 +4929,18 @@
         else openEquipmentPanel();
     }
 
+    var signalrLoadAttempts = 0;
+
     async function startSignalR() {
         if (typeof signalR === "undefined" || !signalR?.HubConnectionBuilder) {
-            connectionBadge.textContent = "Skript yüklənmədi";
+            signalrLoadAttempts++;
+            if (signalrLoadAttempts < 8) {
+                connectionBadge.textContent = "Skript yüklənir...";
+                connectionBadge.className = "status-pill Scheduled";
+                setTimeout(startSignalR, 2500);
+                return;
+            }
+            connectionBadge.textContent = "Skript yoxdur (yeniləmə işləyir)";
             connectionBadge.className = "status-pill Completed";
             return;
         }
@@ -4906,17 +4963,8 @@
             connectionBadge.className = "status-pill Active";
         });
 
-        connection.on("lane-updated", async () => {
-            await loadDashboard();
-            await loadSubscriptionSchedules();
-            try { await loadEquipmentReturns(); } catch { }
-        });
-
-        connection.on("score-updated", async () => {
-            await loadDashboard();
-            await loadSubscriptionSchedules();
-            try { await loadEquipmentReturns(); } catch { }
-        });
+        connection.on("lane-updated", () => scheduleReceptionRefresh(false));
+        connection.on("score-updated", () => scheduleReceptionRefresh(false));
 
         try {
             const startPromise = connection.start();
@@ -4942,7 +4990,13 @@
     try {
         if (subscriptionStartDateInput instanceof HTMLInputElement) {
             const today = new Date();
-            subscriptionStartDateInput.value = today.toISOString().slice(0, 10);
+            const startIso = today.toISOString().slice(0, 10);
+            subscriptionStartDateInput.value = startIso;
+            if (subscriptionEndDateInput instanceof HTMLInputElement && !subscriptionEndDateInput.value) {
+                const end = new Date(today);
+                end.setMonth(end.getMonth() + 1);
+                subscriptionEndDateInput.value = end.toISOString().slice(0, 10);
+            }
         }
     } catch (e) { console.error(e); }
 
@@ -5063,14 +5117,6 @@
         daysRoot?.addEventListener("change", () => { renderSubscriptionLaneTypesByDay(); syncMonthlySplitInfo(); });
         categoryInput?.addEventListener("change", () => { renderSubscriptionLaneTypesByDay(); syncMonthlySplitInfo(); });
         subscriptionDurationMinutesInput?.addEventListener("input", () => { syncMonthlySplitInfo(); });
-        const refreshAllAvail = () => {
-            if (!(subscriptionLaneTypesByDayEl instanceof HTMLElement)) return;
-            subscriptionLaneTypesByDayEl.querySelectorAll("select.sub-day-lane").forEach(sel => {
-                if (sel instanceof HTMLSelectElement) refreshLaneAvailabilityForSubscriptionRow(sel);
-            });
-        };
-        subscriptionStartDateInput?.addEventListener("change", refreshAllAvail);
-        subscriptionEndDateInput?.addEventListener("change", refreshAllAvail);
         renderSubscriptionLaneTypesByDay();
         syncMonthlySplitInfo();
     } catch (e) { console.error(e); }
@@ -5129,10 +5175,29 @@
 
     try { attachAthleteAutocomplete(); } catch (e) { console.error("attachAthleteAutocomplete error", e); }
     try { syncFullPackageUi(); } catch (e) { console.error(e); }
-    try { loadDashboard(); } catch (e) { console.error("loadDashboard error", e); }
-    try { loadSubscriptionSchedules(); } catch (e) { console.error("loadSubscriptionSchedules error", e); }
-    try { loadEquipmentReturns(); } catch (e) { console.error("loadEquipmentReturns error", e); }
-    try { startSignalR(); } catch (e) { console.error("startSignalR error", e); }
+    try { ensureLaneEventDelegation(); } catch (e) { console.error(e); }
+
+    function scheduleDeferredReceptionLoads() {
+        setTimeout(() => { void loadDashboardPartials(); }, 500);
+        setTimeout(() => {
+            try { void loadSubscriptionSchedules(); } catch (e) { console.error("loadSubscriptionSchedules error", e); }
+        }, 3500);
+        setTimeout(() => {
+            try { void loadEquipmentReturns(); } catch (e) { console.error("loadEquipmentReturns error", e); }
+        }, 5000);
+    }
+
+    try {
+        void loadDashboard({ includePartials: false }).then(() => scheduleDeferredReceptionLoads());
+    } catch (e) { console.error("loadDashboard error", e); }
+
+    if (document.readyState === "complete") {
+        try { startSignalR(); } catch (e) { console.error("startSignalR error", e); }
+    } else {
+        window.addEventListener("load", () => {
+            try { startSignalR(); } catch (e) { console.error("startSignalR error", e); }
+        }, { once: true });
+    }
 </script>
 </body>
 </html>

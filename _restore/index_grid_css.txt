@@ -1,0 +1,171 @@
+﻿        .lane-card.lane-card--tv {
+            position: relative;
+            background: var(--bg);
+            border: none;
+            border-radius: 0;
+            padding: clamp(12px, 1.6vw, 24px) clamp(16px, 2.4vw, 36px);
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        /* 3 paralel panel: sol | orta | sağ — elementlər qaçmır */
+        .lane-tv-grid {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 1fr);
+            column-gap: clamp(14px, 2.4vw, 40px);
+            row-gap: clamp(10px, 1.6vw, 22px);
+            align-content: start;
+        }
+
+        .lane-card--tv-active .lane-tv-grid {
+            grid-template-rows: auto auto minmax(0, 1fr);
+            grid-template-areas:
+                "logo    zolaq   clock"
+                "athlete zolaq   ring"
+                "spacer  hint    ring";
+        }
+
+        .lane-card--tv:not(.lane-card--tv-active) .lane-tv-grid {
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+                "logo    zolaq   clock"
+                "spacer  spacer  ring";
+        }
+
+        .lane-tv-panel {
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .lane-tv-panel--logo { grid-area: logo; align-self: start; justify-self: start; }
+        .lane-tv-panel--zolaq { grid-area: zolaq; justify-self: center; align-self: start; text-align: center; }
+        .lane-tv-panel--clock { grid-area: clock; justify-self: end; align-self: start; }
+        .lane-tv-panel--athlete { grid-area: athlete; align-self: center; justify-self: start; }
+        .lane-tv-panel--hint { grid-area: hint; justify-self: center; align-self: end; text-align: center; }
+        .lane-tv-panel--ring {
+            grid-area: ring;
+            justify-self: end;
+            align-self: end;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            overflow: hidden;
+        }
+
+        .lane-card--tv-active .lane-tv-panel--spacer,
+        .lane-card--tv:not(.lane-card--tv-active) .lane-tv-panel--spacer {
+            display: none;
+        }
+
+        .lane-tv-panel--zolaq {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: max-content;
+            max-width: 100%;
+        }
+
+        .lane-tv-brand-logo {
+            max-height: clamp(88px, 14vh, 168px);
+            max-width: min(32vw, 300px);
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            object-position: left top;
+            display: block;
+        }
+
+        .lane-tv-lane-num {
+            margin: 0;
+            font-size: clamp(2rem, 5.5vw, 4.25rem);
+            font-weight: 800;
+            color: var(--brand);
+            letter-spacing: 0.02em;
+            line-height: 1.05;
+            white-space: nowrap;
+            align-self: center;
+            width: 100%;
+            text-align: center;
+        }
+
+        .lane-tv-wall-clock {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .lane-tv-wall-clock__label {
+            display: block;
+            font-size: clamp(10px, 1.1vw, 13px);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .lane-tv-wall-clock__value {
+            font-size: clamp(1.35rem, 3.5vw, 2.75rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--brand);
+            line-height: 1.1;
+        }
+
+        .lane-tv-panel--zolaq .lane-tv-schedule {
+            margin-top: clamp(28px, 5vh, 56px);
+            align-self: flex-start;
+        }
+
+        .lane-tv-schedule {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: flex-start;
+            gap: clamp(16px, 2.8vw, 44px);
+            font-size: clamp(1.15rem, 3vw, 2.5rem);
+            font-weight: 700;
+            color: var(--brand);
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .lane-tv-schedule__item {
+            display: inline-block;
+        }
+
+        .lane-tv-athlete {
+            text-align: left;
+            font-size: clamp(1.15rem, 3vw, 2.5rem);
+            font-weight: 700;
+            color: var(--brand);
+            line-height: 1.2;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .lane-tv-body .lane-bottom-hint {
+            font-weight: 800;
+            font-size: clamp(22px, 3.2vw, 40px);
+            color: #c45a00;
+            opacity: 0;
+            transition: opacity 0.2s ease, color 0.2s ease;
+            pointer-events: none;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+
+        .lane-tv-body .lane-bottom-hint.is-show {
+            opacity: 1;
+        }
+
+        .lane-tv-body .lane-bottom-hint.is-critical {
+            color: #b91c1c;
+        }

@@ -2,6 +2,7 @@ using EShooting.Web.Auth;
 using EShooting.Web.BackgroundServices;
 using EShooting.Web.Hubs;
 using EShooting.Web.Realtime;
+using EShooting.Web.Services;
 using EShooting.Application;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Infrastructure;
@@ -65,11 +66,20 @@ builder.Services.AddAuthorization(options =>
     // Avoid a global fallback policy here to prevent accidental login redirect loops.
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+builder.Services.AddSingleton<ScoreDisplayState>();
+builder.Services.AddScoped<CachedLaneDashboardService>();
 
-builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
+var mvcBuilder = builder.Services.AddControllersWithViews();
+if (builder.Environment.IsDevelopment())
+{
+    // Production/IIS-də runtime compilation 500.30 verə bilər.
+    mvcBuilder.AddRazorRuntimeCompilation();
+}
+
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<SubscriptionAutoStartService>();
 
@@ -77,8 +87,19 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var initializer = scope.ServiceProvider.GetRequiredService<EShootingDbInitializer>();
-    await initializer.InitializeAsync();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    try
+    {
+        var initializer = scope.ServiceProvider.GetRequiredService<EShootingDbInitializer>();
+        await initializer.InitializeAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(
+            ex,
+            "Verilənlər bazası işə salınmadı. ConnectionStrings:DefaultConnection və SQL Server-i yoxlayın.");
+        throw;
+    }
 }
 
 app.UseHttpsRedirection();
@@ -94,8 +115,6 @@ app.MapGet("/admin/login", (HttpContext context) =>
     .AllowAnonymous();
 
 // Kiosk-friendly short URLs (TV / tablet bookmarks).
-app.MapGet("/qeydiyyat", () => Results.Redirect("/"))
-    .AllowAnonymous();
 app.MapGet("/admin-panel", () => Results.Redirect("/admin"))
     .AllowAnonymous();
 
@@ -114,6 +133,7 @@ static bool ShouldReturn401ForChallenge(HttpRequest request)
         || path.StartsWithSegments("/sessions")
         || path.StartsWithSegments("/subscriptions")
         || path.StartsWithSegments("/athletes")
+        || path.StartsWithSegments("/monitor")
         || path.StartsWithSegments("/hubs"))
     {
         return true;

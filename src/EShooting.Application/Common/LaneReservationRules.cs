@@ -28,14 +28,39 @@ public static class LaneReservationRules
 
     public static bool IsOpenEndedAndStarted(TrainingSession session, DateTime nowUtc)
     {
+        if (session.Status is SessionStatus.Completed or SessionStatus.Scheduled)
+        {
+            return false;
+        }
+
         var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
         var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
         return end <= start && nowUtc >= start;
     }
 
+    /// <summary>
+    /// Vaxtı bitmiş (amma DB-də hələ Completed olmayan) sessiya zolağı tutmur.
+    /// </summary>
+    public static bool IsTimeExpired(TrainingSession session, DateTime nowUtc)
+    {
+        var existingStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var existingEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        if (!HasValidWindow(existingStart, existingEnd))
+        {
+            return false;
+        }
+
+        return nowUtc >= existingEnd;
+    }
+
     public static bool OverlapsSession(TrainingSession session, DateTime requestedStartUtc, DateTime requestedEndUtc, DateTime nowUtc)
     {
         if (session.Status == SessionStatus.Completed)
+        {
+            return false;
+        }
+
+        if (IsTimeExpired(session, nowUtc))
         {
             return false;
         }

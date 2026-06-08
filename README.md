@@ -27,6 +27,18 @@ EShooting ox atis zalinda lane idareetmesi, scoring ve monitor overlay ehtiyacla
 dotnet run --project src/EShooting.Web
 ```
 
-Sonra brauzerde ana sehifeni acin:
+Sonra brauzerde resepsiya panelini acin:
 
-- `http://localhost:5299/`
+- `http://localhost:5299/qeydiyyat` (resepsiya)
+- `http://localhost:5299/` → `/qeydiyyat`-a yonlendirilir
+
+## IIS — HTTP 500.30 (app failed to start)
+
+Bu xeta Chrome/JavaScript deyil: proqram IIS-de baslamadan dayanir.
+
+1. **ASP.NET Core 8 Hosting Bundle** qurasdirin (serverde .NET 8 runtime).
+2. **SQL Server** isleyir ve `appsettings.Production.json` icinde `ConnectionStrings:DefaultConnection` duzgundur.
+   - IIS App Pool adeten `ApplicationPoolIdentity` ile SQL-e daxil ola bilmir.
+   - Ya SQL-de login verin, ya da connection string-de `User Id` / `Password` istifade edin.
+3. Publish qovlugunda `logs` papkasi yaradib App Pool-a **yazma** icazesi verin; `logs\stdout_*.log` faylinda real xeta yazilir.
+4. IIS Application Pool → **.NET CLR version: No Managed Code**, **Integrated** pipeline.

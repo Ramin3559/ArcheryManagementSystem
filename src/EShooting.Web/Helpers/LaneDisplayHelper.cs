@@ -122,19 +122,9 @@ public static class LaneDisplayHelper
         return $"{minutes:D2}:{seconds:D2}";
     }
 
-    public static string FormatTimeLocal(DateTime? utc)
-    {
-        if (utc is null)
-        {
-            return "—";
-        }
+    public static string FormatTimeLocal(DateTime? utc) => AppTimeZone.FormatTimeLocal(utc);
 
-        var u = utc.Value.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc)
-            : utc.Value.ToUniversalTime();
-
-        return u.ToLocalTime().ToString("HH:mm:ss");
-    }
+    public static string ToIsoOffset(DateTime? utc) => AppTimeZone.ToIsoOffset(utc);
 
     /// <summary>
     /// Yerli tarix qaytarır. Bugünkü gün üçün boş sətr (göstərmirik), sabahkı üçün "Sabah",
@@ -147,12 +137,8 @@ public static class LaneDisplayHelper
             return string.Empty;
         }
 
-        var u = utc.Value.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc)
-            : utc.Value.ToUniversalTime();
-
-        var local = u.ToLocalTime().Date;
-        var today = DateTime.Now.Date;
+        var local = AppTimeZone.ToLocal(utc.Value).Date;
+        var today = AppTimeZone.LocalToday;
         var diffDays = (local - today).Days;
 
         // Bu gündürsə tarix göstərmirik — yer qənaət etmək üçün boş qaytarırıq.

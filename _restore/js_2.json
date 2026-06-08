@@ -1,0 +1,5 @@
+﻿{
+    "path":  "c:\\Users\\bashi\\OneDrive\\Desktop\\OxAtma Kod\\EShooting-master\\src\\EShooting.Web\\Views\\LaneScreen\\Index.cshtml",
+    "old_string":  "        .lane-tv-panel--zolaq .lane-tv-schedule {\n            margin-top: clamp(28px, 5vh, 56px);\n            align-self: flex-start;\n        }",
+    "new_string":  "        .lane-card--tv-active .lane-tv-panel--zolaq .lane-tv-schedule {\n            margin-top: auto;\n            align-self: flex-start;\n        }"
+}

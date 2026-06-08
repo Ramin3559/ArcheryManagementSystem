@@ -1,0 +1,5 @@
+﻿{
+    "path":  "c:\\Users\\bashi\\OneDrive\\Desktop\\OxAtma Kod\\EShooting-master\\src\\EShooting.Web\\Views\\LaneScreen\\Index.cshtml",
+    "old_string":  "            var usedH = 0;\n            var toolbar = card.querySelector(\".lane-tv-toolbar\");\n            var hintBar = card.querySelector(\".lane-tv-hint-bar\");\n            if (toolbar instanceof HTMLElement) usedH += toolbar.offsetHeight;\n            if (hintBar instanceof HTMLElement) usedH += hintBar.offsetHeight;",
+    "new_string":  "            var usedH = 0;\n            var grid = card.querySelector(\".lane-tv-grid\");\n            if (grid instanceof HTMLElement) {\n                var panels = grid.querySelectorAll(\".lane-tv-panel:not(.lane-tv-panel--ring)\");\n                for (var pi = 0; pi \u003c panels.length; pi++) {\n                    var p = panels[pi];\n                    if (!(p instanceof HTMLElement)) continue;\n                    var bottom = p.offsetTop + p.offsetHeight;\n                    if (bottom \u003e usedH) usedH = bottom;\n                }\n            }"
+}

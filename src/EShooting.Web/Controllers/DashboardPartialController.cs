@@ -1,6 +1,4 @@
-using EShooting.Application.Common.Models;
-using EShooting.Application.Sessions.Queries;
-using MediatR;
+using EShooting.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,19 +9,19 @@ namespace EShooting.Web.Controllers;
 /// </summary>
 [AllowAnonymous]
 [Route("dashboard")]
-public sealed class DashboardPartialController(IMediator mediator) : Controller
+public sealed class DashboardPartialController(CachedLaneDashboardService laneDashboard) : Controller
 {
     [HttpGet("lanes/partial/grid")]
     public async Task<IActionResult> LaneGrid(CancellationToken cancellationToken)
     {
-        var lanes = await mediator.Send(new GetLaneDashboardQuery(), cancellationToken);
+        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
         return PartialView("Lanes/_LaneGrid", lanes);
     }
 
     [HttpGet("lanes/partial/table")]
     public async Task<IActionResult> LaneTable(CancellationToken cancellationToken)
     {
-        var lanes = await mediator.Send(new GetLaneDashboardQuery(), cancellationToken);
+        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
         return PartialView("Lanes/_LaneTableBody", lanes);
     }
 
@@ -38,13 +36,13 @@ public sealed class DashboardPartialController(IMediator mediator) : Controller
             return NotFound();
         }
 
-        var lanes = await mediator.Send(new GetLaneDashboardQuery(), cancellationToken);
+        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
         var lane = lanes.FirstOrDefault(l => l.LaneNumber == laneNumber);
         if (lane is null)
         {
             return NotFound();
         }
 
-        return PartialView("Lanes/_LaneCard", lane);
+        return PartialView("Lanes/_LaneCardTv", lane);
     }
 }

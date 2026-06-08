@@ -1,0 +1,5 @@
+﻿{
+    "path":  "c:\\Users\\bashi\\OneDrive\\Desktop\\OxAtma Kod\\EShooting-master\\src\\EShooting.Web\\Views\\LaneScreen\\Index.cshtml",
+    "old_string":  "        .lane-tv-panel--zolaq {\n            display: flex;\n            flex-direction: column;\n            align-items: flex-start;\n            width: max-content;\n            max-width: 100%;\n        }",
+    "new_string":  "        .lane-card--tv-active .lane-tv-panel--zolaq {\n            display: flex;\n            flex-direction: column;\n            align-items: flex-start;\n            justify-self: center;\n            width: max-content;\n            max-width: 100%;\n            align-self: stretch;\n        }"
+}

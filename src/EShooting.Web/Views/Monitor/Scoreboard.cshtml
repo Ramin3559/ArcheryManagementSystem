@@ -4,6 +4,7 @@
     var laneNumber = Model.LaneNumber;
     var hasSession = Model.HasSession;
     var initialTotal = Model.TotalScore;
+    var scoreDisplayEnabled = Model.ScoreDisplayEnabled;
 }
 <!DOCTYPE html>
 <html lang="az">
@@ -12,7 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
-    <title>EShooting — Scoreboard</title>
+    <title>EShooting — Xal monitoru @laneNumber</title>
     <style>
         :root {
             --bg: #000000;
@@ -20,14 +21,11 @@
         }
 
         * { box-sizing: border-box; }
-        html, body { height: 100%; }
+        html, body { height: 100%; margin: 0; padding: 0; }
         body {
-            margin: 0;
             background: var(--bg);
             overflow: hidden;
         }
-
-        html, body, main, div, img { margin: 0; padding: 0; }
 
         .wrap {
             height: 100vh;
@@ -102,6 +100,7 @@
             display: block;
             object-fit: cover;
             object-position: center;
+            background: #fff;
         }
 
         .hidden { display: none !important; }
@@ -109,7 +108,11 @@
 </head>
 <body>
 <main class="wrap">
-    <img id="logoEl" class="logo-full @(hasSession ? "hidden" : "")" src="/images/placeholder-logo.jpg" alt="" />
+    <img id="logoEl"
+         class="logo-full @(hasSession ? "hidden" : "")"
+         src="/images/club-logo.jpg"
+         alt="Target Archery Club"
+         onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/lane-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
 
     <div id="scoreFrameEl" class="score-frame @(hasSession ? "" : "hidden")">
         <div class="frame-inner" id="scoreFrameInner">
@@ -120,10 +123,11 @@
     </div>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script src="/lib/signalr/signalr.min.js"></script>
 <script>
-    // ---- ES2017-compatible (Android WebView 60+) ----
     var laneNumber = @laneNumber;
+    var scoreDisplayEnabled = @scoreDisplayEnabled.ToString().ToLowerInvariant();
+    var POLL_STAGGER_MS = Math.max(0, (laneNumber - 1) * 2500);
     var scoreDisplay = document.getElementById("scoreDisplay");
     var scorePulseWrap = document.getElementById("scorePulseWrap");
     var scoreFrameInner = document.getElementById("scoreFrameInner");
@@ -176,7 +180,6 @@
 
     window.addEventListener("resize", scheduleFitScore);
 
-    // Şrift gec yüklənəndə yenidən sığdırırıq (köhnə brauzerlərdə document.fonts olmaya bilər).
     if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === "function") {
         document.fonts.ready.then(scheduleFitScore, function () {});
     } else {
@@ -202,9 +205,7 @@
         var text = String(value == null ? 0 : value);
         if (!scoreDisplay || !scoreFrameEl || !logoEl) return;
 
-        if (logoEl.className.indexOf("hidden") === -1) {
-            logoEl.classList.add("hidden");
-        }
+        logoEl.classList.add("hidden");
         scoreFrameEl.classList.remove("hidden");
 
         if (text !== latestScoreText) {
@@ -212,7 +213,6 @@
             latestScoreText = text;
             if (scorePulseWrap) {
                 scorePulseWrap.classList.remove("pulse");
-                // reflow
                 void scorePulseWrap.offsetWidth;
                 scorePulseWrap.classList.add("pulse");
             }
@@ -241,8 +241,7 @@
         for (var i = 0; i < lanes.length; i++) {
             if (lanes[i] && lanes[i].laneNumber === laneNumber) { lane = lanes[i]; break; }
         }
-        if (!lane) return null;
-        if (!lane.sessionId) return null;
+        if (!lane || !lane.sessionId) return null;
         if (lane.status === "Completed" || lane.status === "Idle" || lane.status === "Scheduled") return null;
 
         var start = parseApiDate(lane.startTimeUtc);
@@ -254,6 +253,10 @@
     }
 
     function refreshFromCachedLanes() {
+        if (!scoreDisplayEnabled) {
+            showLogo();
+            return;
+        }
         var active = pickActiveLane(latestLanes);
         if (!active) {
             showLogo();
@@ -269,37 +272,51 @@
                 return response.json();
             })
             .then(function (lanes) {
-                if (Object.prototype.toString.call(lanes) === "[object Array]") {
-                    latestLanes = lanes;
-                } else {
-                    latestLanes = [];
-                }
+                latestLanes = Object.prototype.toString.call(lanes) === "[object Array]" ? lanes : [];
                 refreshFromCachedLanes();
-            })["catch"](function () { /* səssiz keç */ });
+            })["catch"](function () { /* səssiz */ });
     }
 
-    setInterval(loadScoreboard, 10000);
+    function loadScoreDisplayFlag() {
+        return apiFetch("/monitor/score-display")
+            .then(function (response) {
+                if (!response || !response.ok) return;
+                return response.json();
+            })
+            .then(function (data) {
+                if (!data) return;
+                scoreDisplayEnabled = Boolean(data.enabled);
+                refreshFromCachedLanes();
+            })["catch"](function () { /* səssiz */ });
+    }
+
+    setInterval(loadScoreboard, 15000);
     setInterval(refreshFromCachedLanes, 1000);
 
     document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible") loadScoreboard();
+        if (document.visibilityState === "visible") {
+            loadScoreDisplayFlag();
+            loadScoreboard();
+        }
     });
-    window.addEventListener("online", loadScoreboard);
+    window.addEventListener("online", function () {
+        loadScoreDisplayFlag();
+        loadScoreboard();
+    });
 
     function startSignalR() {
         if (typeof signalR === "undefined" || !signalR.HubConnectionBuilder) {
-            // SignalR yüklənməyib (köhnə CDN keş, oflayn). Polling onsuz da işləyir.
             setTimeout(startSignalR, 5000);
             return;
         }
+
         var retryPolicy = {
             nextRetryDelayInMilliseconds: function (ctx) {
                 var attempt = ctx && ctx.previousRetryCount ? ctx.previousRetryCount : 0;
                 if (attempt < 1) return 1000;
                 if (attempt < 3) return 2000;
                 if (attempt < 6) return 5000;
-                if (attempt < 12) return 10000;
-                return 30000;
+                return 10000;
             }
         };
 
@@ -310,14 +327,23 @@
 
         connection.on("lane-updated", loadScoreboard);
         connection.on("score-updated", loadScoreboard);
+        connection.on("score-display-changed", function (enabled) {
+            scoreDisplayEnabled = Boolean(enabled);
+            refreshFromCachedLanes();
+            if (scoreDisplayEnabled) loadScoreboard();
+        });
 
         if (typeof connection.onreconnected === "function") {
-            connection.onreconnected(loadScoreboard);
+            connection.onreconnected(function () {
+                loadScoreDisplayFlag();
+                loadScoreboard();
+            });
         }
         if (typeof connection.onclose === "function") {
             connection.onclose(function () {
                 var tryAgain = function () {
                     connection.start().then(function () {
+                        loadScoreDisplayFlag();
                         loadScoreboard();
                     }, function () {
                         setTimeout(tryAgain, 5000);
@@ -333,8 +359,11 @@
         );
     }
 
-    loadScoreboard();
-    startSignalR();
+    setTimeout(function () {
+        loadScoreDisplayFlag();
+        loadScoreboard();
+        startSignalR();
+    }, POLL_STAGGER_MS);
 </script>
 </body>
 </html>

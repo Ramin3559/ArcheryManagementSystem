@@ -87,6 +87,45 @@ public sealed class OpenEndedSessionFlowTests
     }
 
     [Fact]
+    public async Task Schedule_OnLaneWithExpiredActiveSession_AllowsNewBooking()
+    {
+        var lane = new Lane { Id = Guid.NewGuid(), Number = 1, LaneType = LaneType.Amateur };
+        var oldAthlete = new Athlete { Id = Guid.NewGuid(), FullName = "Old Athlete" };
+        var newAthlete = new Athlete { Id = Guid.NewGuid(), FullName = "New Athlete" };
+        var expired = new TrainingSession
+        {
+            Id = Guid.NewGuid(),
+            AthleteId = oldAthlete.Id,
+            LaneId = lane.Id,
+            StartTimeUtc = DateTime.UtcNow.AddHours(-2),
+            EndTimeUtc = DateTime.UtcNow.AddHours(-1),
+            Status = SessionStatus.Active
+        };
+
+        var repository = new InMemoryTrainingCenterRepository(
+            lanes: [lane],
+            athletes: [oldAthlete, newAthlete],
+            sessions: [expired]);
+        var notifier = new SpyRealtimeNotifier();
+        var handler = new ScheduleSessionCommandHandler(repository, notifier);
+
+        var sessionId = await handler.Handle(
+            new ScheduleSessionCommand(
+                newAthlete.Id,
+                lane.Number,
+                DateTime.UtcNow,
+                35,
+                false,
+                PreferredLaneType.Any),
+            CancellationToken.None);
+
+        Assert.NotEqual(expired.Id, sessionId);
+        var created = await repository.GetSessionByIdAsync(sessionId, CancellationToken.None);
+        Assert.NotNull(created);
+        Assert.Equal(lane.Id, created!.LaneId);
+    }
+
+    [Fact]
     public async Task Dashboard_OpenEndedStartedSession_ShowsActiveState()
     {
         var lane = new Lane { Id = Guid.NewGuid(), Number = 4, LaneType = LaneType.Professional };
@@ -219,9 +258,9 @@ public sealed class OpenEndedSessionFlowTests
         var lane2 = new Lane { Id = Guid.NewGuid(), Number = 2, LaneType = LaneType.Amateur };
         var lane3 = new Lane { Id = Guid.NewGuid(), Number = 3, LaneType = LaneType.Amateur };
         var athlete = new Athlete { Id = Guid.NewGuid(), FullName = "Manual Occupancy" };
-        var todayLocal = DateTime.Now.Date;
-        var slotStartLocal = todayLocal.AddHours(17);
-        var slotStartUtc = slotStartLocal.ToUniversalTime();
+        var slotStartUtc = DateTime.UtcNow.AddHours(2);
+        var slotStartLocal = slotStartUtc.ToLocalTime();
+        var todayLocal = slotStartLocal.Date;
 
         var existingSession = new TrainingSession
         {
@@ -237,8 +276,8 @@ public sealed class OpenEndedSessionFlowTests
         {
             Id = Guid.NewGuid(),
             AthleteId = Guid.NewGuid(),
-            DayOfWeek = (int)todayLocal.DayOfWeek,
-            StartTimeLocal = new TimeSpan(17, 0, 0),
+            DayOfWeek = (int)slotStartLocal.DayOfWeek,
+            StartTimeLocal = slotStartLocal.TimeOfDay,
             DurationMinutes = 60,
             ActiveFromDateLocal = todayLocal,
             ActiveToDateLocal = todayLocal,
@@ -249,8 +288,8 @@ public sealed class OpenEndedSessionFlowTests
         {
             Id = Guid.NewGuid(),
             AthleteId = Guid.NewGuid(),
-            DayOfWeek = (int)todayLocal.DayOfWeek,
-            StartTimeLocal = new TimeSpan(17, 0, 0),
+            DayOfWeek = (int)slotStartLocal.DayOfWeek,
+            StartTimeLocal = slotStartLocal.TimeOfDay,
             DurationMinutes = 60,
             ActiveFromDateLocal = todayLocal,
             ActiveToDateLocal = todayLocal,

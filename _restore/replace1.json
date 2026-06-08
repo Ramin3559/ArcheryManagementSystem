@@ -1,0 +1,4 @@
+﻿{
+    "old":  "        .lane-tv-inner {\n            width: 100%;\n            height: 100%;\n            max-width: 100%;\n            display: flex;\n            position: relative;\n            z-index: 1;\n        }",
+    "new":  "        .lane-tv-inner {\n            width: 100%;\n            height: 100%;\n            max-width: min(1600px, 98vw);\n            display: flex;\n            position: relative;\n            z-index: 1;\n        }"
+}

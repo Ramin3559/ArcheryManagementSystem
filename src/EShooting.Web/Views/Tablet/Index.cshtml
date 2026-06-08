@@ -1,5 +1,6 @@
 @{
     Layout = null;
+    var initialLane = ViewData["InitialLane"] as int?;
 }
 <!DOCTYPE html>
 <html lang="az">
@@ -113,6 +114,30 @@
 
         .pill.ok { color: #0f7a54; background: rgba(27, 191, 122, 0.10); }
         .pill.bad { color: #9a6100; background: rgba(246, 183, 60, 0.12); }
+
+        .score-toggle-btn {
+            min-height: 38px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .score-toggle-btn.is-on {
+            background: rgba(27, 191, 122, 0.14);
+            border-color: rgba(27, 191, 122, 0.45);
+            color: #0f7a54;
+        }
+
+        .score-toggle-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
         .pill.spin::before {
             content: "";
             width: 14px;
@@ -289,7 +314,7 @@
                 <select id="tabletLaneNumber">
                     @for (var i = 1; i <= 11; i++)
                     {
-                        <option value="@i">Zolaq @i</option>
+                        <option value="@i" selected="@(initialLane == i)">Zolaq @i</option>
                     }
                 </select>
             </div>
@@ -301,6 +326,7 @@
         <div class="status">
             <span class="pill" id="lanePill">Sessiya: Yüklənir…</span>
             <span class="pill" id="connectionPill">Qoşulur…</span>
+            <button type="button" class="score-toggle-btn" id="scoreDisplayToggle">Xalları aktiv et</button>
         </div>
     </section>
 
@@ -344,11 +370,14 @@
     const subBtn = document.getElementById("subBtn");
     const lanePill = document.getElementById("lanePill");
     const connectionPill = document.getElementById("connectionPill");
+    const scoreDisplayToggle = document.getElementById("scoreDisplayToggle");
     const keypadRoot = document.getElementById("keypad");
     const toastEl = document.getElementById("toast");
 
     let latestLanes = [];
     let isSubmitting = false;
+    let scoreDisplayEnabled = false;
+    let scoreDisplayToggleBusy = false;
     let toastTimerId = null;
     let activeLaneCache = null;
 
@@ -449,6 +478,56 @@
         toastTimerId = setTimeout(() => {
             toastEl.className = "toast";
         }, 1400);
+    }
+
+    function syncScoreDisplayToggleUi() {
+        if (!(scoreDisplayToggle instanceof HTMLButtonElement)) return;
+        scoreDisplayToggle.textContent = scoreDisplayEnabled ? "Xalları söndür" : "Xalları aktiv et";
+        scoreDisplayToggle.classList.toggle("is-on", scoreDisplayEnabled);
+        scoreDisplayToggle.disabled = scoreDisplayToggleBusy;
+    }
+
+    async function loadScoreDisplayState() {
+        try {
+            const response = await apiFetch("/monitor/score-display");
+            if (!response.ok) return;
+            const data = await response.json();
+            scoreDisplayEnabled = Boolean(data?.enabled);
+            syncScoreDisplayToggleUi();
+        } catch { /* ignore */ }
+    }
+
+    async function toggleScoreDisplay() {
+        if (!(scoreDisplayToggle instanceof HTMLButtonElement) || scoreDisplayToggleBusy) return;
+        scoreDisplayToggleBusy = true;
+        syncScoreDisplayToggleUi();
+        const next = !scoreDisplayEnabled;
+        try {
+            const response = await apiFetch("/monitor/score-display", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: next })
+            });
+            if (!response.ok) {
+                const message = await readErrorMessage(response);
+                showToast(message || "Xal rejimi dəyişmədi", "bad");
+                return;
+            }
+            const data = await response.json();
+            scoreDisplayEnabled = Boolean(data?.enabled);
+            showToast(scoreDisplayEnabled ? "Xal monitorları aktivdir" : "Xal monitorları söndürüldü", "ok");
+        } catch (error) {
+            showToast(getExceptionMessage?.(error) || "Xal rejimi dəyişmədi", "bad");
+        } finally {
+            scoreDisplayToggleBusy = false;
+            syncScoreDisplayToggleUi();
+        }
+    }
+
+    function getExceptionMessage(error) {
+        if (!error) return "";
+        if (typeof error === "string") return error;
+        return error.message || String(error);
     }
 
     async function loadDashboard() {
@@ -625,27 +704,53 @@
 
     async function startSignalR() {
         if (!(connectionPill instanceof HTMLElement)) return;
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl("/hubs/lane")
-            .withAutomaticReconnect()
-            .build();
-
-        connection.onreconnecting(() => {
-            connectionPill.textContent = "Yenidən qoşulur…";
+        if (typeof signalR === "undefined" || !signalR?.HubConnectionBuilder) {
+            connectionPill.textContent = "SignalR yüklənmədi";
             connectionPill.className = "pill bad";
-        });
+            setTimeout(startSignalR, 5000);
+            return;
+        }
+        try {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/hubs/lane")
+                .withAutomaticReconnect()
+                .build();
 
-        connection.onreconnected(() => {
+            connection.onreconnecting(() => {
+                connectionPill.textContent = "Yenidən qoşulur…";
+                connectionPill.className = "pill bad";
+            });
+
+            connection.onreconnected(() => {
+                connectionPill.textContent = "Qoşuldu";
+                connectionPill.className = "pill ok";
+            });
+
+            connection.on("lane-updated", loadDashboard);
+            connection.on("score-updated", loadDashboard);
+            connection.on("score-display-changed", enabled => {
+                scoreDisplayEnabled = Boolean(enabled);
+                syncScoreDisplayToggleUi();
+            });
+
+            await connection.start();
             connectionPill.textContent = "Qoşuldu";
             connectionPill.className = "pill ok";
-        });
+        } catch {
+            connectionPill.textContent = "Bağlantı yoxdur (yenidən cəhd)";
+            connectionPill.className = "pill bad";
+            setTimeout(startSignalR, 5000);
+        }
+    }
 
-        connection.on("lane-updated", loadDashboard);
-        connection.on("score-updated", loadDashboard);
-
-        await connection.start();
-        connectionPill.textContent = "Qoşuldu";
-        connectionPill.className = "pill ok";
+    function applyTabletLaneFromUrl() {
+        if (!(tabletLaneNumberInput instanceof HTMLSelectElement)) return;
+        try {
+            const lane = Number(new URLSearchParams(window.location.search).get("lane") || "");
+            if (Number.isInteger(lane) && lane >= 1 && lane <= 11) {
+                tabletLaneNumberInput.value = String(lane);
+            }
+        } catch { /* ignore */ }
     }
 
     tabletLaneNumberInput?.addEventListener("change", syncTabletContext);
@@ -657,10 +762,14 @@
     clearBtn?.addEventListener("click", () => setScoreDraft(""));
     addBtn?.addEventListener("click", submitScoreDraft);
     subBtn?.addEventListener("click", subtractScoreDraft);
+    scoreDisplayToggle?.addEventListener("click", toggleScoreDisplay);
 
+    applyTabletLaneFromUrl();
     buildKeypad();
+    loadScoreDisplayState();
     loadDashboard();
     startSignalR();
+    setInterval(loadDashboard, 15000);
 </script>
 </body>
 </html>

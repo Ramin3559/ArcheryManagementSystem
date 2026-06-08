@@ -1,12 +1,11 @@
-    using EShooting.Application.Sessions.Queries;
-using MediatR;
+using EShooting.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers;
 
 [ApiController]
 [Route("dashboard")]
-public sealed class DashboardController(IMediator mediator) : ControllerBase
+public sealed class DashboardController(CachedLaneDashboardService laneDashboard) : ControllerBase
 {
     /// <summary>
     /// Monitor ve admin paneli ucun lane veziyyetlerini cemlenmis sekilde qaytarir.
@@ -14,7 +13,7 @@ public sealed class DashboardController(IMediator mediator) : ControllerBase
     [HttpGet("lanes")]
     public async Task<IActionResult> GetLanes(CancellationToken cancellationToken)
     {
-        var lanes = await mediator.Send(new GetLaneDashboardQuery(), cancellationToken);
+        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
         return Ok(lanes);
     }
 }

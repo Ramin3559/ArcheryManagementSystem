@@ -1,5 +1,6 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
+using EShooting.Domain.Enums;
 
 namespace EShooting.Application.Tests;
 
@@ -119,6 +120,60 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
     public Task<IReadOnlyCollection<TrainingSession>> GetSessionsAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult<IReadOnlyCollection<TrainingSession>>(_sessions);
+    }
+
+    public Task<IReadOnlyCollection<TrainingSession>> GetSessionsLightAsync(CancellationToken cancellationToken)
+    {
+        return GetSessionsAsync(cancellationToken);
+    }
+
+    public Task<Athlete?> GetAthleteByIdAsync(Guid athleteId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_athletes.FirstOrDefault(x => x.Id == athleteId));
+    }
+
+    public Task<Athlete?> FindAthleteForLookupAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken)
+    {
+        var phoneQ = (phoneDigits ?? "").Trim();
+        var emailQ = (emailNormalized ?? "").Trim();
+        var idQ = (idCardNormalized ?? "").Trim();
+
+        var match = _athletes.FirstOrDefault(a =>
+        {
+            var p = string.IsNullOrWhiteSpace(a.PhoneNumber) ? "" : new string(a.PhoneNumber.Where(char.IsDigit).ToArray());
+            var e = (a.Email ?? "").Trim().ToLowerInvariant();
+            var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
+            var phoneOk = string.IsNullOrEmpty(phoneQ) || (!string.IsNullOrEmpty(p) && p.Contains(phoneQ, StringComparison.Ordinal));
+            var emailOk = string.IsNullOrEmpty(emailQ) || (!string.IsNullOrEmpty(e) && e.Contains(emailQ, StringComparison.Ordinal));
+            var idOk = string.IsNullOrEmpty(idQ) || (!string.IsNullOrEmpty(id) && id.Contains(idQ, StringComparison.Ordinal));
+            return phoneOk && emailOk && idOk;
+        });
+
+        return Task.FromResult(match);
+    }
+
+    public Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(
+        Guid athleteId,
+        CancellationToken cancellationToken)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var active = _sessions.FirstOrDefault(s =>
+            s.AthleteId == athleteId
+            && s.Status == SessionStatus.Active
+            && s.StartTimeUtc <= nowUtc
+            && nowUtc < s.EndTimeUtc);
+
+        if (active is null)
+        {
+            return Task.FromResult<(Guid SessionId, int LaneNumber)?>(null);
+        }
+
+        var laneNumber = _lanes.FirstOrDefault(l => l.Id == active.LaneId)?.Number ?? 0;
+        return Task.FromResult<(Guid SessionId, int LaneNumber)?>((active.Id, laneNumber));
     }
 
     public Task<Lane?> GetLaneByNumberAsync(int laneNumber, CancellationToken cancellationToken)

@@ -8,17 +8,20 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
     <title>EShooting — Zolaq @laneNumber (TV)</title>
     <style>
         :root {
-            --bg: #0b1220;
-            --panel-soft: #17213a;
-            --text: #e8ecf7;
-            --text-muted: #9ba7c7;
-            --border: #293759;
+            --brand: #8B2318;
+            --brand-muted: #a04438;
+            --bg: #ffffff;
+            --text: #8B2318;
+            --text-muted: #a04438;
+            --border: #e8d4d0;
         }
 
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-text-size-adjust: 100%; }
 
         html, body { height: 100%; }
 
@@ -28,51 +31,32 @@
             width: 100vw;
             overflow: hidden;
             color: var(--text);
-            background: radial-gradient(circle at top, #15244a 0, #0b1220 55%);
+            background: var(--bg);
             font-family: "Segoe UI", Arial, sans-serif;
             display: flex;
             flex-direction: column;
         }
 
-        .lane-tv-top {
-            flex: 0 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            padding: clamp(4px, 0.6vw, 8px) clamp(10px, 1.6vw, 18px);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .lane-tv-top .header-clock {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 2px;
+        .lane-tv-connection {
+            position: fixed;
+            right: clamp(8px, 1.2vw, 14px);
+            bottom: clamp(8px, 1.2vw, 14px);
+            z-index: 12;
+            border-radius: 999px;
             padding: 4px 10px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: rgba(17, 26, 46, 0.85);
+            font-size: clamp(9px, 1vw, 12px);
+            font-weight: 600;
+            background: #f5ebe9;
+            color: var(--brand-muted);
         }
 
-        .lane-tv-top .header-clock__label {
-            font-size: clamp(9px, 1vw, 11px);
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--text-muted);
+        body.lane-tv-body.lane-tv--fullscreen-logo .lane-tv-connection {
+            display: none;
         }
 
-        .lane-tv-top .header-clock__value {
-            font-size: clamp(0.95rem, 2.2vw, 1.4rem);
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            color: #f0f4ff;
-        }
-
-        .lane-tv-top h1 {
-            margin: 0;
-            font-size: clamp(0.9rem, 2vw, 1.35rem);
-            font-weight: 700;
+        .lane-tv-connection.Active {
+            background: rgba(139, 35, 24, 0.12);
+            color: var(--brand);
         }
 
         .lane-tv-wrap {
@@ -80,16 +64,45 @@
             display: flex;
             align-items: stretch;
             justify-content: center;
-            padding: clamp(6px, 1.4vw, 18px);
+            padding: clamp(6px, 1.5vw, 14px);
             min-height: 0;
             overflow: hidden;
+            position: relative;
+            background: var(--bg);
+        }
+
+        /* Boş/planlı/bitmiş (15s sonra) tam ekran loqo */
+        body.lane-tv-body.lane-tv--fullscreen-logo .lane-tv-wrap {
+            padding: 0;
+        }
+
+        .lane-tv-logo {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            object-position: center;
+            background: #fff;
+            z-index: 20;
+            display: block;
+        }
+
+        .lane-tv-logo.hidden {
+            display: none !important;
+        }
+
+        .lane-tv-inner.lane-tv-inner--hidden {
+            display: none !important;
         }
 
         .lane-tv-inner {
             width: 100%;
             height: 100%;
-            max-width: min(1400px, 96vw);
+            max-width: min(1600px, 98vw);
             display: flex;
+            position: relative;
+            z-index: 1;
         }
 
         .lane-tv-inner > * {
@@ -98,133 +111,226 @@
             min-height: 0;
         }
 
-        /* TV: yalnız nümayiş — xal daxiletmə və sessiya seçimi gizlədilir */
         .lane-tv-body .lane-actions,
         .lane-tv-body .pick-session,
-        .lane-tv-body .stop-session-btn {
+        .lane-tv-body .stop-session-btn,
+        .lane-tv-body .lane-type {
             display: none !important;
         }
 
+        .lane-tv-body .lane-card.is-cleanup .lane-tv-athlete {
+            display: none !important;
+        }
+
+        .lane-tv-body .lane-tv-status-pill {
+            display: none !important;
+        }
+
+        .lane-card.lane-card--tv {
+            position: relative;
+            background: var(--bg);
+            border: none;
+            border-radius: 0;
+            padding: clamp(8px, 2vw, 20px) clamp(10px, 2.5vw, 28px);
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        /* Mobil monitor: loqo | zolaq | saat — alt sətir: idmançı | vaxtlar | dairə */
+        .lane-tv-grid {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            grid-template-columns: minmax(72px, 0.9fr) minmax(0, 1.35fr) minmax(72px, 0.9fr);
+            column-gap: clamp(8px, 2vw, 28px);
+            row-gap: clamp(4px, 1.2vh, 14px);
+            align-content: start;
+        }
+
+        .lane-card--tv-active .lane-tv-grid {
+            grid-template-rows: auto auto minmax(0, 1fr);
+            grid-template-areas:
+                "logo     zolaq    clock"
+                "athlete  schedule ring"
+                ".        hint     ring";
+        }
+
+        .lane-card--tv:not(.lane-card--tv-active) .lane-tv-grid {
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+                "logo     zolaq    clock"
+                ".        .        ring";
+        }
+
+        .lane-tv-panel {
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .lane-tv-panel--logo {
+            grid-area: logo;
+            align-self: start;
+            justify-self: start;
+        }
+
+        .lane-tv-panel--zolaq {
+            grid-area: zolaq;
+            justify-self: center;
+            align-self: start;
+            text-align: center;
+            width: 100%;
+        }
+
+        .lane-tv-panel--schedule {
+            grid-area: schedule;
+            justify-self: center;
+            align-self: center;
+            text-align: center;
+            width: 100%;
+        }
+
+        .lane-tv-panel--clock {
+            grid-area: clock;
+            justify-self: end;
+            align-self: start;
+        }
+
+        .lane-tv-panel--athlete {
+            grid-area: athlete;
+            align-self: center;
+            justify-self: start;
+            max-width: 100%;
+        }
+
+        .lane-tv-panel--hint {
+            grid-area: hint;
+            justify-self: center;
+            align-self: end;
+            text-align: center;
+            padding-bottom: clamp(2px, 0.8vh, 10px);
+            width: 100%;
+        }
+
+        .lane-tv-panel--ring {
+            grid-area: ring;
+            justify-self: end;
+            align-self: end;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            overflow: visible;
+        }
+
+        .lane-tv-brand-logo {
+            display: block;
+            max-height: clamp(56px, 12vh, 120px);
+            max-width: min(36vw, 180px);
+            min-height: 48px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            object-position: left top;
+        }
+
+        .lane-tv-lane-num {
+            margin: 0;
+            font-size: clamp(1.75rem, 7vw, 3.5rem);
+            font-weight: 800;
+            color: var(--brand);
+            letter-spacing: 0.02em;
+            line-height: 1.05;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .lane-tv-wall-clock {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .lane-tv-wall-clock__label {
+            display: block;
+            font-size: clamp(8px, 1.8vw, 12px);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+
+        .lane-tv-wall-clock__value {
+            font-size: clamp(1.1rem, 4.5vw, 2.25rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--brand);
+            line-height: 1.1;
+        }
+
+        .lane-tv-schedule {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: center;
+            gap: clamp(10px, 3vw, 32px);
+            font-size: clamp(0.95rem, 3.8vw, 1.85rem);
+            font-weight: 700;
+            color: var(--brand);
+            font-variant-numeric: tabular-nums;
+            line-height: 1.25;
+        }
+
+        .lane-tv-schedule__item {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .lane-tv-athlete {
+            text-align: left;
+            font-size: clamp(0.95rem, 3.8vw, 1.85rem);
+            font-weight: 700;
+            color: var(--brand);
+            line-height: 1.25;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .lane-tv-equip {
+            margin-left: 6px;
+        }
+
         .lane-tv-body .lane-bottom-hint {
-            position: absolute;
-            /* Match .lane-card padding so it aligns with "Zolaq 1" title column */
-            left: clamp(16px, 3vw, 36px);
-            bottom: clamp(18px, 2vw, 34px);
-            font-weight: 900;
-            font-size: clamp(18px, 2.5vw, 28px);
-            color: #ffb020;
+            font-weight: 800;
+            font-size: clamp(1rem, 4.2vw, 2rem);
+            color: var(--brand);
             opacity: 0;
-            transform: translateY(6px);
-            transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+            transition: opacity 0.2s ease;
             pointer-events: none;
+            line-height: 1.25;
+            white-space: nowrap;
         }
 
         .lane-tv-body .lane-bottom-hint.is-show {
             opacity: 1;
-            transform: translateY(0);
         }
 
         .lane-tv-body .lane-bottom-hint.is-critical {
-            color: #ff4d4d;
-        }
-
-        /* TV ekranda kateqoriya yazıları görünməsin */
-        .lane-tv-body .lane-type { display: none !important; }
-
-        /* Təmizlik/buffer başlayanda idmançı məlumatı gizlənsin */
-        .lane-tv-body .lane-card.is-cleanup .lane-meta { display: none !important; }
-
-        .status-pill {
-            display: inline-block;
-            border-radius: 999px;
-            padding: 6px 14px;
-            font-size: clamp(12px, 1.5vw, 18px);
-            font-weight: 600;
-            background: #2a3657;
-            color: #b8c8ef;
-        }
-
-        .status-pill.Active {
-            background: rgba(27, 191, 122, 0.2);
-            color: #8bf0c7;
-        }
-
-        .status-pill.Completed {
-            background: rgba(79, 124, 255, 0.25);
-            color: #a6beff;
-        }
-
-        .status-pill.Scheduled {
-            background: rgba(246, 183, 60, 0.2);
-            color: #ffd98d;
-        }
-
-        .status-pill.Idle {
-            background: #2a3657;
-            color: #b8c8ef;
-        }
-
-        .lane-card {
-            position: relative;
-            background: var(--panel-soft);
-            border: 1px solid var(--border);
-            border-radius: clamp(12px, 2vw, 20px);
-            padding: clamp(10px, 1.6vw, 22px);
-            font-size: clamp(16px, 2.2vw, 28px);
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .lane-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: clamp(8px, 1.5vw, 16px);
-            gap: 12px;
-        }
-
-        .lane-title {
-            margin: 0;
-            font-size: clamp(1.25rem, 4vw, 3rem);
-            font-weight: 800;
-        }
-
-        .lane-type {
-            font-size: clamp(12px, 1.8vw, 22px);
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .lane-meta {
-            margin: clamp(6px, 1vw, 12px) 0;
-            color: var(--text-muted);
-            font-size: clamp(14px, 2vw, 26px);
-        }
-
-        .score {
-            margin-top: clamp(12px, 2vw, 24px);
-            font-weight: 800;
-            font-size: clamp(1.5rem, 5vw, 4rem);
-        }
-
-        .lane-meta--compact {
-            font-size: clamp(12px, 1.6vw, 18px);
-            line-height: 1.35;
+            color: #b91c1c;
         }
 
         .lane-tv-body .countdown-ring-wrap {
-            --ring-track: rgba(255, 255, 255, 0.10);
-            --ring-accent: #3ee8a8;
-            --ring-glow: rgba(62, 232, 168, 0.35);
+            --ring-track: rgba(139, 35, 24, 0.14);
+            --ring-accent: #8B2318;
+            --ring-glow: rgba(139, 35, 24, 0.2);
             position: relative;
-            width: min(40vh, 52vw, 380px);
-            height: min(40vh, 52vw, 380px);
-            margin: clamp(6px, 1vw, 14px) auto;
-            align-self: center;
+            width: min(58vmin, 52vw, 420px);
+            height: min(58vmin, 52vw, 420px);
+            margin: 0;
             background: transparent;
             border: 0;
             border-radius: 50%;
@@ -239,19 +345,19 @@
             width: 100%;
             height: 100%;
             transform: rotate(-90deg);
-            filter: drop-shadow(0 0 16px var(--ring-glow));
+            filter: drop-shadow(0 0 6px var(--ring-glow));
         }
 
         .lane-tv-body .countdown-ring__track {
             fill: none;
             stroke: var(--ring-track);
-            stroke-width: 6;
+            stroke-width: 5;
         }
 
         .lane-tv-body .countdown-ring__progress {
             fill: none;
             stroke: var(--ring-accent);
-            stroke-width: 6;
+            stroke-width: 7;
             stroke-linecap: round;
             transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease;
         }
@@ -264,52 +370,51 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 12px;
+            padding: 10%;
             pointer-events: none;
         }
 
         .lane-tv-body .countdown-ring__timer {
             font-weight: 800;
             font-variant-numeric: tabular-nums;
-            line-height: 1;
-            color: #f5f8ff;
+            line-height: 1.1;
+            color: var(--brand);
             white-space: nowrap;
             max-width: 100%;
-            font-size: 4rem;
+            font-size: clamp(2rem, 14vmin, 4.5rem);
         }
 
         .lane-tv-body .countdown-ring__caption {
-            margin-top: clamp(6px, 1.2vw, 12px);
-            font-size: clamp(11px, 1.6vw, 18px);
-            font-weight: 600;
-            letter-spacing: 0.08em;
+            margin-top: clamp(4px, 1vh, 8px);
+            font-size: clamp(9px, 2.2vw, 14px);
+            font-weight: 800;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
-            color: var(--text-muted);
+            color: var(--brand);
             line-height: 1.2;
         }
 
-        /* TV-də alt zolğ görünmür — dairəvi progress kifayətdir */
         .lane-tv-body .countdown-ring__bartrack {
             display: none;
         }
 
         .lane-tv-body .countdown-ring-wrap.is-pending {
-            --ring-accent: #f6b73c;
-            --ring-glow: rgba(246, 183, 60, 0.45);
+            --ring-accent: #c45a00;
+            --ring-glow: rgba(196, 90, 0, 0.3);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-warn:not(.is-critical) {
-            --ring-accent: #ffb020;
-            --ring-glow: rgba(255, 176, 32, 0.45);
+            --ring-accent: #c45a00;
+            --ring-glow: rgba(196, 90, 0, 0.35);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-critical {
-            --ring-accent: #ff4d4d;
-            --ring-glow: rgba(255, 77, 77, 0.55);
+            --ring-accent: #b91c1c;
+            --ring-glow: rgba(185, 28, 28, 0.4);
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer {
-            color: #ffc9c9;
+            color: #b91c1c;
         }
 
         .lane-tv-body .countdown-ring-wrap.is-live.is-critical .countdown-ring__svg {
@@ -317,42 +422,92 @@
         }
 
         @@keyframes lane-tv-ring-pulse {
-            0%, 100% { filter: drop-shadow(0 0 10px var(--ring-glow)); }
-            50% { filter: drop-shadow(0 0 28px rgba(255, 90, 90, 0.85)); }
+            0%, 100% { filter: drop-shadow(0 0 6px var(--ring-glow)); }
+            50% { filter: drop-shadow(0 0 18px rgba(185, 28, 28, 0.55)); }
         }
 
         .lane-tv-body .countdown-ring-wrap.is-done,
         .lane-tv-body .countdown-ring-wrap.is-idle {
-            --ring-accent: rgba(130, 142, 180, 0.55);
+            --ring-accent: rgba(139, 35, 24, 0.35);
             --ring-glow: transparent;
+            width: min(52vmin, 48vw, 380px) !important;
+            height: min(52vmin, 48vw, 380px) !important;
         }
 
-        .warn {
-            margin-top: clamp(8px, 1.2vw, 16px);
-            font-size: clamp(14px, 2vw, 26px);
+        .lane-tv-body .countdown-ring-wrap.is-idle .countdown-ring__timer {
+            font-size: clamp(1.75rem, 12vmin, 3.5rem) !important;
         }
 
-        .warn.ok { color: #8bf0c7; }
-        .warn.alert { color: #ffd98d; }
-        .warn.danger { color: #ff9a9a; }
+        .lane-tv-body .countdown-ring-wrap.is-done .countdown-ring__timer {
+            font-size: clamp(11px, 2.5vw, 18px) !important;
+            white-space: normal;
+            text-align: center;
+            line-height: 1.25;
+            padding: 0 8px;
+            max-width: 92%;
+            color: var(--brand);
+        }
+
+        .lane-tv-body .countdown-ring-wrap.is-done .countdown-ring__caption {
+            font-size: clamp(9px, 2vw, 12px);
+        }
+
+        /* Kiçik mobil monitorlar (7–10" landscape) */
+        @@media (max-width: 720px), (max-height: 520px) {
+            .lane-card.lane-card--tv {
+                padding: clamp(6px, 1.5vw, 12px) clamp(8px, 2vw, 16px);
+            }
+
+            .lane-tv-grid {
+                grid-template-columns: minmax(52px, 0.8fr) minmax(0, 1.25fr) minmax(52px, 0.8fr);
+                column-gap: clamp(6px, 1.5vw, 14px);
+            }
+
+            .lane-tv-brand-logo {
+                max-height: clamp(44px, 10vh, 88px);
+                min-height: 40px;
+            }
+
+            .lane-tv-body .countdown-ring-wrap:not(.is-done):not(.is-idle) {
+                width: min(62vmin, 56vw, 340px);
+                height: min(62vmin, 56vw, 340px);
+            }
+        }
+
+        @@media (orientation: portrait) and (max-width: 600px) {
+            .lane-card--tv-active .lane-tv-grid {
+                grid-template-rows: auto auto auto auto minmax(0, 1fr);
+                grid-template-areas:
+                    "logo     zolaq    clock"
+                    "athlete  athlete  athlete"
+                    "schedule schedule schedule"
+                    "hint     hint     hint"
+                    "ring     ring     ring";
+            }
+
+            .lane-tv-panel--ring {
+                justify-self: center;
+                align-self: end;
+            }
+
+            .lane-tv-schedule {
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body class="lane-tv-body">
-    <header class="lane-tv-top">
-        <h1>Zolaq @laneNumber — canlı ekran</h1>
-        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-left:auto;">
-            <div class="header-clock" title="Brauzerin yerli vaxtı">
-                <span class="header-clock__label">Canlı saat</span>
-                <span class="header-clock__value" id="wallClock">--:--:--</span>
-            </div>
-            <span class="status-pill" id="connectionBadge">Bağlanır...</span>
-        </div>
-    </header>
+    <span class="lane-tv-connection" id="connectionBadge">Bağlanır...</span>
     <div class="lane-tv-wrap">
+        <img id="laneTvLogo"
+             class="lane-tv-logo"
+             src="/images/club-logo.jpg"
+             alt="Target Archery Club"
+             onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/lane-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
         <div class="lane-tv-inner" id="laneRoot"></div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+    <script src="/lib/signalr/signalr.min.js"></script>
     <script>
         const laneNumber = @laneNumber;
 
@@ -360,6 +515,32 @@
             if (!value) return new Date(0);
             const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
             return new Date(needsUtcSuffix ? `${value}Z` : value);
+        }
+
+        function formatLocalTimeFromApi(iso) {
+            if (!iso) return "—";
+            var d = parseApiDate(iso);
+            if (Number.isNaN(d.getTime())) return "—";
+            return d.toLocaleTimeString("az-AZ", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false
+            });
+        }
+
+        function updateLaneMetaTimes() {
+            var ring = document.querySelector("[data-countdown-ring]");
+            var schedule = document.querySelector("[data-role=\"lane-schedule\"]");
+            if (!(ring instanceof HTMLElement) || !(schedule instanceof HTMLElement)) return;
+            var start = ring.dataset.start || "";
+            var end = ring.dataset.end || "";
+            if (!start || !end) return;
+            var items = schedule.querySelectorAll(".lane-tv-schedule__item");
+            if (items.length >= 2) {
+                items[0].textContent = "Başlanğıc: " + formatLocalTimeFromApi(start);
+                items[1].textContent = "Son: " + formatLocalTimeFromApi(end);
+            }
         }
 
         function formatSeconds(milliseconds) {
@@ -376,6 +557,76 @@
         const COUNTDOWN_WARN_SEC = 300; // 5 dəqiqə
         const COUNTDOWN_CRIT_SEC = 120; // 2 dəqiqə
         const SESSION_BUFFER_MS = 0;
+        const LANE_TIME_ENDED_MSG = "Sizin vaxtınız bitmişdir";
+        const LANE_LOGO_DELAY_MS = 15000;
+        var laneSessionEndedAtMs = 0;
+
+        function clearLaneSessionEnded() {
+            laneSessionEndedAtMs = 0;
+        }
+
+        function markLaneSessionEnded() {
+            if (!laneSessionEndedAtMs) {
+                laneSessionEndedAtMs = Date.now();
+            }
+        }
+
+        function applyLaneEndedDisplay(timerEl, captionEl, statusPill) {
+            if (timerEl) timerEl.textContent = LANE_TIME_ENDED_MSG;
+            if (captionEl) captionEl.textContent = "";
+            if (statusPill instanceof HTMLElement) {
+                statusPill.textContent = LANE_TIME_ENDED_MSG;
+                statusPill.className = "status-pill lane-tv-status-pill Completed";
+            }
+        }
+
+        // TV: yalnız öz kartındakı data-atributlardan (bütün /dashboard/lanes yox — server yüklənmir).
+        function isActiveSessionFromRing(ringEl) {
+            if (!(ringEl instanceof HTMLElement)) return false;
+            var status = ringEl.dataset.status || "";
+            var start = ringEl.dataset.start || "";
+            var end = ringEl.dataset.end || "";
+            if (!start || !end) return false;
+            if (status === "Completed" || status === "Idle" || status === "Scheduled") return false;
+            if (ringEl.classList.contains("is-live")) return true;
+            var nowMs = Date.now();
+            var startMs = parseApiDate(start).getTime();
+            var endMs = parseApiDate(end).getTime();
+            if (isNaN(startMs) || isNaN(endMs)) return false;
+            return nowMs >= startMs && nowMs < endMs;
+        }
+
+        function shouldShowLaneTvLogo(ringEl) {
+            if (isActiveSessionFromRing(ringEl)) {
+                clearLaneSessionEnded();
+                return false;
+            }
+            if (!(ringEl instanceof HTMLElement)) return true;
+            if (ringEl.classList.contains("is-live")) {
+                clearLaneSessionEnded();
+                return false;
+            }
+            if (ringEl.classList.contains("is-done")) {
+                markLaneSessionEnded();
+                return (Date.now() - laneSessionEndedAtMs) >= LANE_LOGO_DELAY_MS;
+            }
+            clearLaneSessionEnded();
+            return true;
+        }
+
+        function syncLaneTvLogo() {
+            var logo = document.getElementById("laneTvLogo");
+            var root = document.getElementById("laneRoot");
+            var ring = document.querySelector(".lane-tv-body [data-countdown-ring]");
+            var show = shouldShowLaneTvLogo(ring);
+            if (logo instanceof HTMLElement) {
+                logo.classList.toggle("hidden", !show);
+            }
+            if (root instanceof HTMLElement) {
+                root.classList.toggle("lane-tv-inner--hidden", show);
+            }
+            document.body.classList.toggle("lane-tv--fullscreen-logo", show);
+        }
 
         function applyRingRemaining(ringEl, fractionRemaining) {
             var f = Math.max(0, Math.min(1, fractionRemaining));
@@ -411,6 +662,12 @@
             }
             var maxH = inner - capH - 8;
             if (maxH < 24) maxH = 24;
+            var isEndedMsg = ringEl.classList.contains("is-done");
+            if (isEndedMsg) {
+                timer.style.whiteSpace = "normal";
+                timer.style.fontSize = "";
+                return;
+            }
             timer.style.whiteSpace = "nowrap";
             timer.style.fontSize = "";
             var low = 12;
@@ -445,7 +702,7 @@
 
                 try {
                 const card = el.closest(".lane-card");
-                const statusPill = card instanceof HTMLElement ? card.querySelector(".status-pill") : null;
+                const statusPill = card instanceof HTMLElement ? card.querySelector("[data-role=\"tv-status-pill\"]") : null;
                 const bottomHint = card instanceof HTMLElement ? card.querySelector("[data-role=\"lane-bottom-hint\"]") : null;
                 const setBottomHint = (text, kind) => {
                     if (!(bottomHint instanceof HTMLElement)) return;
@@ -467,6 +724,7 @@
                     setBottomHint("", "");
                     setCleanupMode(false);
                     applyRingRemaining(el, 0);
+                    resetRingCompactSize(el);
                     return;
                 }
 
@@ -477,11 +735,11 @@
 
                 if (status === "Completed") {
                     el.classList.add("is-done");
-                    timerEl.textContent = "Bitib";
-                    if (captionEl) captionEl.textContent = "Sessiya";
+                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
                     setBottomHint("", "");
                     setCleanupMode(true);
                     applyRingRemaining(el, 0);
+                    resetRingCompactSize(el);
                     return;
                 }
 
@@ -515,15 +773,11 @@
 
                 if (nowMs >= endMs) {
                     el.classList.add("is-done");
-                    timerEl.textContent = "Bitib";
-                    if (captionEl) captionEl.textContent = "Sessiya";
+                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
                     setBottomHint("", "");
                     setCleanupMode(true);
-                    if (statusPill instanceof HTMLElement) {
-                        statusPill.textContent = "Bitib";
-                        statusPill.className = "status-pill Completed";
-                    }
                     applyRingRemaining(el, 0);
+                    resetRingCompactSize(el);
                     return;
                 }
 
@@ -533,17 +787,12 @@
                 const trainingRemainingSec = Math.floor(trainingRemainingMs / 1000);
 
                 if (trainingRemainingMs <= 0) {
-                    // cleanup/buffer: treat as completed for TV UX (like your 2nd screenshot)
                     el.classList.add("is-done");
-                    timerEl.textContent = "Bitib";
-                    if (captionEl) captionEl.textContent = "Sessiya";
+                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
                     setBottomHint("", "");
                     setCleanupMode(true);
-                    if (statusPill instanceof HTMLElement) {
-                        statusPill.textContent = "Bitib";
-                        statusPill.className = "status-pill Completed";
-                    }
                     applyRingRemaining(el, 0);
+                    resetRingCompactSize(el);
                     return;
                 }
 
@@ -553,7 +802,7 @@
                 else if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) el.classList.add("is-warn");
 
                 timerEl.textContent = formatSeconds(trainingRemainingMs);
-                if (captionEl) captionEl.textContent = "Qalan vaxt";
+                if (captionEl) captionEl.textContent = "QALAN VAXT";
                 if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) {
                     const minLeft = Math.max(0, Math.ceil(trainingRemainingSec / 60));
                     setBottomHint(`${minLeft} dəqiqə qaldı`, trainingRemainingSec <= COUNTDOWN_CRIT_SEC ? "critical" : "");
@@ -566,6 +815,16 @@
                     fitLaneTvCountdownTimer(el);
                 }
             });
+
+            var ringEl = document.querySelector("[data-countdown-ring]");
+            var compact = ringEl ? ringUsesCompactSize(ringEl) : null;
+            if (lastRingCompact !== compact) {
+                lastRingCompact = compact;
+                scheduleSizeRing();
+            }
+
+            updateLaneMetaTimes();
+            syncLaneTvLogo();
         }
 
         function apiFetch(input, init) {
@@ -581,13 +840,37 @@
         var lastLaneHtml = "";
         var laneLoadInFlight = false;
         var pendingReload = false;
+        var lastRingCompact = null;
+        function resetRingCompactSize(ring) {
+            if (!(ring instanceof HTMLElement)) return;
+            ring.style.width = "";
+            ring.style.height = "";
+            var timer = ring.querySelector("[data-role=\"timer\"]");
+            if (timer instanceof HTMLElement) {
+                timer.style.fontSize = "";
+            }
+        }
 
-        // Dairənin ölçüsünü qalan boş yerə görə hesablayır ki, mətn sətirləri nə qədər olsa da kəsilməsin.
+        function ringUsesCompactSize(ring) {
+            if (!(ring instanceof HTMLElement)) return true;
+            var start = ring.getAttribute("data-start") || "";
+            var end = ring.getAttribute("data-end") || "";
+            if (!start || !end) return true;
+            return ring.classList.contains("is-idle") || ring.classList.contains("is-done");
+        }
+
+        // Aktiv/planlı sessiyada dairəni mətnə görə böyüdür; boş/bitmişdə kompakt CSS ölçüsünə qayıdır.
         function sizeCountdownRing() {
             var card = document.querySelector(".lane-tv-body .lane-card");
             if (!card) return;
             var ring = card.querySelector(".countdown-ring-wrap");
             if (!ring) return;
+
+            if (ringUsesCompactSize(ring)) {
+                resetRingCompactSize(ring);
+                fitLaneTvCountdownTimer(ring);
+                return;
+            }
 
             ring.style.width = "0px";
             ring.style.height = "0px";
@@ -599,24 +882,24 @@
             var availH = card.clientHeight - padY;
 
             var usedH = 0;
-            var children = card.children;
-            for (var i = 0; i < children.length; i++) {
-                var ch = children[i];
-                if (ch === ring) continue;
-                var st = window.getComputedStyle(ch);
-                if (st.display === "none") continue;
-                if (st.position === "absolute" || st.position === "fixed") continue;
-                var rect = ch.getBoundingClientRect();
-                usedH += rect.height + (parseFloat(st.marginTop) || 0) + (parseFloat(st.marginBottom) || 0);
+            var grid = card.querySelector(".lane-tv-grid");
+            if (grid instanceof HTMLElement) {
+                var panels = grid.querySelectorAll(".lane-tv-panel:not(.lane-tv-panel--ring)");
+                for (var pi = 0; pi < panels.length; pi++) {
+                    var p = panels[pi];
+                    if (!(p instanceof HTMLElement)) continue;
+                    var bottom = p.offsetTop + p.offsetHeight;
+                    if (bottom > usedH) usedH = bottom;
+                }
             }
 
-            var rs = window.getComputedStyle(ring);
-            var ringMarginY = (parseFloat(rs.marginTop) || 0) + (parseFloat(rs.marginBottom) || 0);
-            var safeMargin = 12;
-
-            var size = Math.floor(Math.min(availH - usedH - ringMarginY - safeMargin, availW));
-            if (!isFinite(size) || size < 160) size = 160;
-            if (size > 460) size = 460;
+            var vmin = Math.min(window.innerWidth || availW, window.innerHeight || availH);
+            var maxW = Math.floor(availW * 0.56);
+            var maxH = Math.floor((availH - usedH) * 0.9);
+            var target = Math.floor(Math.min(vmin * 0.58, maxW, maxH));
+            var size = target;
+            if (!isFinite(size) || size < 130) size = 130;
+            if (size > 480) size = 480;
 
             ring.style.width = size + "px";
             ring.style.height = size + "px";
@@ -644,6 +927,8 @@
             if (!root.firstElementChild) {
                 root.innerHTML = newHtml;
                 updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
                 return;
             }
             var staging = document.createElement("div");
@@ -653,6 +938,7 @@
             if (!fresh || !live || fresh.tagName !== live.tagName) {
                 root.innerHTML = newHtml;
                 updateCountdownRings();
+                updateLaneMetaTimes();
                 scheduleSizeRing();
                 return;
             }
@@ -669,21 +955,65 @@
                 if (liveEl.textContent !== freshEl.textContent) liveEl.textContent = freshEl.textContent;
             }
 
-            patchClassAndText(live.querySelector(".lane-title"), fresh.querySelector(".lane-title"));
+            patchClassAndText(live.querySelector(".lane-tv-lane-num"), fresh.querySelector(".lane-tv-lane-num"));
             patchClassAndText(live.querySelector(".status-pill"), fresh.querySelector(".status-pill"));
-            patchTextNodes(live.querySelector(".lane-type"), fresh.querySelector(".lane-type"));
+            patchTextNodes(live.querySelector(".lane-tv-athlete"), fresh.querySelector(".lane-tv-athlete"));
+            patchTextNodes(live.querySelector("[data-role=\"lane-schedule\"]"), fresh.querySelector("[data-role=\"lane-schedule\"]"));
+            patchClassAndText(live.querySelector("[data-role=\"lane-bottom-hint\"]"), fresh.querySelector("[data-role=\"lane-bottom-hint\"]"));
 
-            var liveMetas = live.querySelectorAll(".lane-meta");
-            var freshMetas = fresh.querySelectorAll(".lane-meta");
-            var metaCountChanged = liveMetas.length !== freshMetas.length;
-            if (metaCountChanged) {
+            var liveSchedule = live.querySelector(".lane-tv-panel--schedule");
+            var freshSchedule = fresh.querySelector(".lane-tv-panel--schedule");
+            if (!!liveSchedule !== !!freshSchedule) {
                 root.innerHTML = newHtml;
                 updateCountdownRings();
+                updateLaneMetaTimes();
                 scheduleSizeRing();
                 return;
             }
-            for (var i = 0; i < liveMetas.length; i++) {
-                patchTextNodes(liveMetas[i], freshMetas[i]);
+
+            var liveHint = live.querySelector(".lane-tv-panel--hint");
+            var freshHint = fresh.querySelector(".lane-tv-panel--hint");
+            if (!!liveHint !== !!freshHint) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
+                return;
+            }
+
+            var liveGrid = live.querySelector(".lane-tv-grid");
+            var freshGrid = fresh.querySelector(".lane-tv-grid");
+            if (!!liveGrid !== !!freshGrid) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
+                return;
+            }
+            if (live.classList.contains("lane-card--tv-active") !== fresh.classList.contains("lane-card--tv-active")) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
+                return;
+            }
+
+            if (liveGrid && freshGrid && liveGrid.innerHTML !== freshGrid.innerHTML) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
+                return;
+            }
+
+            var liveAthlete = live.querySelector(".lane-tv-athlete");
+            var freshAthlete = fresh.querySelector(".lane-tv-athlete");
+            if (!!liveAthlete !== !!freshAthlete) {
+                root.innerHTML = newHtml;
+                updateCountdownRings();
+                updateLaneMetaTimes();
+                scheduleSizeRing();
+                return;
             }
 
             var liveRing = live.querySelector("[data-countdown-ring]");
@@ -700,36 +1030,71 @@
             }
 
             updateCountdownRings();
+            updateLaneMetaTimes();
             scheduleSizeRing();
+        }
+
+        var laneLoadFailCount = 0;
+
+        function showLaneLoadStatus(message, isError) {
+            var root = document.getElementById("laneRoot");
+            if (!root) return;
+            if (root.firstElementChild && !isError) return;
+            root.innerHTML = "<div style=\"padding:24px;text-align:center;font-weight:800;color:" +
+                (isError ? "#ff8a8a" : "#9ba7c7") + ";\">" + message + "</div>";
         }
 
         function loadLane() {
             if (laneLoadInFlight) { pendingReload = true; return; }
             laneLoadInFlight = true;
+            if (!document.getElementById("laneRoot")?.firstElementChild) {
+                showLaneLoadStatus("Yüklənir…", false);
+            }
             return apiFetch("/dashboard/lanes/partial/card/" + laneNumber)
                 .then(function (res) {
-                    if (!res || !res.ok) return null;
+                    if (!res || !res.ok) {
+                        laneLoadFailCount++;
+                        var code = res ? res.status : 0;
+                        showLaneLoadStatus("Zolaq " + laneNumber + " yüklənmədi (HTTP " + code + "). Yenidən cəhd…", true);
+                        return null;
+                    }
                     return res.text();
                 })
                 .then(function (text) {
                     if (text == null) return;
-                    if (text === lastLaneHtml) return;
-                    lastLaneHtml = text;
-                    patchLaneDom(text);
-                })["catch"](function () { /* səssiz keç */ })
+                    laneLoadFailCount = 0;
+                    if (text !== lastLaneHtml) {
+                        lastLaneHtml = text;
+                        patchLaneDom(text);
+                    }
+                    lastRingCompact = null;
+                    scheduleSizeRing();
+                })["catch"](function () {
+                    laneLoadFailCount++;
+                    showLaneLoadStatus("Şəbəkə xətası — serverə çatılmır. Yenidən cəhd…", true);
+                })
                 .then(function () {
                     laneLoadInFlight = false;
                     if (pendingReload) {
                         pendingReload = false;
                         setTimeout(loadLane, 50);
+                        return;
+                    }
+                    if (laneLoadFailCount > 0) {
+                        var delay = Math.min(30000, 2000 + laneLoadFailCount * 1500);
+                        setTimeout(loadLane, delay);
                     }
                 });
         }
 
-        // ---- Polling fallback ----
-        var POLL_INTERVAL_MS = 10000;
+        var TV_USE_SIGNALR = true;
+        var POLL_INTERVAL_MS = 15000;
+        // Hər monitor eyni anda yox — zolaq nömrəsinə görə ardıcıl başlayır (donmanın qarşısını alır).
+        var POLL_STAGGER_MS = Math.max(0, (laneNumber - 1) * 2500);
+
         function startPolling() {
             setInterval(loadLane, POLL_INTERVAL_MS);
+            setInterval(syncLaneTvLogo, 1000);
         }
 
         document.addEventListener("visibilitychange", function () {
@@ -757,10 +1122,17 @@
 
         function startSignalR() {
             var connectionBadge = document.getElementById("connectionBadge");
+            if (!TV_USE_SIGNALR) {
+                if (connectionBadge instanceof HTMLElement) {
+                    connectionBadge.textContent = "TV rejimi";
+                    connectionBadge.className = "lane-tv-connection";
+                }
+                return;
+            }
             if (typeof signalR === "undefined" || !signalR.HubConnectionBuilder) {
                 if (connectionBadge) {
                     connectionBadge.textContent = "Bağlantı yoxdur";
-                    connectionBadge.className = "status-pill";
+                    connectionBadge.className = "lane-tv-connection";
                 }
                 setTimeout(startSignalR, 5000);
                 return;
@@ -786,7 +1158,7 @@
                 connection.onreconnecting(function () {
                     if (connectionBadge) {
                         connectionBadge.textContent = "Yenidən bağlanır...";
-                        connectionBadge.className = "status-pill Scheduled";
+                        connectionBadge.className = "lane-tv-connection";
                     }
                 });
             }
@@ -795,7 +1167,7 @@
                 connection.onreconnected(function () {
                     if (connectionBadge) {
                         connectionBadge.textContent = "Qoşuldu";
-                        connectionBadge.className = "status-pill Active";
+                        connectionBadge.className = "lane-tv-connection Active";
                     }
                     loadLane();
                 });
@@ -805,13 +1177,13 @@
                 connection.onclose(function () {
                     if (connectionBadge) {
                         connectionBadge.textContent = "Bağlantı yoxdur";
-                        connectionBadge.className = "status-pill";
+                        connectionBadge.className = "lane-tv-connection";
                     }
                     var tryAgain = function () {
                         connection.start().then(function () {
                             if (connectionBadge) {
                                 connectionBadge.textContent = "Qoşuldu";
-                                connectionBadge.className = "status-pill Active";
+                                connectionBadge.className = "lane-tv-connection Active";
                             }
                             loadLane();
                         }, function () {
@@ -830,23 +1202,26 @@
                 function () {
                     if (connectionBadge) {
                         connectionBadge.textContent = "Qoşuldu";
-                        connectionBadge.className = "status-pill Active";
+                        connectionBadge.className = "lane-tv-connection Active";
                     }
                 },
                 function () {
                     if (connectionBadge) {
                         connectionBadge.textContent = "Bağlantı yoxdur";
-                        connectionBadge.className = "status-pill";
+                        connectionBadge.className = "lane-tv-connection";
                     }
                     setTimeout(startSignalR, 5000);
                 }
             );
         }
 
-        loadLane();
-        startTicker();
-        startPolling();
-        startSignalR();
+        syncLaneTvLogo();
+        setTimeout(function () {
+            loadLane();
+            startTicker();
+            startPolling();
+            startSignalR();
+        }, POLL_STAGGER_MS);
     </script>
 </body>
 </html>

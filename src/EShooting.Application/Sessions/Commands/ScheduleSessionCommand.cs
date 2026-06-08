@@ -37,7 +37,7 @@ public sealed class ScheduleSessionCommandHandler(
         var requestedEndTimeUtc = isOpenEnded
             ? startTimeUtc
             : startTimeUtc.AddMinutes(request.DurationMinutes);
-        var allSessions = await repository.GetSessionsAsync(cancellationToken);
+        var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
         var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
 
         static bool IsShortLane(int number) => number is >= 1 and <= 8;
@@ -132,18 +132,7 @@ public sealed class ScheduleSessionCommandHandler(
             .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
 
         var hasOverlap = existingLaneSessions.Any(x =>
-        {
-            var existingStart = DateTimeAssumedUtc.AsUtc(x.StartTimeUtc);
-            var existingEnd = DateTimeAssumedUtc.AsUtc(x.EndTimeUtc);
-            var existingOpenEnded = !LaneReservationRules.HasValidWindow(existingStart, existingEnd);
-
-            if (existingOpenEnded || isOpenEnded)
-            {
-                return true;
-            }
-
-            return startTimeUtc < existingEnd && requestedEndTimeUtc > existingStart;
-        });
+            LaneReservationRules.OverlapsSession(x, startTimeUtc, requestedEndTimeUtc, nowUtc));
 
         if (hasOverlap)
         {

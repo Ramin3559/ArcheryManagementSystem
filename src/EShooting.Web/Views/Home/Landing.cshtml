@@ -1,0 +1,85 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EShooting</title>
+    <style>
+        :root {
+            --bg: #0b1220;
+            --panel: #111a2e;
+            --text: #e8ecf7;
+            --muted: #9ba7c7;
+            --border: #293759;
+            --primary: #4f7cff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at top, #15244a 0, #0b1220 45%);
+        }
+        .card {
+            width: 100%;
+            max-width: 420px;
+            padding: 28px;
+            background: rgba(17, 26, 46, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        h1 { margin: 0 0 8px; font-size: 22px; }
+        p { margin: 0 0 20px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+        .links { display: flex; flex-direction: column; gap: 10px; }
+        a {
+            display: block;
+            text-align: center;
+            padding: 12px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .hint {
+            margin-top: 16px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(79, 124, 255, 0.12);
+            border: 1px solid rgba(79, 124, 255, 0.35);
+            font-size: 12px;
+            color: var(--muted);
+        }
+        code { color: #c7d2fe; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>EShooting</h1>
+        <p>Qeydiyyat panelinə keçmək üçün aşağıdakı düymədən istifadə edin. Yalnız IP ünvanı yazmaq modem səhifəsinə apara bilər.</p>
+        <div class="links">
+            <a class="primary" href="/qeydiyyat">Qeydiyyat paneli</a>
+            <a class="secondary" href="/Account/Login?returnUrl=%2Fqeydiyyat">Giriş</a>
+            <a class="secondary" href="/admin-panel">Admin panel</a>
+        </div>
+        <div class="hint">
+            Əlfəcin üçün: <code>/qeydiyyat</code> (məs. <code>http://192.168.100.81/qeydiyyat</code>)
+        </div>
+    </div>
+</body>
+</html>

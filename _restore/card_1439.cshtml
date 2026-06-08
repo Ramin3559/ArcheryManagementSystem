@@ -1,0 +1,95 @@
+﻿@using EShooting.Web.Helpers
+@model EShooting.Application.Common.Models.LaneDashboardItem
+<article class="lane-card lane-card--tv@(Model.Status is "Active" or "Scheduled" ? " lane-card--tv-active" : "")">
+    @{
+        var st = Model.Status ?? "Idle";
+        var nowUtc = DateTime.UtcNow;
+        var startUtc = Model.StartTimeUtc is null
+            ? (DateTime?)null
+            : (Model.StartTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.StartTimeUtc.Value, DateTimeKind.Utc) : Model.StartTimeUtc.Value.ToUniversalTime());
+        var endUtc = Model.EndTimeUtc is null
+            ? (DateTime?)null
+            : (Model.EndTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.EndTimeUtc.Value, DateTimeKind.Utc) : Model.EndTimeUtc.Value.ToUniversalTime());
+
+        var trainingBuffer = TimeSpan.Zero;
+        var effectiveStatus = st;
+        if (startUtc is not null && endUtc is not null)
+        {
+            var trainingEndUtc = endUtc.Value - trainingBuffer;
+            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
+            else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
+            else effectiveStatus = "Active";
+        }
+
+        var hasSession = effectiveStatus is "Active" or "Scheduled";
+        var startText = LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc);
+        var endText = LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc);
+    }
+
+    <div class="lane-tv-grid">
+        <div class="lane-tv-panel lane-tv-panel--logo">
+            <img class="lane-tv-brand-logo"
+                 src="/images/club-logo.jpg"
+                 alt="Target Archery Club"
+                 onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/lane-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
+        </div>
+
+        <div class="lane-tv-panel lane-tv-panel--zolaq">
+            <h2 class="lane-tv-lane-num">Zolaq @Model.LaneNumber</h2>
+            @if (hasSession)
+            {
+                <div class="lane-tv-schedule" data-role="lane-schedule">
+                    <span class="lane-tv-schedule__item">Başlanğıc: @startText</span>
+                    <span class="lane-tv-schedule__item">Son: @endText</span>
+                </div>
+            }
+        </div>
+
+        <div class="lane-tv-panel lane-tv-panel--clock">
+            <div class="lane-tv-wall-clock" title="Brauzerin yerli vaxtı">
+                <span class="lane-tv-wall-clock__label">Canlı saat</span>
+                <span class="lane-tv-wall-clock__value" id="wallClock">--:--:--</span>
+            </div>
+        </div>
+
+        @if (hasSession)
+        {
+            <div class="lane-tv-panel lane-tv-panel--athlete">
+                <div class="lane-tv-athlete lane-meta">
+                    @(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)
+                    @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
+                    {
+                        <span title="Avadanlıq verilib" style="margin-left:8px;">🏹</span>
+                    }
+                </div>
+            </div>
+
+            <div class="lane-tv-panel lane-tv-panel--hint">
+                <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
+            </div>
+        }
+
+        <div class="lane-tv-panel lane-tv-panel--ring">
+            <div class="countdown-ring-wrap"
+                 data-countdown-ring
+                 data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
+                 data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
+                 data-status="@effectiveStatus">
+                <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
+                    <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
+                </svg>
+                <div class="countdown-ring__center">
+                    <div class="countdown-ring__timer" data-role="timer">—</div>
+                    <div class="countdown-ring__caption" data-role="caption">Gözləyir</div>
+                </div>
+                <div class="countdown-ring__bartrack" aria-hidden="true" data-role="countdown-bar-track">
+                    <div class="countdown-ring__barfill" data-role="countdown-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <span class="status-pill lane-tv-status-pill @effectiveStatus" data-role="tv-status-pill">@LaneDisplayHelper.TranslateStatus(effectiveStatus)</span>
+</article>
+

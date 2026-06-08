@@ -83,27 +83,17 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     [HttpGet("active-by-athlete/{athleteId:guid}")]
     public async Task<IActionResult> GetActiveByAthlete([FromRoute] Guid athleteId, CancellationToken cancellationToken)
     {
-        var nowUtc = DateTime.UtcNow;
-        var sessions = await repository.GetSessionsAsync(cancellationToken);
-        var lanes = await repository.GetLanesAsync(cancellationToken);
-
-        var active = sessions.FirstOrDefault(s =>
-            s.AthleteId == athleteId
-            && s.Status == SessionStatus.Active
-            && DateTimeAssumedUtc.AsUtc(s.StartTimeUtc) <= nowUtc
-            && nowUtc < DateTimeAssumedUtc.AsUtc(s.EndTimeUtc));
-
+        var active = await repository.TryGetActiveSessionForAthleteAsync(athleteId, cancellationToken);
         if (active is null)
         {
             return NotFound();
         }
 
-        var laneNumber = lanes.FirstOrDefault(l => l.Id == active.LaneId)?.Number ?? 0;
         return Ok(new
         {
-            sessionId = active.Id,
-            laneNumber,
-            status = active.Status.ToString()
+            sessionId = active.Value.SessionId,
+            laneNumber = active.Value.LaneNumber,
+            status = SessionStatus.Active.ToString()
         });
     }
 
