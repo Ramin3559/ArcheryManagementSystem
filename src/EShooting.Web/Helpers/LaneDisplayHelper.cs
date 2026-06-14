@@ -127,6 +127,53 @@ public static class LaneDisplayHelper
     public static string ToIsoOffset(DateTime? utc) => AppTimeZone.ToIsoOffset(utc);
 
     /// <summary>
+    /// Köhnə "Qrup:" / "Atıcı:" prefikslərini silir (DB-də qalmış qeydlər üçün).
+    /// </summary>
+    public static string StripAthleteLabelPrefix(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "";
+        }
+
+        var s = name.Trim();
+        if (s.StartsWith("Qrup:", StringComparison.OrdinalIgnoreCase))
+        {
+            return s[5..].TrimStart();
+        }
+
+        if (s.StartsWith("Atıcı:", StringComparison.OrdinalIgnoreCase))
+        {
+            return s[6..].TrimStart();
+        }
+
+        return s;
+    }
+
+    /// <summary>TV və zolaq kartlarında: "Atıcı: Ad Soyad" (tək və ya qrup).</summary>
+    public static string FormatAthleteLabel(string? name)
+    {
+        var core = StripAthleteLabelPrefix(name);
+        return string.IsNullOrEmpty(core) ? "Atıcı: —" : $"Atıcı: {core}";
+    }
+
+    public static bool IsGroupAthleteName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        if (name.TrimStart().StartsWith("Qrup:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var core = StripAthleteLabelPrefix(name);
+        return core.Contains(", ", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Yerli tarix qaytarır. Bugünkü gün üçün boş sətr (göstərmirik), sabahkı üçün "Sabah",
     /// dünənki üçün "Dünən", əks halda "9 May, Şənbə" formatında çıxır.
     /// </summary>

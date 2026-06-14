@@ -127,7 +127,6 @@
 <script>
     var laneNumber = @laneNumber;
     var scoreDisplayEnabled = @scoreDisplayEnabled.ToString().ToLowerInvariant();
-    var POLL_STAGGER_MS = Math.max(0, (laneNumber - 1) * 2500);
     var scoreDisplay = document.getElementById("scoreDisplay");
     var scorePulseWrap = document.getElementById("scorePulseWrap");
     var scoreFrameInner = document.getElementById("scoreFrameInner");
@@ -359,11 +358,9 @@
         );
     }
 
-    setTimeout(function () {
-        loadScoreDisplayFlag();
-        loadScoreboard();
-        startSignalR();
-    }, POLL_STAGGER_MS);
+    loadScoreDisplayFlag();
+    loadScoreboard();
+    startSignalR();
 </script>
 </body>
 </html>

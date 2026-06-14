@@ -29,9 +29,9 @@
     <div class="lane-tv-grid">
         <div class="lane-tv-panel lane-tv-panel--logo">
             <img class="lane-tv-brand-logo"
-                 src="/images/logoZolag.jpg"
+                 src="/images/logoZolag.png"
                  alt="Target Archery Club"
-                 onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/club-logo.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/placeholder-logo.jpg';}" />
+                 onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/logoZolag.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/club-logo.jpg';}else if(this.dataset.fallback==='2'){this.dataset.fallback='3';this.src='/images/placeholder-logo.jpg';}" />
         </div>
 
         <div class="lane-tv-panel lane-tv-panel--zolaq">
@@ -47,17 +47,26 @@
 
         @if (hasSession)
         {
-            <div class="lane-tv-panel lane-tv-panel--info">
+            <div class="lane-tv-panel lane-tv-panel--name">
                 <div class="lane-tv-athlete">
-                    @(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)
+                    @LaneDisplayHelper.FormatAthleteLabel(Model.AthleteName)
                     @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
                     {
                         <span class="lane-tv-equip" aria-hidden="true">🏹</span>
                     }
                 </div>
+            </div>
+
+            <div class="lane-tv-panel lane-tv-panel--meta">
                 <div class="lane-tv-schedule" data-role="lane-schedule">
-                    <span class="lane-tv-schedule__item">Başlanğıc: @startText</span>
-                    <span class="lane-tv-schedule__item">Son: @endText</span>
+                    <div class="lane-tv-schedule__row">
+                        <span class="lane-tv-schedule__icon" aria-hidden="true">🕒</span>
+                        <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
+                    </div>
+                    <div class="lane-tv-schedule__row">
+                        <span class="lane-tv-schedule__icon" aria-hidden="true">🏁</span>
+                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitiş: @endText</span>
+                    </div>
                 </div>
             </div>
 
@@ -83,6 +92,4 @@
             </div>
         </div>
     </div>
-
-    <span class="status-pill lane-tv-status-pill @effectiveStatus" data-role="tv-status-pill">@LaneDisplayHelper.TranslateStatus(effectiveStatus)</span>
 </article>

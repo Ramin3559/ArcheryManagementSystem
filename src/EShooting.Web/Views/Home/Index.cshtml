@@ -7,7 +7,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EShooting — İdarə paneli</title>
+    <title>Target — İdarə paneli</title>
     <style>
         :root {
             --bg-a: #fff3e8;
@@ -62,12 +62,44 @@
         .header-actions {
             display: flex;
             align-items: center;
+            justify-content: flex-end;
             gap: 12px;
             flex-wrap: wrap;
+            margin-left: auto;
         }
 
         .logout-form {
             margin: 0;
+        }
+
+        .title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .connection-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex: 0 0 auto;
+            background: #b57100;
+            box-shadow: 0 0 0 3px rgba(181, 113, 0, 0.22);
+        }
+
+        .connection-dot.is-active {
+            background: #0b8a69;
+            box-shadow: 0 0 0 3px rgba(15, 157, 119, 0.22);
+        }
+
+        .connection-dot.is-error {
+            background: #445fd4;
+            box-shadow: 0 0 0 3px rgba(68, 95, 212, 0.22);
+        }
+
+        .connection-dot.is-pending {
+            background: #b57100;
+            box-shadow: 0 0 0 3px rgba(181, 113, 0, 0.22);
         }
 
         .title {
@@ -98,9 +130,10 @@
         }
 
         .header-clock__label {
-            font-size: 11px;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            text-transform: none;
+            font-weight: 700;
             color: #6b7394;
         }
 
@@ -997,19 +1030,22 @@
 <main>
     <header class="header">
         <div>
-            <h1 class="title">EShooting idarə paneli</h1>
+            <div class="title-wrap">
+                <span class="connection-dot is-pending" id="connectionDot" role="status" aria-label="Qoşulur" title="Canlı bağlantı yoxlanılır"></span>
+                <h1 class="title">Target idarə paneli</h1>
+            </div>
             <p class="subtitle">Planlama, planşetdə xal və canlı monitor.</p>
         </div>
         <div class="header-actions">
-            <div class="header-clock" title="Brauzerin yerli vaxtı">
-                <span class="header-clock__label">Canlı saat</span>
+            <button id="refreshReceptionBtn" type="button" class="btn btn-ghost btn-sm" title="Qeydiyyat səhifəsini yenilə">Yenilə</button>
+            <div class="header-clock" title="Cari tarix və saat">
+                <span class="header-clock__label" id="wallDate">--.--.----</span>
                 <span class="header-clock__value" id="wallClock">--:--:--</span>
             </div>
-            <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
+            <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form" style="display:none;" aria-hidden="true">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-ghost btn-sm">Çıxış</button>
             </form>
-                <span class="status-pill" id="connectionBadge">Qoşulur...</span>
         </div>
     </header>
 
@@ -1117,12 +1153,12 @@
                     <option value="1">Yalnız qısa (1–8)</option>
                     <option value="2">Yalnız uzun (9–11)</option>
                 </select>
-                <input id="durationMinutes" type="number" min="1" max="240" value="3" />
+                <input id="durationMinutes" type="number" min="0" max="240" value="0" placeholder="Dəqiqə" />
                 <button id="scheduleBtn" type="button" class="btn btn-primary">Qeydiyyat və planlama</button>
                 <button id="updateAthleteBtn" class="btn btn-ghost" type="button" disabled>Məlumatları Yenilə</button>
                 <button id="cancelSubscriptionBtn" class="btn btn-danger" type="button">Abunəni ləğv et</button>
             </div>
-            <div class="notice" id="sessionInfo">Hələ seçim yoxdur. Müddət dəqiqə ilədir (məs. 3 = 180 saniyə).</div>
+            <div class="notice" id="sessionInfo">Hələ seçim yoxdur. Müddət dəqiqə ilədir (məs. 60 = 1 saat).</div>
         </article>
 
         <article class="card col-6" style="display:none;">
@@ -1579,7 +1615,7 @@
     const dashboardRows = document.getElementById("dashboardRows");
     const sessionInfo = document.getElementById("sessionInfo");
     const laneGrid = document.getElementById("laneGrid");
-    const connectionBadge = document.getElementById("connectionBadge");
+    const connectionDot = document.getElementById("connectionDot");
     const subscriptionAthleteNameInput = document.getElementById("subscriptionAthleteName");
     const subscriptionLaneTypesByDayEl = document.getElementById("subscriptionLaneTypesByDay");
     const subscriptionDurationMinutesInput = document.getElementById("subscriptionDurationMinutes");
@@ -2866,7 +2902,7 @@
         if (registrationModeInput instanceof HTMLSelectElement) registrationModeInput.value = "";
         if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "";
         // Reception panel duration should also reset after successful actions.
-        if (durationMinutesInput instanceof HTMLInputElement) durationMinutesInput.value = "3";
+        if (durationMinutesInput instanceof HTMLInputElement) durationMinutesInput.value = "0";
         if (isEquipmentIssuedInput instanceof HTMLInputElement) isEquipmentIssuedInput.checked = false;
         receptionMatchedAthleteId = null;
         receptionMatchedSnapshot = null;
@@ -3406,15 +3442,28 @@
         dashboardRows?.addEventListener("click", onLanePanelClick);
     }
 
+    function formatHeaderDate(value) {
+        const d = value instanceof Date ? value : new Date();
+        const day = String(d.getDate()).padStart(2, "0");
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const year = d.getFullYear();
+        return `${day}.${month}.${year}`;
+    }
+
     function startCountdownTicker() {
         if (countdownTimerId) {
             clearInterval(countdownTimerId);
         }
 
         const tick = () => {
+            const now = new Date();
             const wall = document.getElementById("wallClock");
+            const wallDate = document.getElementById("wallDate");
+            if (wallDate) {
+                wallDate.textContent = formatHeaderDate(now);
+            }
             if (wall) {
-                wall.textContent = new Date().toLocaleTimeString("az-AZ", {
+                wall.textContent = now.toLocaleTimeString("az-AZ", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit"
@@ -3427,24 +3476,43 @@
         countdownTimerId = setInterval(tick, 1000);
     }
 
+    async function refreshReceptionPanelData(options) {
+        options = options || {};
+        await loadDashboard({ force: true });
+        try { await loadSubscriptionSchedules(); } catch { /* ignore */ }
+        try { await loadEquipmentReturns(); } catch { /* ignore */ }
+        try { refreshLaneOptions(); } catch { /* ignore */ }
+        if (options.notice) {
+            showSessionNotice(options.notice);
+        }
+    }
+
+    function refreshReceptionPanel() {
+        const btn = document.getElementById("refreshReceptionBtn");
+        if (btn instanceof HTMLButtonElement) {
+            btn.disabled = true;
+            btn.textContent = "Yenilənir...";
+        }
+        window.location.reload();
+    }
+
     let dashboardLoadInFlight = false;
     let dashboardLoadQueued = false;
     let receptionRefreshTimerId = null;
     let lastReceptionRefreshAt = 0;
-    const RECEPTION_REFRESH_GAP_MS = 5000;
+    const RECEPTION_REFRESH_GAP_MS = 300;
 
     function scheduleReceptionRefresh(includeExtras) {
+        if (receptionRefreshTimerId) {
+            clearTimeout(receptionRefreshTimerId);
+        }
         const now = Date.now();
-        const wait = Math.max(400, RECEPTION_REFRESH_GAP_MS - (now - lastReceptionRefreshAt));
-        if (receptionRefreshTimerId) return;
+        const wait = Math.max(0, RECEPTION_REFRESH_GAP_MS - (now - lastReceptionRefreshAt));
         receptionRefreshTimerId = setTimeout(async () => {
             receptionRefreshTimerId = null;
             lastReceptionRefreshAt = Date.now();
             try {
-                await loadDashboard({ includePartials: true });
-                if (includeExtras) {
-                    try { await loadSubscriptionSchedules(); } catch { /* ignore */ }
-                }
+                await refreshReceptionPanelData();
             } catch (e) {
                 console.error("scheduleReceptionRefresh", e);
             }
@@ -3473,7 +3541,9 @@
         return true;
     }
 
-    async function loadDashboardPartials() {
+    async function loadDashboardPartials(options) {
+        options = options || {};
+        const force = options.force === true;
         if (dashboardPartialsInFlight) return;
         dashboardPartialsInFlight = true;
         try {
@@ -3484,7 +3554,7 @@
 
             if (gridResponse.ok && laneGrid) {
                 const gridHtml = await gridResponse.text();
-                if (gridHtml !== lastLaneGridHtml) {
+                if (force || gridHtml !== lastLaneGridHtml) {
                     lastLaneGridHtml = gridHtml;
                     laneGrid.innerHTML = gridHtml;
                     restoreLaneDrafts();
@@ -3492,7 +3562,7 @@
             }
             if (tableResponse.ok && dashboardRows) {
                 const tableHtml = await tableResponse.text();
-                if (tableHtml !== lastDashboardTableHtml) {
+                if (force || tableHtml !== lastDashboardTableHtml) {
                     lastDashboardTableHtml = tableHtml;
                     dashboardRows.innerHTML = tableHtml;
                 }
@@ -3507,6 +3577,7 @@
     async function loadDashboard(options) {
         options = options || {};
         const includePartials = options.includePartials !== false;
+        const force = options.force === true;
 
         if (dashboardLoadInFlight) {
             dashboardLoadQueued = true;
@@ -3517,7 +3588,7 @@
             const ok = await loadDashboardLanesCore();
             if (!ok) return;
             if (includePartials) {
-                await loadDashboardPartials();
+                await loadDashboardPartials({ force });
             }
         } catch (e) {
             console.error("loadDashboard", e);
@@ -3528,7 +3599,7 @@
             dashboardLoadInFlight = false;
             if (dashboardLoadQueued) {
                 dashboardLoadQueued = false;
-                setTimeout(() => { void loadDashboard({ includePartials: true }); }, 400);
+                setTimeout(() => { void loadDashboard({ includePartials: true, force: true }); }, 400);
             }
         }
     }
@@ -4003,7 +4074,7 @@
                 subscriptionInfo.textContent = "Full paket aktiv edildi (sabit həftəlik plan yoxdur).";
                 clearReceptionPersonFields();
                 clearSubscriptionPlanningFields();
-                await loadSubscriptionSchedules();
+                await refreshReceptionPanelData();
                 return;
             }
 
@@ -4183,7 +4254,7 @@
             }
             clearReceptionPersonFields();
             clearSubscriptionPlanningFields();
-            await loadSubscriptionSchedules();
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Abunə planı yaradılmadı. ${getExceptionMessage(error)}`);
         }
@@ -4410,7 +4481,7 @@
             }
 
             clearReceptionPersonFields();
-            await loadDashboard();
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Qrup qeydiyyatı alınmadı. ${getExceptionMessage(error)}`);
         }
@@ -4443,7 +4514,7 @@
         if (!Number.isInteger(durationValue) || durationValue < 0) {
             return "Müddət mənfi ola bilməz.";
         }
-        if (durationValue === 0) {
+        if (registrationMode === "instant" && durationValue === 0) {
             return "Müddət 1 və ya daha böyük olmalıdır.";
         }
 
@@ -4593,7 +4664,7 @@
             if (mode === "subscription") {
                 sessionInfo.textContent = "Qeydiyyat alındı. Abunə planlaması üçün aşağıdakı abunə panelindən istifadə edin.";
                 clearReceptionPersonFields();
-                void loadDashboard();
+                await refreshReceptionPanelData();
                 return;
             }
 
@@ -4639,7 +4710,7 @@
                 }
 
                 clearReceptionPersonFields();
-                void loadDashboard();
+                await refreshReceptionPanelData();
                 return;
             }
 
@@ -4673,7 +4744,7 @@
                 tabletLaneNumberInput.value = String(Number(sessionData?.laneNumber ?? laneNumberInput.value));
             }
             clearReceptionPersonFields();
-            void loadDashboard();
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Sessiya planlaşdırılmadı. ${getExceptionMessage(error)}`);
         } finally {
@@ -4757,7 +4828,7 @@
                 return;
             }
 
-            await loadDashboard();
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Xal göndərilmədi. ${getExceptionMessage(error)}`);
         }
@@ -4782,7 +4853,7 @@
 
             laneScoreDraft[`session-${sessionId}`] = "";
             sessionInfo.textContent = `Zolaq ${laneNumber}: xal göndərildi (tur ${roundNumber}).`;
-            await loadDashboard();
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Zolaq ${laneNumber}: xal göndərilmədi. ${getExceptionMessage(error)}`);
         }
@@ -4801,8 +4872,7 @@
             }
 
             sessionInfo.textContent = `Sessiya dayandırıldı: ${sessionId}`;
-            await loadDashboard();
-            try { await loadEquipmentReturns(); } catch { }
+            await refreshReceptionPanelData();
         } catch (error) {
             alert(`Sessiya dayandırılmadı. ${getExceptionMessage(error)}`);
         }
@@ -4904,8 +4974,7 @@
                     body: JSON.stringify({ sessionIds: ids })
                 });
             }
-            await loadDashboard();
-            await loadEquipmentReturns();
+            await refreshReceptionPanelData();
         } catch (e) {
             alert(`Avadanlıq təhvil alınmadı. ${getExceptionMessage(e)}`);
         }
@@ -4930,52 +4999,95 @@
     }
 
     var signalrLoadAttempts = 0;
+    var signalrConnectAttempts = 0;
+    var laneHubConnection = null;
+    var signalrHandlersBound = false;
+
+    function setConnectionIndicator(state, title) {
+        if (!(connectionDot instanceof HTMLElement)) return;
+        connectionDot.classList.remove("is-active", "is-error", "is-pending");
+        if (state === "active") {
+            connectionDot.classList.add("is-active");
+            connectionDot.setAttribute("aria-label", "Qoşuldu");
+            connectionDot.title = title || "Canlı bağlantı aktivdir";
+            return;
+        }
+        if (state === "pending") {
+            connectionDot.classList.add("is-pending");
+            connectionDot.setAttribute("aria-label", "Qoşulur");
+            connectionDot.title = title || "Canlı bağlantı qurulur";
+            return;
+        }
+        connectionDot.classList.add("is-error");
+        connectionDot.setAttribute("aria-label", "Bağlantı yoxdur");
+        connectionDot.title = title || "Canlı bağlantı yoxdur";
+    }
 
     async function startSignalR() {
         if (typeof signalR === "undefined" || !signalR?.HubConnectionBuilder) {
             signalrLoadAttempts++;
-            if (signalrLoadAttempts < 8) {
-                connectionBadge.textContent = "Skript yüklənir...";
-                connectionBadge.className = "status-pill Scheduled";
-                setTimeout(startSignalR, 2500);
+            if (signalrLoadAttempts < 12) {
+                setConnectionIndicator("pending", "Skript yüklənir...");
+                setTimeout(startSignalR, 1500);
                 return;
             }
-            connectionBadge.textContent = "Skript yoxdur (yeniləmə işləyir)";
-            connectionBadge.className = "status-pill Completed";
+            setConnectionIndicator("error", "Canlı bağlantı yoxdur (Yenilə rejimi)");
             return;
         }
 
-        connectionBadge.textContent = "Qoşulur...";
-        connectionBadge.className = "status-pill Scheduled";
+        if (laneHubConnection) {
+            try {
+                const state = laneHubConnection.state;
+                if (state === signalR.HubConnectionState.Connected) {
+                    setConnectionIndicator("active");
+                    return;
+                }
+                if (state === signalR.HubConnectionState.Connecting
+                    || state === signalR.HubConnectionState.Reconnecting) {
+                    setConnectionIndicator("pending");
+                    return;
+                }
+            } catch { /* ignore */ }
+        }
 
-        const connection = new signalR.HubConnectionBuilder()
+        setConnectionIndicator("pending", "Qoşulur...");
+
+        const connection = laneHubConnection ?? new signalR.HubConnectionBuilder()
             .withUrl("/hubs/lane")
             .withAutomaticReconnect()
             .build();
+        laneHubConnection = connection;
 
-        connection.onreconnecting(() => {
-            connectionBadge.textContent = "Yenidən qoşulur...";
-            connectionBadge.className = "status-pill Scheduled";
-        });
-
-        connection.onreconnected(() => {
-            connectionBadge.textContent = "Qoşuldu";
-            connectionBadge.className = "status-pill Active";
-        });
-
-        connection.on("lane-updated", () => scheduleReceptionRefresh(false));
-        connection.on("score-updated", () => scheduleReceptionRefresh(false));
+        if (!signalrHandlersBound) {
+            signalrHandlersBound = true;
+            connection.onreconnecting(() => {
+                setConnectionIndicator("pending", "Yenidən qoşulur...");
+            });
+            connection.onreconnected(() => {
+                signalrConnectAttempts = 0;
+                setConnectionIndicator("active");
+            });
+            connection.onclose(() => {
+                setConnectionIndicator("pending", "Yenidən qoşulur...");
+                setTimeout(startSignalR, 3000);
+            });
+            connection.on("lane-updated", () => scheduleReceptionRefresh(false));
+            connection.on("score-updated", () => scheduleReceptionRefresh(false));
+        }
 
         try {
-            const startPromise = connection.start();
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("SignalR start timeout (10s)")), 10000));
-            await Promise.race([startPromise, timeoutPromise]);
-            connectionBadge.textContent = "Qoşuldu";
-            connectionBadge.className = "status-pill Active";
+            await connection.start();
+            signalrConnectAttempts = 0;
+            setConnectionIndicator("active");
         } catch (err) {
-            connectionBadge.textContent = `Xəta`;
-            connectionBadge.className = "status-pill Completed";
-            console.error(err);
+            signalrConnectAttempts++;
+            console.error("SignalR connect failed", err);
+            if (signalrConnectAttempts < 8) {
+                setConnectionIndicator("pending", "Yenidən qoşulur...");
+                setTimeout(startSignalR, Math.min(30000, 2000 * signalrConnectAttempts));
+                return;
+            }
+            setConnectionIndicator("error", "Canlı bağlantı yoxdur (Yenilə rejimi)");
         }
     }
 
@@ -5005,6 +5117,7 @@
     try { syncRegistrationModeUi(); } catch (e) { console.error(e); }
 
     try { document.getElementById("scheduleBtn")?.addEventListener("click", registerAndSchedule); } catch (e) { console.error(e); }
+    try { document.getElementById("refreshReceptionBtn")?.addEventListener("click", refreshReceptionPanel); } catch (e) { console.error(e); }
     try { document.getElementById("groupRegisterBtn")?.addEventListener("click", registerGroupOnLane); } catch (e) { console.error(e); }
     try {
         groupAthleteNamesInput?.addEventListener("input", autoGrowGroupTextarea);
@@ -5178,17 +5291,16 @@
     try { ensureLaneEventDelegation(); } catch (e) { console.error(e); }
 
     function scheduleDeferredReceptionLoads() {
-        setTimeout(() => { void loadDashboardPartials(); }, 500);
         setTimeout(() => {
             try { void loadSubscriptionSchedules(); } catch (e) { console.error("loadSubscriptionSchedules error", e); }
-        }, 3500);
+        }, 500);
         setTimeout(() => {
             try { void loadEquipmentReturns(); } catch (e) { console.error("loadEquipmentReturns error", e); }
-        }, 5000);
+        }, 1000);
     }
 
     try {
-        void loadDashboard({ includePartials: false }).then(() => scheduleDeferredReceptionLoads());
+        void loadDashboard({ force: true }).then(() => scheduleDeferredReceptionLoads());
     } catch (e) { console.error("loadDashboard error", e); }
 
     if (document.readyState === "complete") {

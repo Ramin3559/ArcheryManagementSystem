@@ -37,26 +37,11 @@
             flex-direction: column;
         }
 
-        .lane-tv-connection {
-            position: fixed;
-            right: clamp(8px, 1.2vw, 14px);
-            bottom: clamp(8px, 1.2vw, 14px);
-            z-index: 12;
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: clamp(9px, 1vw, 12px);
-            font-weight: 600;
-            background: #f5ebe9;
-            color: var(--brand-muted);
-        }
-
-        body.lane-tv-body.lane-tv--fullscreen-logo .lane-tv-connection {
-            display: none;
-        }
-
-        .lane-tv-connection.Active {
-            background: rgba(139, 35, 24, 0.12);
-            color: var(--brand);
+        .lane-tv-connection,
+        #connectionBadge {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
 
         .lane-tv-wrap {
@@ -99,7 +84,7 @@
         .lane-tv-inner {
             width: 100%;
             height: 100%;
-            max-width: min(1600px, 98vw);
+            max-width: 100%;
             display: flex;
             position: relative;
             z-index: 1;
@@ -117,11 +102,18 @@
         .lane-tv-body .lane-type {
             display: none !important;
         }
+
+        /* Mobil/TV brauzer — uzun vaxt mətni (JS cache olsa belə) */
+        @@media (max-width: 720px), (max-height: 520px) {
+            body.lane-tv-body .countdown-ring-wrap[data-time-wide="1"]:not(.is-idle):not(.is-done) .countdown-ring__timer {
+                font-size: clamp(16px, 6vmin, 44px) !important;
+                letter-spacing: -0.06em;
+            }
+        }
     </style>
     @await Html.PartialAsync("Lanes/_LaneCardTvStyles")
 </head>
 <body class="lane-tv-body">
-    <span class="lane-tv-connection" id="connectionBadge">Bağlanır...</span>
     <div class="lane-tv-wrap">
         <img id="laneTvLogo"
              class="lane-tv-logo"
@@ -160,11 +152,10 @@
             var start = ring.dataset.start || "";
             var end = ring.dataset.end || "";
             if (!start || !end) return;
-            var items = schedule.querySelectorAll(".lane-tv-schedule__item");
-            if (items.length >= 2) {
-                items[0].textContent = "Başlanğıc: " + formatLocalTimeFromApi(start);
-                items[1].textContent = "Son: " + formatLocalTimeFromApi(end);
-            }
+            var startItem = schedule.querySelector("[data-role=\"schedule-start\"]");
+            var endItem = schedule.querySelector("[data-role=\"schedule-end\"]");
+            if (startItem) startItem.textContent = "Başlama: " + formatLocalTimeFromApi(start);
+            if (endItem) endItem.textContent = "Bitiş: " + formatLocalTimeFromApi(end);
         }
 
         function formatSeconds(milliseconds) {
@@ -195,13 +186,17 @@
             }
         }
 
-        function applyLaneEndedDisplay(timerEl, captionEl, statusPill) {
+        function applyLaneEndedDisplay(timerEl, captionEl) {
             if (timerEl) timerEl.textContent = LANE_TIME_ENDED_MSG;
             if (captionEl) captionEl.textContent = "";
-            if (statusPill instanceof HTMLElement) {
-                statusPill.textContent = LANE_TIME_ENDED_MSG;
-                statusPill.className = "status-pill lane-tv-status-pill Completed";
-            }
+        }
+
+        function removeTvConnectionUi() {
+            var badge = document.getElementById("connectionBadge");
+            if (badge) badge.remove();
+            document.querySelectorAll(".lane-tv-connection, .lane-tv-status-pill, .lane-card--tv .status-pill").forEach(function (el) {
+                el.remove();
+            });
         }
 
         // TV: yalnız öz kartındakı data-atributlardan (bütün /dashboard/lanes yox — server yüklənmir).
@@ -269,53 +264,117 @@
         }
 
         // Dairənin içində vaxt mətni daireye sığsın deyə şrifti dinamik kiçildirik.
+        function syncTimerFormatFlags(ringEl, timerEl) {
+            if (!(ringEl instanceof HTMLElement) || !(timerEl instanceof HTMLElement)) return;
+            var text = String(timerEl.textContent || "").trim();
+            var colons = (text.match(/:/g) || []).length;
+            var isWide = colons >= 2 || text.length >= 8;
+            ringEl.setAttribute("data-time-wide", isWide ? "1" : "0");
+        }
+
+        function measureTimerBox(timer) {
+            var w = timer.scrollWidth;
+            var h = timer.scrollHeight;
+            if (w > 0 && h > 0) return { w: w, h: h };
+            var rect = timer.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) return { w: rect.width, h: rect.height };
+            var fs = parseFloat(window.getComputedStyle(timer).fontSize) || 16;
+            var text = String(timer.textContent || "");
+            return { w: text.length * fs * 0.58, h: fs * 1.08 };
+        }
+
         function fitLaneTvCountdownTimer(ringEl) {
             if (!(ringEl instanceof HTMLElement)) return;
             var timer = ringEl.querySelector("[data-role=\"timer\"]");
             if (!(timer instanceof HTMLElement)) return;
-            if (ringEl.classList.contains("is-live") || ringEl.classList.contains("is-pending")) {
-                timer.style.fontSize = "";
+
+            syncTimerFormatFlags(ringEl, timer);
+            timer.style.removeProperty("transform");
+
+            if (ringEl.classList.contains("is-idle")) {
+                timer.style.removeProperty("font-size");
+                timer.style.removeProperty("letter-spacing");
                 timer.style.whiteSpace = "nowrap";
                 return;
             }
+
+            var center = ringEl.querySelector(".countdown-ring__center");
             var cap = ringEl.querySelector("[data-role=\"caption\"]");
             var diameter = Math.min(ringEl.clientWidth, ringEl.clientHeight);
             if (diameter < 60) return;
-            // Dairənin daxili kvadratı təxminən diametr * 0.72-dir.
-            var inner = diameter * 0.72;
-            var maxW = Math.max(40, inner);
+
             var capH = 0;
             if (cap instanceof HTMLElement && cap.textContent && String(cap.textContent).trim()) {
-                // alt yazı şriftini daireye nisbətən kiçik tuturuq, taxmini hündürlüyü:
-                capH = Math.max(14, Math.round(diameter * 0.06));
+                capH = Math.max(12, Math.round(diameter * 0.11));
             }
-            var maxH = inner - capH - 8;
-            if (maxH < 24) maxH = 24;
-            var isEndedMsg = ringEl.classList.contains("is-done");
-            if (isEndedMsg) {
+
+            if (ringEl.classList.contains("is-done")) {
                 timer.style.whiteSpace = "normal";
-                timer.style.fontSize = "";
+                timer.style.removeProperty("font-size");
+                timer.style.removeProperty("letter-spacing");
                 return;
             }
+
             timer.style.whiteSpace = "nowrap";
-            timer.style.fontSize = "";
-            var low = 12;
-            var high = Math.floor(diameter * 0.42);
+            timer.style.removeProperty("font-size");
+            timer.style.removeProperty("letter-spacing");
+
+            var text = String(timer.textContent || "").trim();
+            var isLongTime = ringEl.getAttribute("data-time-wide") === "1";
+            if (isLongTime) {
+                timer.style.setProperty("letter-spacing", "-0.05em", "important");
+            }
+
+            var maxW = center instanceof HTMLElement && center.clientWidth > 0
+                ? Math.max(28, center.clientWidth * 0.84)
+                : Math.max(28, diameter * 0.5);
+            var maxH = center instanceof HTMLElement && center.clientHeight > 0
+                ? Math.max(16, center.clientHeight - capH - 8)
+                : Math.max(16, diameter * 0.5 - capH);
+
+            var low = 10;
+            var high = Math.floor(diameter * 0.34);
+            if (isLongTime) {
+                high = Math.min(high, Math.floor(diameter * 0.24));
+            } else if (text.length >= 6) {
+                high = Math.min(high, Math.floor(diameter * 0.3));
+            }
             if (high < low) high = low;
+
             var best = low;
             while (low <= high) {
                 var mid = (low + high) >> 1;
-                timer.style.fontSize = mid + "px";
-                var tw = timer.scrollWidth;
-                var th = timer.scrollHeight;
-                if (tw <= maxW && th <= maxH) {
+                timer.style.setProperty("font-size", mid + "px", "important");
+                var box = measureTimerBox(timer);
+                if (box.w <= maxW && box.h <= maxH) {
                     best = mid;
                     low = mid + 1;
                 } else {
                     high = mid - 1;
                 }
             }
-            timer.style.fontSize = best + "px";
+            timer.style.setProperty("font-size", best + "px", "important");
+
+            var fitted = measureTimerBox(timer);
+            while (best > 10 && (fitted.w > maxW || fitted.h > maxH)) {
+                best -= 1;
+                timer.style.setProperty("font-size", best + "px", "important");
+                fitted = measureTimerBox(timer);
+            }
+
+            fitted = measureTimerBox(timer);
+            if (fitted.w > maxW && maxW > 0) {
+                var scale = Math.max(0.55, maxW / fitted.w);
+                timer.style.setProperty("transform", "scale(" + scale + ")", "important");
+                timer.style.setProperty("transform-origin", "center center", "important");
+            }
+        }
+
+        function scheduleFitTimer(ringEl) {
+            var run = function () { fitLaneTvCountdownTimer(ringEl); };
+            (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(run);
+            setTimeout(run, 60);
+            setTimeout(run, 250);
         }
 
         function updateCountdownRings() {
@@ -331,7 +390,6 @@
 
                 try {
                 const card = el.closest(".lane-card");
-                const statusPill = card instanceof HTMLElement ? card.querySelector("[data-role=\"tv-status-pill\"]") : null;
                 const bottomHint = card instanceof HTMLElement ? card.querySelector("[data-role=\"lane-bottom-hint\"]") : null;
                 const setBottomHint = (text, kind) => {
                     if (!(bottomHint instanceof HTMLElement)) return;
@@ -364,7 +422,7 @@
 
                 if (status === "Completed") {
                     el.classList.add("is-done");
-                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
+                    applyLaneEndedDisplay(timerEl, captionEl);
                     setBottomHint("", "");
                     setCleanupMode(true);
                     applyRingRemaining(el, 0);
@@ -402,7 +460,7 @@
 
                 if (nowMs >= endMs) {
                     el.classList.add("is-done");
-                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
+                    applyLaneEndedDisplay(timerEl, captionEl);
                     setBottomHint("", "");
                     setCleanupMode(true);
                     applyRingRemaining(el, 0);
@@ -417,7 +475,7 @@
 
                 if (trainingRemainingMs <= 0) {
                     el.classList.add("is-done");
-                    applyLaneEndedDisplay(timerEl, captionEl, statusPill);
+                    applyLaneEndedDisplay(timerEl, captionEl);
                     setBottomHint("", "");
                     setCleanupMode(true);
                     applyRingRemaining(el, 0);
@@ -441,7 +499,7 @@
                 setCleanupMode(false);
                 applyRingRemaining(el, frac);
                 } finally {
-                    fitLaneTvCountdownTimer(el);
+                    scheduleFitTimer(el);
                 }
             });
 
@@ -491,13 +549,8 @@
             var ring = card.querySelector(".countdown-ring-wrap");
             if (!ring) return;
 
-            if (ringUsesCompactSize(ring)) {
-                resetRingCompactSize(ring);
-                fitLaneTvCountdownTimer(ring);
-                return;
-            }
-
             resetRingCompactSize(ring);
+            fitLaneTvCountdownTimer(ring);
         }
 
         var sizeRingPending = false;
@@ -518,6 +571,7 @@
             var root = document.getElementById("laneRoot");
             if (!root) return;
             root.innerHTML = newHtml;
+            removeTvConnectionUi();
             var styleEl = root.querySelector("#lane-tv-styles-v3");
             if (styleEl) {
                 var existing = document.getElementById("lane-tv-styles-v3");
@@ -568,14 +622,21 @@
             }
 
             patchClassAndText(live.querySelector(".lane-tv-lane-num"), fresh.querySelector(".lane-tv-lane-num"));
-            patchClassAndText(live.querySelector(".status-pill"), fresh.querySelector(".status-pill"));
+            live.querySelectorAll(".status-pill, .lane-tv-status-pill").forEach(function (pill) { pill.remove(); });
             patchTextNodes(live.querySelector(".lane-tv-athlete"), fresh.querySelector(".lane-tv-athlete"));
             patchTextNodes(live.querySelector("[data-role=\"lane-schedule\"]"), fresh.querySelector("[data-role=\"lane-schedule\"]"));
             patchClassAndText(live.querySelector("[data-role=\"lane-bottom-hint\"]"), fresh.querySelector("[data-role=\"lane-bottom-hint\"]"));
 
-            var liveInfo = live.querySelector(".lane-tv-panel--info");
-            var freshInfo = fresh.querySelector(".lane-tv-panel--info");
-            if (!!liveInfo !== !!freshInfo) {
+            var liveMeta = live.querySelector(".lane-tv-panel--meta");
+            var freshMeta = fresh.querySelector(".lane-tv-panel--meta");
+            if (!!liveMeta !== !!freshMeta) {
+                mountLaneHtml(newHtml);
+                return;
+            }
+
+            var liveName = live.querySelector(".lane-tv-panel--name");
+            var freshName = fresh.querySelector(".lane-tv-panel--name");
+            if (!!liveName !== !!freshName) {
                 mountLaneHtml(newHtml);
                 return;
             }
@@ -626,6 +687,7 @@
             updateCountdownRings();
             updateLaneMetaTimes();
             scheduleSizeRing();
+            removeTvConnectionUi();
         }
 
         var laneLoadFailCount = 0;
@@ -683,8 +745,6 @@
 
         var TV_USE_SIGNALR = true;
         var POLL_INTERVAL_MS = 15000;
-        // Hər monitor eyni anda yox — zolaq nömrəsinə görə ardıcıl başlayır (donmanın qarşısını alır).
-        var POLL_STAGGER_MS = Math.max(0, (laneNumber - 1) * 2500);
 
         function startPolling() {
             setInterval(loadLane, POLL_INTERVAL_MS);
@@ -715,19 +775,8 @@
         }
 
         function startSignalR() {
-            var connectionBadge = document.getElementById("connectionBadge");
-            if (!TV_USE_SIGNALR) {
-                if (connectionBadge instanceof HTMLElement) {
-                    connectionBadge.textContent = "TV rejimi";
-                    connectionBadge.className = "lane-tv-connection";
-                }
-                return;
-            }
+            if (!TV_USE_SIGNALR) return;
             if (typeof signalR === "undefined" || !signalR.HubConnectionBuilder) {
-                if (connectionBadge) {
-                    connectionBadge.textContent = "Bağlantı yoxdur";
-                    connectionBadge.className = "lane-tv-connection";
-                }
                 setTimeout(startSignalR, 5000);
                 return;
             }
@@ -748,37 +797,16 @@
                 .withAutomaticReconnect(retryPolicy)
                 .build();
 
-            if (typeof connection.onreconnecting === "function") {
-                connection.onreconnecting(function () {
-                    if (connectionBadge) {
-                        connectionBadge.textContent = "Yenidən bağlanır...";
-                        connectionBadge.className = "lane-tv-connection";
-                    }
-                });
-            }
-
             if (typeof connection.onreconnected === "function") {
                 connection.onreconnected(function () {
-                    if (connectionBadge) {
-                        connectionBadge.textContent = "Qoşuldu";
-                        connectionBadge.className = "lane-tv-connection Active";
-                    }
                     loadLane();
                 });
             }
 
             if (typeof connection.onclose === "function") {
                 connection.onclose(function () {
-                    if (connectionBadge) {
-                        connectionBadge.textContent = "Bağlantı yoxdur";
-                        connectionBadge.className = "lane-tv-connection";
-                    }
                     var tryAgain = function () {
                         connection.start().then(function () {
-                            if (connectionBadge) {
-                                connectionBadge.textContent = "Qoşuldu";
-                                connectionBadge.className = "lane-tv-connection Active";
-                            }
                             loadLane();
                         }, function () {
                             setTimeout(tryAgain, 5000);
@@ -793,29 +821,19 @@
             // və hər atışda ekranda gözəyarı yanıb-sönmə yaradırdı, ona görə dinləmirik.
 
             connection.start().then(
+                function () { },
                 function () {
-                    if (connectionBadge) {
-                        connectionBadge.textContent = "Qoşuldu";
-                        connectionBadge.className = "lane-tv-connection Active";
-                    }
-                },
-                function () {
-                    if (connectionBadge) {
-                        connectionBadge.textContent = "Bağlantı yoxdur";
-                        connectionBadge.className = "lane-tv-connection";
-                    }
                     setTimeout(startSignalR, 5000);
                 }
             );
         }
 
+        removeTvConnectionUi();
         syncLaneTvLogo();
-        setTimeout(function () {
-            loadLane();
-            startTicker();
-            startPolling();
-            startSignalR();
-        }, POLL_STAGGER_MS);
+        loadLane();
+        startTicker();
+        startPolling();
+        startSignalR();
     </script>
 </body>
 </html>

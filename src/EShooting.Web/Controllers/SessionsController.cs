@@ -40,7 +40,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 var sEndUtc = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc);
                 var laneNumber = lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0;
                 var athleteName = athletes.FirstOrDefault(a => a.Id == s.AthleteId)?.FullName ?? "—";
-                var kind = athleteName.StartsWith("Qrup:", StringComparison.OrdinalIgnoreCase) ? "Qrup" : "Anlıq";
+                var kind = LaneDisplayHelper.IsGroupAthleteName(athleteName) ? "Qrup" : "Anlıq";
                 var derivedStatus = s.Status;
                 if (derivedStatus != SessionStatus.Completed)
                 {

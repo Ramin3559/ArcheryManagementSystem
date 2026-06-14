@@ -121,7 +121,7 @@ public sealed class RegisterGroupOnLaneCommandHandler(
 
     private static string BuildGroupAthleteName(IReadOnlyCollection<string> names)
     {
-        var merged = $"Qrup: {string.Join(", ", names)}";
+        var merged = string.Join(", ", names);
         if (merged.Length <= 200)
         {
             return merged;

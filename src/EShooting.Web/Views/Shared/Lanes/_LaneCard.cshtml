@@ -40,8 +40,7 @@
     @if (effectiveStatus is "Active" or "Scheduled")
     {
         <div class="lane-meta">
-            Atıcı:
-            @(string.IsNullOrEmpty(Model.AthleteName) ? "—" : Model.AthleteName)
+            @LaneDisplayHelper.FormatAthleteLabel(Model.AthleteName)
             @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
             {
                 <span title="Avadanlıq verilib" style="margin-left:6px;">🏹</span>
