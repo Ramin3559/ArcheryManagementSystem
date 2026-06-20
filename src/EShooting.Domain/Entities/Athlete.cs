@@ -15,4 +15,6 @@ public sealed class Athlete
     public bool IsSubscriber { get; set; }
     public MembershipType MembershipType { get; set; } = MembershipType.FullCombo;
     public bool IsFullPackage { get; set; }
+    public bool IsVip { get; set; }
+    public bool IsGroupPlaceholder { get; set; }
 }

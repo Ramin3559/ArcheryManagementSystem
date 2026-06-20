@@ -25,4 +25,6 @@ public sealed class RegisterAthleteRequest
     /// Abunəlik növü (ArcheryOnly, GymOnly, FullCombo).
     /// </summary>
     public MembershipType MembershipType { get; set; } = MembershipType.FullCombo;
+
+    public bool IsVip { get; set; }
 }

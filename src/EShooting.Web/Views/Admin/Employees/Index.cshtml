@@ -1,0 +1,71 @@
+@using EShooting.Application.Common.Models
+@model IReadOnlyCollection<StaffMemberItem>
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "İşçilər";
+    var notice = TempData["EmployeeNotice"] as string;
+}
+
+<style>
+    .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; }
+    .badge--ok { background:rgba(22,163,74,0.15); color:#166534; }
+    .badge--off { background:rgba(107,114,128,0.18); color:#374151; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .notice { padding:10px 12px; border-radius:12px; margin-bottom:12px; font-weight:700; background:#ecfdf5; color:#166534; border:1px solid rgba(22,163,74,0.25); }
+    .sub { font-size:12px; color:var(--muted); }
+</style>
+
+<div class="topbar">
+    <h1>İşçilər</h1>
+    <div style="display:flex; gap:10px;">
+        <button type="button" class="btn" id="adminRefreshBtn">Yenilə</button>
+        <a class="btn btn-primary" href="/admin/employees/new">+ Yeni işçi</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(notice)) { <div class="notice">@notice</div> }
+
+<div class="card">
+    <div class="tableWrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Ad soyad</th>
+                <th>Vəzifə</th>
+                <th>İcazə profili</th>
+                <th>Telefon</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (Model.Count == 0) { <tr><td colspan="6">Hələ işçi yoxdur.</td></tr> }
+            else {
+                foreach (var e in Model) {
+                    <tr style="@(e.IsActive ? "" : "opacity:0.65;")">
+                        <td><strong>@e.FullName</strong></td>
+                        <td>@e.PositionName</td>
+                        <td>@e.AccessProfileName</td>
+                        <td>@(string.IsNullOrWhiteSpace(e.PhoneNumber) ? "—" : e.PhoneNumber)</td>
+                        <td><span class="badge @(e.IsActive ? "badge--ok" : "badge--off")">@(e.IsActive ? "Aktiv" : "Deaktiv")</span></td>
+                        <td>
+                            <div class="actions">
+                                <a class="btn btn-primary" href="/admin/employees/@e.Id/edit">Dəyişdir</a>
+                                <form method="post" action="/admin/employees/@e.Id/toggle-active" style="margin:0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn @(e.IsActive ? "btn-warning" : "btn-excel")">@(e.IsActive ? "Deaktiv et" : "Aktiv et")</button>
+                                </form>
+                                <form method="post" action="/admin/employees/@e.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-danger">Sil</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>document.getElementById("adminRefreshBtn")?.addEventListener("click", () => location.reload());</script>

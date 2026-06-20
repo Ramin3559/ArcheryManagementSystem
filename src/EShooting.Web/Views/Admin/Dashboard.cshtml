@@ -1,7 +1,7 @@
 @using EShooting.Web.Controllers.Admin
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
-    ViewData["Title"] = "Dashboard";
+    ViewData["Title"] = "Əsas səhifə";
     var total = (int)(ViewData["TotalRegistrations"] ?? 0);
     var subs = (int)(ViewData["ActiveSubscribers"] ?? 0);
     var today = (int)(ViewData["TodaysSessions"] ?? 0);
@@ -41,7 +41,7 @@
 </style>
 
 <div class="topbar">
-    <h1>Dashboard</h1>
+    <h1>Əsas səhifə</h1>
     <div style="display:flex; align-items:center; gap:10px;">
         <span id="adminRefreshHint" style="font-size:12px; color: var(--muted);">Avtomatik yenilənir</span>
         <button type="button" class="btn" id="adminRefreshBtn" title="Indi yenilə">Yenilə</button>

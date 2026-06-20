@@ -510,6 +510,7 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
                     startTimeLocal,
                     durationMinutes,
                     athletes,
+                    schedule.AthleteId,
                     cancellationToken);
 
                 AssertNoSubscriptionLaneConflictOnDate(
@@ -554,6 +555,195 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
         schedule.OccurrenceOverridesJson = OccurrenceJson.SerializeOverrides(list);
         await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
         return Ok(new { message = "Bu tarix üçün seans yeniləndi." });
+    }
+
+    [HttpPut("schedules/{id:guid}/reschedule-occurrence")]
+    public async Task<IActionResult> RescheduleOccurrence(
+        [FromRoute] Guid id,
+        [FromBody] RescheduleSubscriptionOccurrenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceDateLocal) || string.IsNullOrWhiteSpace(request.TargetDateLocal))
+        {
+            return BadRequest(new { error = "Köhnə və yeni tarix daxil edin (yyyy-MM-dd)." });
+        }
+
+        if (!DateTime.TryParseExact(request.SourceDateLocal.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var sourceDate))
+        {
+            return BadRequest(new { error = "Köhnə tarix formatı yanlışdır (yyyy-MM-dd)." });
+        }
+
+        if (!DateTime.TryParseExact(request.TargetDateLocal.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var targetDate))
+        {
+            return BadRequest(new { error = "Yeni tarix formatı yanlışdır (yyyy-MM-dd)." });
+        }
+
+        if (!TimeSpan.TryParse(request.StartTimeLocal?.Trim(), out var startTimeLocal))
+        {
+            return BadRequest(new { error = "Saat formatı yanlışdır (HH:mm)." });
+        }
+
+        if (request.LaneNumber is < 0 or > 11)
+        {
+            return BadRequest(new { error = "Zolaq nömrəsi 0–11 aralığında olmalıdır." });
+        }
+
+        var sourceKey = sourceDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var targetKey = targetDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (string.Equals(sourceKey, targetKey, StringComparison.Ordinal))
+        {
+            return BadRequest(new { error = "Köhnə və yeni tarix eyni ola bilməz." });
+        }
+
+        var schedules = (await repository.GetSubscriptionSchedulesAsync(cancellationToken)).ToList();
+        var schedule = schedules.FirstOrDefault(x => x.Id == id);
+        if (schedule is null)
+        {
+            return NotFound(new { error = "Abunə qrafiki tapılmadı." });
+        }
+
+        if (!schedule.IsEnabled)
+        {
+            return BadRequest(new { error = "Bu abunə qrafiki aktiv deyil." });
+        }
+
+        if (schedule.IsFullPackage)
+        {
+            return BadRequest(new { error = "Tam paket üçün seans köçürməsi tətbiq olunmur." });
+        }
+
+        var sourceErr = ValidateOccurrenceSourceDate(schedule, sourceDate);
+        if (sourceErr is not null)
+        {
+            return BadRequest(new { error = "Köhnə tarix: " + sourceErr });
+        }
+
+        var targetErr = ValidateOccurrenceDateInPeriod(schedule, targetDate);
+        if (targetErr is not null)
+        {
+            return BadRequest(new { error = "Yeni tarix: " + targetErr });
+        }
+
+        var durationMinutes = request.DurationMinutes is > 0 ? request.DurationMinutes.Value : schedule.DurationMinutes;
+        if (durationMinutes <= 0)
+        {
+            return BadRequest(new { error = "Müddət müsbət olmalıdır." });
+        }
+
+        var athletes = (await repository.GetAthletesAsync(cancellationToken)).ToList();
+        var athlete = athletes.FirstOrDefault(a => a.Id == schedule.AthleteId);
+        if (athlete is null)
+        {
+            return BadRequest(new { error = "Müştəri tapılmadı." });
+        }
+
+        if (athlete.Category == CustomerCategory.Amateur && request.LaneNumber >= 9)
+        {
+            return BadRequest(new { error = "Həvəskar yalnız 1-8 zolaqlarda ola bilər." });
+        }
+
+        try
+        {
+            if (request.LaneNumber > 0)
+            {
+                await ValidateSessionOverlapForOccurrenceAsync(
+                    repository,
+                    request.LaneNumber,
+                    targetDate,
+                    startTimeLocal,
+                    durationMinutes,
+                    athletes,
+                    schedule.AthleteId,
+                    cancellationToken);
+
+                AssertNoSubscriptionLaneConflictOnDate(
+                    schedules,
+                    schedule,
+                    athletes,
+                    targetDate,
+                    startTimeLocal,
+                    durationMinutes,
+                    request.LaneNumber);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        var excluded = OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson);
+        var list = OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson);
+        var isNaturalSourceDay = (int)sourceDate.DayOfWeek == schedule.DayOfWeek;
+        if (isNaturalSourceDay)
+        {
+            excluded.Add(sourceKey);
+            schedule.ExcludedOccurrenceDatesJson = OccurrenceJson.SerializeExcluded(excluded);
+        }
+
+        list.RemoveAll(o => string.Equals(o.DateLocal?.Trim(), sourceKey, StringComparison.Ordinal));
+
+        var existingTarget = list.FirstOrDefault(o => string.Equals(o.DateLocal?.Trim(), targetKey, StringComparison.Ordinal));
+        if (existingTarget is null)
+        {
+            list.Add(new OccurrenceJson.OverrideRow
+            {
+                DateLocal = targetKey,
+                StartTimeLocal = startTimeLocal.ToString(@"hh\:mm", CultureInfo.InvariantCulture),
+                LaneNumber = request.LaneNumber,
+                DurationMinutes = durationMinutes
+            });
+        }
+        else
+        {
+            existingTarget.StartTimeLocal = startTimeLocal.ToString(@"hh\:mm", CultureInfo.InvariantCulture);
+            existingTarget.LaneNumber = request.LaneNumber;
+            existingTarget.DurationMinutes = durationMinutes;
+        }
+
+        excluded.Remove(targetKey);
+        schedule.ExcludedOccurrenceDatesJson = excluded.Count > 0 ? OccurrenceJson.SerializeExcluded(excluded) : null;
+        schedule.OccurrenceOverridesJson = OccurrenceJson.SerializeOverrides(list);
+        await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
+        return Ok(new { message = "Seans yeni tarixə köçürüldü, köhnə abunə günü ləğv edildi." });
+    }
+
+    private static string? ValidateOccurrenceDateInPeriod(SubscriptionSchedule schedule, DateTime date)
+    {
+        var d = date.Date;
+        if (d < schedule.ActiveFromDateLocal.Date || d > schedule.ActiveToDateLocal.Date)
+        {
+            return "Tarix abunə aralığının xaricindədir.";
+        }
+
+        return null;
+    }
+
+    private static string? ValidateOccurrenceSourceDate(SubscriptionSchedule schedule, DateTime date)
+    {
+        var periodErr = ValidateOccurrenceDateInPeriod(schedule, date);
+        if (periodErr is not null)
+        {
+            return periodErr;
+        }
+
+        var key = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson).Contains(key))
+        {
+            return "Bu tarix artıq ləğv edilib.";
+        }
+
+        if ((int)date.DayOfWeek == schedule.DayOfWeek)
+        {
+            return null;
+        }
+
+        if (OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson)
+            .Any(o => string.Equals(o.DateLocal?.Trim(), key, StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        return "Bu tarix abunə planına uyğun deyil.";
     }
 
     private static string? ValidateOccurrenceDate(SubscriptionSchedule schedule, DateTime date)
@@ -627,6 +817,34 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
         return !OccurrenceJson.DeserializeExcluded(s.ExcludedOccurrenceDatesJson).Contains(key);
     }
 
+    private static bool HasEffectiveOccurrenceOnDate(SubscriptionSchedule s, DateTime date)
+    {
+        if (!s.IsEnabled || s.IsFullPackage)
+        {
+            return false;
+        }
+
+        var d = date.Date;
+        if (d < s.ActiveFromDateLocal.Date || d > s.ActiveToDateLocal.Date)
+        {
+            return false;
+        }
+
+        var key = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (OccurrenceJson.DeserializeExcluded(s.ExcludedOccurrenceDatesJson).Contains(key))
+        {
+            return false;
+        }
+
+        if (OccurrenceJson.DeserializeOverrides(s.OccurrenceOverridesJson)
+            .Any(o => string.Equals(o.DateLocal?.Trim(), key, StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return IsScheduleOccurringOnDate(s, date);
+    }
+
     private static bool TimeRangesOverlap(TimeSpan aStart, TimeSpan aEnd, TimeSpan bStart, TimeSpan bEnd)
         => aStart < bEnd && bStart < aEnd;
 
@@ -653,7 +871,12 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
                 continue;
             }
 
-            if (!IsScheduleOccurringOnDate(other, date))
+            if (other.AthleteId == self.AthleteId)
+            {
+                continue;
+            }
+
+            if (!HasEffectiveOccurrenceOnDate(other, date))
             {
                 continue;
             }
@@ -683,6 +906,7 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
         TimeSpan startLocal,
         int durationMinutes,
         List<Athlete> athletes,
+        Guid ignoreAthleteId,
         CancellationToken cancellationToken)
     {
         var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -701,6 +925,11 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
         var laneSessions = sessions.Where(s => s.LaneId == lane.Id);
         foreach (var s in laneSessions)
         {
+            if (s.AthleteId == ignoreAthleteId)
+            {
+                continue;
+            }
+
             var sStartUtc = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc);
             var sEndUtc = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc);
             var sStartLocal = sStartUtc.ToLocalTime();

@@ -1,4 +1,5 @@
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.StaffMembers;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 
@@ -63,6 +64,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
         existing.IsFullPackage = athlete.IsFullPackage;
+        existing.IsVip = athlete.IsVip;
         return Task.CompletedTask;
     }
 
@@ -227,5 +229,204 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
     public Task<IReadOnlyCollection<SubscriptionSchedule>> GetSubscriptionSchedulesAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult<IReadOnlyCollection<SubscriptionSchedule>>(_subscriptionSchedules);
+    }
+
+    public Task<IReadOnlyCollection<ServicePackage>> GetServicePackagesAsync(bool activeOnly, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<ServicePackage>>([]);
+
+    public Task<ServicePackage?> GetServicePackageByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult<ServicePackage?>(null);
+
+    public Task<ServicePackage> AddServicePackageAsync(ServicePackage package, CancellationToken cancellationToken)
+        => Task.FromResult(package);
+
+    public Task UpdateServicePackageAsync(ServicePackage package, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    private readonly List<EquipmentItem> _equipmentItems = [];
+
+    public Task<IReadOnlyCollection<EquipmentItem>> GetEquipmentItemsAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = _equipmentItems.AsEnumerable();
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return Task.FromResult<IReadOnlyCollection<EquipmentItem>>(query.ToList());
+    }
+
+    public Task<EquipmentItem?> GetEquipmentItemByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_equipmentItems.FirstOrDefault(x => x.Id == id));
+
+    public Task<EquipmentItem> AddEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken)
+    {
+        _equipmentItems.Add(item);
+        return Task.FromResult(item);
+    }
+
+    public Task UpdateEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken)
+    {
+        var existing = _equipmentItems.FirstOrDefault(x => x.Id == item.Id);
+        if (existing is null)
+        {
+            _equipmentItems.Add(item);
+            return Task.CompletedTask;
+        }
+
+        existing.Name = item.Name;
+        existing.Category = item.Category;
+        existing.Quantity = item.Quantity;
+        existing.Price = item.Price;
+        existing.IsActive = item.IsActive;
+        existing.UpdatedAtUtc = item.UpdatedAtUtc;
+        return Task.CompletedTask;
+    }
+
+    private readonly List<SessionEquipmentIssue> _sessionEquipmentIssues = [];
+
+    public Task<IReadOnlyCollection<SessionEquipmentIssue>> GetSessionEquipmentIssuesAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<SessionEquipmentIssue>>(_sessionEquipmentIssues.ToList());
+
+    public Task AddSessionEquipmentIssuesAsync(IReadOnlyCollection<SessionEquipmentIssue> issues, CancellationToken cancellationToken)
+    {
+        _sessionEquipmentIssues.AddRange(issues);
+        return Task.CompletedTask;
+    }
+
+    public Task<SessionEquipmentIssue?> GetSessionEquipmentIssueByIdAsync(Guid issueId, CancellationToken cancellationToken)
+        => Task.FromResult(_sessionEquipmentIssues.FirstOrDefault(x => x.Id == issueId));
+
+    public Task UpdateSessionEquipmentIssueAsync(SessionEquipmentIssue issue, CancellationToken cancellationToken)
+    {
+        var existing = _sessionEquipmentIssues.FirstOrDefault(x => x.Id == issue.Id);
+        if (existing is not null)
+        {
+            existing.ReturnedAtUtc = issue.ReturnedAtUtc;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private readonly List<StaffPosition> _staffPositions = [];
+    private readonly List<AccessProfile> _accessProfiles = [];
+
+    public Task<IReadOnlyCollection<StaffPosition>> GetStaffPositionsAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = _staffPositions.AsEnumerable();
+        if (activeOnly) query = query.Where(x => x.IsActive);
+        return Task.FromResult<IReadOnlyCollection<StaffPosition>>(query.ToList());
+    }
+
+    public Task<StaffPosition?> GetStaffPositionByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_staffPositions.FirstOrDefault(x => x.Id == id));
+
+    public Task<StaffPosition> AddStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken)
+    {
+        _staffPositions.Add(position);
+        return Task.FromResult(position);
+    }
+
+    public Task UpdateStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken)
+    {
+        var existing = _staffPositions.FirstOrDefault(x => x.Id == position.Id);
+        if (existing is null) { _staffPositions.Add(position); return Task.CompletedTask; }
+        existing.Name = position.Name;
+        existing.Description = position.Description;
+        existing.IsActive = position.IsActive;
+        existing.UpdatedAtUtc = position.UpdatedAtUtc;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyCollection<AccessProfile>> GetAccessProfilesAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = _accessProfiles.AsEnumerable();
+        if (activeOnly) query = query.Where(x => x.IsActive);
+        return Task.FromResult<IReadOnlyCollection<AccessProfile>>(query.ToList());
+    }
+
+    public Task<AccessProfile?> GetAccessProfileByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_accessProfiles.FirstOrDefault(x => x.Id == id));
+
+    public Task<AccessProfile> AddAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken)
+    {
+        _accessProfiles.Add(profile);
+        return Task.FromResult(profile);
+    }
+
+    public Task UpdateAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken)
+    {
+        var existing = _accessProfiles.FirstOrDefault(x => x.Id == profile.Id);
+        if (existing is null) { _accessProfiles.Add(profile); return Task.CompletedTask; }
+        existing.Name = profile.Name;
+        existing.Description = profile.Description;
+        existing.CanRegisterCustomers = profile.CanRegisterCustomers;
+        existing.CanManageSubscriptions = profile.CanManageSubscriptions;
+        existing.CanManageSessions = profile.CanManageSessions;
+        existing.CanManageEquipment = profile.CanManageEquipment;
+        existing.CanViewHistory = profile.CanViewHistory;
+        existing.IsActive = profile.IsActive;
+        existing.UpdatedAtUtc = profile.UpdatedAtUtc;
+        return Task.CompletedTask;
+    }
+
+    private readonly List<StaffMember> _staffMembers = [];
+
+    public Task<IReadOnlyCollection<StaffMember>> GetStaffMembersAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = _staffMembers.AsEnumerable();
+        if (activeOnly) query = query.Where(x => x.IsActive);
+        return Task.FromResult<IReadOnlyCollection<StaffMember>>(query.ToList());
+    }
+
+    public Task<StaffMember?> GetStaffMemberByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_staffMembers.FirstOrDefault(x => x.Id == id));
+
+    public Task<StaffMember?> GetStaffMemberByPinAsync(string pin, CancellationToken cancellationToken)
+    {
+        var hash = StaffPinHasher.Hash(pin);
+        var member = _staffMembers.FirstOrDefault(x =>
+            x.PinHash == hash && x.IsActive && !x.IsDeleted);
+        return Task.FromResult(member);
+    }
+
+    public Task<StaffMember> AddStaffMemberAsync(StaffMember member, CancellationToken cancellationToken)
+    {
+        _staffMembers.Add(member);
+        return Task.FromResult(member);
+    }
+
+    public Task UpdateStaffMemberAsync(StaffMember member, CancellationToken cancellationToken)
+    {
+        var existing = _staffMembers.FirstOrDefault(x => x.Id == member.Id);
+        if (existing is null) { _staffMembers.Add(member); return Task.CompletedTask; }
+        existing.FirstName = member.FirstName;
+        existing.LastName = member.LastName;
+        existing.StaffPositionId = member.StaffPositionId;
+        existing.AccessProfileId = member.AccessProfileId;
+        existing.PhoneNumber = member.PhoneNumber;
+        existing.PinHash = member.PinHash;
+        existing.IsActive = member.IsActive;
+        existing.UpdatedAtUtc = member.UpdatedAtUtc;
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> IsStaffPinInUseAsync(string pin, Guid? excludeMemberId, CancellationToken cancellationToken)
+    {
+        var hash = StaffPinHasher.Hash(pin);
+        var inUse = _staffMembers.Any(x =>
+            x.PinHash == hash
+            && (excludeMemberId is null || excludeMemberId == Guid.Empty || x.Id != excludeMemberId));
+        return Task.FromResult(inUse);
+    }
+
+    public Task<bool> IsStaffPhoneInUseAsync(string phoneNumber, Guid? excludeMemberId, CancellationToken cancellationToken)
+    {
+        var phone = (phoneNumber ?? "").Trim();
+        var inUse = _staffMembers.Any(x =>
+            !string.IsNullOrWhiteSpace(x.PhoneNumber)
+            && string.Equals(x.PhoneNumber.Trim(), phone, StringComparison.Ordinal)
+            && (excludeMemberId is null || excludeMemberId == Guid.Empty || x.Id != excludeMemberId));
+        return Task.FromResult(inUse);
     }
 }

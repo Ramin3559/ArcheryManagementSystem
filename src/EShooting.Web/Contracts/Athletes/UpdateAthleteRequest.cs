@@ -12,5 +12,6 @@ public sealed class UpdateAthleteRequest
     public CustomerCategory Category { get; set; }
     public bool IsSubscriber { get; set; }
     public MembershipType MembershipType { get; set; }
+    public bool IsVip { get; set; }
 }
 

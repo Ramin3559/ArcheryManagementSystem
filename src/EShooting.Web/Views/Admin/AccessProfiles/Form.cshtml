@@ -1,0 +1,59 @@
+@using EShooting.Web.Contracts.AccessProfiles
+@model AccessProfileFormModel
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    var isEdit = Model.Id is not null && Model.Id != Guid.Empty;
+    ViewData["Title"] = isEdit ? "Profili dəyişdir" : "Yeni icazə profili";
+}
+
+<style>
+    .perm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; }
+    .perm-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; font-weight:700; }
+    .perm-item input { margin:0; }
+    @@media (max-width:700px){ .perm-grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="topbar">
+    <h1>@ViewData["Title"]</h1>
+    <a class="btn" href="/admin/access-profiles">← Siyahı</a>
+</div>
+
+<div class="card">
+    <form method="post" action="@(isEdit ? $"/admin/access-profiles/{Model.Id}/edit" : "/admin/access-profiles/new")">
+        @Html.AntiForgeryToken()
+        @if (!ViewData.ModelState.IsValid) {
+            <div style="color:#b91c1c; font-weight:700; margin-bottom:10px;">
+                @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@err.ErrorMessage</div> }
+            </div>
+        }
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="grid-column:1/-1;">
+                <label style="font-size:12px; font-weight:800; color:var(--muted);">Profil adı</label>
+                <input name="Name" value="@Model.Name" required maxlength="80" placeholder="Məs: Tam resepsiya" style="width:100%;" />
+            </div>
+            <div style="grid-column:1/-1;">
+                <label style="font-size:12px; font-weight:800; color:var(--muted);">Qısa təsvir</label>
+                <input name="Description" value="@Model.Description" maxlength="240" style="width:100%;" />
+            </div>
+            <div style="grid-column:1/-1;">
+                <label style="font-size:12px; font-weight:800; color:var(--muted);">Resepsiya icazələri</label>
+                <div class="perm-grid">
+                    <label class="perm-item"><input type="checkbox" name="CanRegisterCustomers" value="true" @(Model.CanRegisterCustomers ? "checked" : "") /> Müştəri qeydiyyatı / axtarış</label>
+                    <label class="perm-item"><input type="checkbox" name="CanManageSubscriptions" value="true" @(Model.CanManageSubscriptions ? "checked" : "") /> Paket / abunə satışı</label>
+                    <label class="perm-item"><input type="checkbox" name="CanManageSessions" value="true" @(Model.CanManageSessions ? "checked" : "") /> Zolaq / seans idarəetməsi</label>
+                    <label class="perm-item"><input type="checkbox" name="CanManageEquipment" value="true" @(Model.CanManageEquipment ? "checked" : "") /> Avadanlıq vermə / qəbul</label>
+                    <label class="perm-item"><input type="checkbox" name="CanViewHistory" value="true" @(Model.CanViewHistory ? "checked" : "") /> Tarixçəyə baxış</label>
+                </div>
+            </div>
+            <div>
+                <label style="display:flex; gap:8px; align-items:center; min-height:42px;">
+                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
+                    <span>Aktiv (işçiyə təyin oluna bilər)</span>
+                </label>
+            </div>
+        </div>
+        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">@(isEdit ? "Yadda saxla" : "Yarat")</button>
+        </div>
+    </form>
+</div>

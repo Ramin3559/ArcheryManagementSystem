@@ -31,4 +31,6 @@ public sealed class ScheduleSessionRequest
     public int DurationMinutes { get; set; } = 60;
 
     public bool IsEquipmentIssued { get; set; }
+
+    public List<SessionEquipmentIssueDto> EquipmentIssues { get; set; } = [];
 }

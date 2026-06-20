@@ -1,0 +1,666 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <title>EShooting — Zolaq monitoru</title>
+    <style>
+        :root {
+            --bg: #eef2fb;
+            --panel: rgba(255, 255, 255, 0.94);
+            --text: #18223a;
+            --muted: #55638a;
+            --border: rgba(41, 55, 89, 0.18);
+            --shadow: 0 10px 30px rgba(13, 24, 48, 0.1);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: radial-gradient(circle at top, #dce6ff 0, var(--bg) 58%);
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body.lane-monitor-body {
+            min-height: 100vh;
+            padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+                     max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+        }
+
+        .lane-monitor-shell {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .lane-monitor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .lane-monitor-title {
+            margin: 0;
+            font-size: clamp(1.15rem, 2.8vw, 1.6rem);
+            font-weight: 800;
+            color: #202c56;
+        }
+
+        .lane-monitor-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .lane-monitor-refresh-btn {
+            min-height: 42px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.95);
+            color: #2a3260;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(13, 24, 48, 0.08);
+        }
+
+        .lane-monitor-refresh-btn:hover {
+            background: #fff;
+        }
+
+        .lane-monitor-refresh-btn:disabled {
+            opacity: 0.65;
+            cursor: wait;
+        }
+
+        .header-clock {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.88);
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .header-clock__value {
+            font-variant-numeric: tabular-nums;
+            color: #202c56;
+        }
+
+        .lane-monitor-panel {
+            padding: 14px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .lane-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        @@media (max-width: 1100px) {
+            .lane-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @@media (max-width: 700px) {
+            .lane-grid { grid-template-columns: 1fr; }
+        }
+
+        .lane-card {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(122, 138, 178, 0.25);
+            border-radius: 16px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            box-shadow: 0 14px 24px rgba(96, 87, 157, 0.12);
+            position: relative;
+        }
+
+        .lane-card--readonly {
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .lane-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .lane-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 800;
+            color: #202c56;
+        }
+
+        .lane-type {
+            font-size: 11px;
+            color: #7b86a7;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .lane-meta {
+            margin: 4px 0;
+            color: #667395;
+            font-size: 13px;
+        }
+
+        .lane-meta--names {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            line-height: 1.35;
+        }
+
+        .lane-meta--compact {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .status-pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(86, 103, 148, 0.18);
+            color: #52618f;
+            flex: 0 0 auto;
+        }
+
+        .status-pill.Active { background: rgba(15, 157, 119, 0.16); color: #0b8a69; }
+        .status-pill.Completed { background: rgba(78, 102, 255, 0.16); color: #445fd4; }
+        .status-pill.Scheduled { background: rgba(214, 138, 0, 0.2); color: #b57100; }
+
+        .countdown-ring-wrap {
+            --ring-track: rgba(62, 77, 130, 0.14);
+            --ring-accent: #17ad80;
+            --ring-glow: rgba(23, 173, 128, 0.25);
+            position: relative;
+            width: 132px;
+            height: 132px;
+            margin: 12px auto 4px;
+            overflow: hidden;
+            border-radius: 50%;
+        }
+
+        .countdown-ring__svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 0 10px var(--ring-glow));
+        }
+
+        .countdown-ring__track {
+            fill: none;
+            stroke: var(--ring-track);
+            stroke-width: 7;
+        }
+
+        .countdown-ring__progress {
+            fill: none;
+            stroke: var(--ring-accent);
+            stroke-width: 7;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease;
+        }
+
+        .countdown-ring__center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 8px;
+            pointer-events: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .countdown-ring__timer {
+            font-size: 22px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.04em;
+            line-height: 1.1;
+            color: #26325f;
+            max-width: 100%;
+            white-space: nowrap;
+            transform-origin: center center;
+        }
+
+        .countdown-ring-wrap[data-time-wide="1"] .countdown-ring__timer {
+            letter-spacing: -0.04em;
+        }
+
+        .countdown-ring__caption {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #7a86a8;
+        }
+
+        .countdown-ring-wrap.is-pending {
+            --ring-accent: #d68a00;
+            --ring-glow: rgba(214, 138, 0, 0.24);
+        }
+
+        .countdown-ring-wrap.is-live.is-warn:not(.is-critical),
+        .countdown-ring-wrap.is-pending.is-warn:not(.is-critical) {
+            --ring-accent: #ef8f1f;
+            --ring-glow: rgba(239, 143, 31, 0.3);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical,
+        .countdown-ring-wrap.is-pending.is-critical {
+            --ring-accent: #d1435f;
+            --ring-glow: rgba(209, 67, 95, 0.34);
+        }
+
+        .countdown-ring-wrap.is-live.is-critical .countdown-ring__timer,
+        .countdown-ring-wrap.is-pending.is-critical .countdown-ring__timer {
+            color: #b63852;
+        }
+
+        .countdown-ring-wrap.is-done,
+        .countdown-ring-wrap.is-idle {
+            --ring-accent: rgba(120, 132, 168, 0.55);
+            --ring-glow: transparent;
+        }
+
+        .lane-bottom-hint {
+            position: absolute;
+            left: 16px;
+            bottom: 16px;
+            font-weight: 900;
+            font-size: 14px;
+            color: #11824b;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+            pointer-events: none;
+        }
+
+        .lane-bottom-hint.is-show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .lane-bottom-hint.is-warn { color: #c77700; }
+        .lane-bottom-hint.is-critical { color: #b63852; }
+
+        .countdown-ring-wrap[data-time-wide="1"] .countdown-ring__timer {
+            font-size: 14px;
+            letter-spacing: -0.04em;
+        }
+
+        .lane-monitor-loading {
+            padding: 24px;
+            text-align: center;
+            color: var(--muted);
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="lane-monitor-body">
+    <div class="lane-monitor-shell">
+        <header class="lane-monitor-header">
+            <div>
+                <h1 class="lane-monitor-title">Zolaq monitoru</h1>
+            </div>
+            <div class="lane-monitor-meta">
+                <button type="button" id="refreshBtn" class="lane-monitor-refresh-btn">Yenilə</button>
+                <div class="header-clock" title="Cari saat">
+                    <span id="wallClock" class="header-clock__value">--:--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="lane-monitor-panel">
+            <div class="lane-grid" id="laneGrid">
+                <div class="lane-monitor-loading">Yüklənir…</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/lib/signalr/signalr.min.js"></script>
+    <script>
+        const laneGrid = document.getElementById("laneGrid");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const wallClock = document.getElementById("wallClock");
+
+        const COUNTDOWN_WARN_SEC = 300;
+        const COUNTDOWN_CRIT_SEC = 120;
+        const SESSION_BUFFER_MS = 0;
+
+        let lastLaneGridHtml = "";
+        let gridLoadInFlight = false;
+        let gridLoadQueued = false;
+        let countdownTimerId = null;
+
+        function parseApiDate(value) {
+            if (!value) return new Date(0);
+            const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
+            return new Date(needsUtcSuffix ? `${value}Z` : value);
+        }
+
+        function hasValidTimeWindow(startMs, endMs) {
+            return Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
+        }
+
+        function formatSeconds(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            if (hours > 0) {
+                return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+            }
+            return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        }
+
+        function applyRingRemaining(circle, fractionRemaining) {
+            const f = Math.max(0, Math.min(1, fractionRemaining));
+            const r = circle instanceof SVGCircleElement ? circle.r.baseVal.value : 42;
+            const len = 2 * Math.PI * r;
+            circle.style.strokeDasharray = String(len);
+            circle.style.strokeDashoffset = String(len * (1 - f));
+        }
+
+        function syncCountdownTimerFormatFlags(ringEl, timerEl) {
+            if (!(ringEl instanceof HTMLElement) || !(timerEl instanceof HTMLElement)) return;
+            const text = String(timerEl.textContent || "").trim();
+            const colons = (text.match(/:/g) || []).length;
+            const isWide = colons >= 2 || text.length >= 8;
+            ringEl.setAttribute("data-time-wide", isWide ? "1" : "0");
+        }
+
+        function updateCountdownRings() {
+            document.querySelectorAll("[data-countdown-ring]").forEach(el => {
+                if (!(el instanceof HTMLElement)) return;
+
+                const start = el.dataset.start ?? "";
+                const end = el.dataset.end ?? "";
+                const status = el.dataset.status ?? "";
+                const pendingRental = el.dataset.pendingRentalEquipment === "1";
+                const timerEl = el.querySelector('[data-role="timer"]');
+                const captionEl = el.querySelector('[data-role="caption"]');
+                const progressEl = el.querySelector(".countdown-ring__progress");
+                if (!timerEl || !(progressEl instanceof SVGGraphicsElement)) return;
+
+                try {
+                    const card = el.closest(".lane-card");
+                    const bottomHint = card instanceof HTMLElement ? card.querySelector('[data-role="lane-bottom-hint"]') : null;
+                    const setBottomHint = (text, kind) => {
+                        if (!(bottomHint instanceof HTMLElement)) return;
+                        bottomHint.textContent = text || "";
+                        bottomHint.classList.toggle("is-show", Boolean(text));
+                        bottomHint.classList.toggle("is-warn", kind === "warn");
+                        bottomHint.classList.toggle("is-critical", kind === "critical");
+                    };
+                    const setEquipmentReturnHint = () => {
+                        if (pendingRental) {
+                            setBottomHint("Avadanlıq təhvil alınmalıdır", "critical");
+                            return true;
+                        }
+                        return false;
+                    };
+
+                    el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle");
+
+                    const startMs = parseApiDate(start).getTime();
+                    const endMs = parseApiDate(end).getTime();
+                    const nowMs = Date.now();
+                    const timedSession = hasValidTimeWindow(startMs, endMs);
+
+                    if (!start || !end || !timedSession) {
+                        if (status === "Completed") {
+                            el.classList.add("is-done");
+                            timerEl.textContent = "Bitib";
+                            if (captionEl) captionEl.textContent = "Sessiya";
+                            if (!setEquipmentReturnHint()) {
+                                setBottomHint("", "");
+                            }
+                            applyRingRemaining(progressEl, 0);
+                            return;
+                        }
+
+                        if (status === "Scheduled") {
+                            el.classList.add("is-pending");
+                            const untilStartMs = Number.isFinite(startMs) ? Math.max(0, startMs - nowMs) : 0;
+                            timerEl.textContent = untilStartMs > 0 ? formatSeconds(untilStartMs) : "—";
+                            if (captionEl) captionEl.textContent = untilStartMs > 0 ? "Başlayır" : "Planlı";
+                            setBottomHint("", "");
+                            applyRingRemaining(progressEl, 1);
+                            return;
+                        }
+
+                        if (status === "Active") {
+                            el.classList.add("is-live");
+                            const elapsedMs = Number.isFinite(startMs) ? Math.max(1000, nowMs - startMs) : 1000;
+                            timerEl.textContent = formatSeconds(elapsedMs);
+                            if (captionEl) captionEl.textContent = "Keçən vaxt";
+                            setBottomHint("", "");
+                            applyRingRemaining(progressEl, 1);
+                            return;
+                        }
+
+                        el.classList.add("is-idle");
+                        timerEl.textContent = "—";
+                        if (captionEl) captionEl.textContent = "Boş";
+                        setBottomHint("", "");
+                        applyRingRemaining(progressEl, 0);
+                        return;
+                    }
+
+                    if (status === "Completed") {
+                        el.classList.add("is-done");
+                        timerEl.textContent = "Bitib";
+                        if (captionEl) captionEl.textContent = "Sessiya";
+                        if (!setEquipmentReturnHint()) {
+                            setBottomHint("", "");
+                        }
+                        applyRingRemaining(progressEl, 0);
+                        return;
+                    }
+
+                    if (nowMs < startMs) {
+                        el.classList.add("is-pending");
+                        const untilMs = startMs - nowMs;
+                        const untilSec = Math.floor(untilMs / 1000);
+                        const startLocal = new Date(startMs);
+
+                        if (untilSec > 24 * 3600) {
+                            timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                            if (captionEl) captionEl.textContent = "Planlı";
+                            setBottomHint("", "");
+                            applyRingRemaining(progressEl, 1);
+                            return;
+                        }
+
+                        if (untilSec <= 120) el.classList.add("is-critical");
+                        else if (untilSec <= 300) el.classList.add("is-warn");
+
+                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        if (captionEl) captionEl.textContent = "Başlayır";
+                        if (untilSec <= 300) {
+                            const minLeft = Math.max(0, Math.ceil(untilSec / 60));
+                            setBottomHint(`${minLeft} dəqiqə qaldı`, untilSec <= 120 ? "critical" : "warn");
+                        } else {
+                            setBottomHint("", "");
+                        }
+                        applyRingRemaining(progressEl, 1);
+                        return;
+                    }
+
+                    if (nowMs >= endMs) {
+                        el.classList.add("is-done");
+                        timerEl.textContent = "00:00";
+                        if (captionEl) captionEl.textContent = "Vaxt bitib";
+                        if (!setEquipmentReturnHint()) {
+                            setBottomHint("", "");
+                        }
+                        applyRingRemaining(progressEl, 0);
+                        return;
+                    }
+
+                    const trainingEndMs = Math.max(startMs, endMs - SESSION_BUFFER_MS);
+                    const trainingRemainingMs = trainingEndMs - nowMs;
+                    const trainingRemainingSec = Math.floor(trainingRemainingMs / 1000);
+
+                    if (trainingRemainingMs <= 0) {
+                        el.classList.add("is-idle");
+                        timerEl.textContent = "00:00";
+                        if (captionEl) captionEl.textContent = "Təmizlik";
+                        if (!setEquipmentReturnHint()) {
+                            setBottomHint("", "");
+                        }
+                        applyRingRemaining(progressEl, 0);
+                        return;
+                    }
+
+                    const frac = (trainingEndMs - startMs) > 0 ? trainingRemainingMs / (trainingEndMs - startMs) : 0;
+                    el.classList.add("is-live");
+                    if (trainingRemainingSec <= COUNTDOWN_CRIT_SEC) el.classList.add("is-critical");
+                    else if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) el.classList.add("is-warn");
+
+                    timerEl.textContent = formatSeconds(trainingRemainingMs);
+                    if (captionEl) captionEl.textContent = "Qalan vaxt";
+
+                    if (trainingRemainingSec <= COUNTDOWN_WARN_SEC) {
+                        const minLeft = Math.max(0, Math.ceil(trainingRemainingSec / 60));
+                        setBottomHint(`${minLeft} dəqiqə qaldı`, trainingRemainingSec <= COUNTDOWN_CRIT_SEC ? "critical" : "warn");
+                    } else {
+                        setBottomHint("", "");
+                    }
+
+                    applyRingRemaining(progressEl, frac);
+                } finally {
+                    syncCountdownTimerFormatFlags(el, timerEl);
+                }
+            });
+        }
+
+        async function loadLaneGrid(force) {
+            if (gridLoadInFlight) {
+                gridLoadQueued = true;
+                return;
+            }
+            gridLoadInFlight = true;
+            if (refreshBtn instanceof HTMLButtonElement) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = "Yenilənir…";
+            }
+            try {
+                const response = await fetch("/dashboard/lanes/partial/grid-readonly?_=" + Date.now(), {
+                    credentials: "same-origin",
+                    cache: "no-store"
+                });
+                if (!response.ok) return;
+                const html = await response.text();
+                if (!force && html === lastLaneGridHtml) {
+                    updateCountdownRings();
+                    return;
+                }
+                lastLaneGridHtml = html;
+                if (laneGrid) {
+                    laneGrid.innerHTML = html;
+                }
+                updateCountdownRings();
+            } catch (e) {
+                console.error("loadLaneGrid", e);
+            } finally {
+                if (refreshBtn instanceof HTMLButtonElement) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = "Yenilə";
+                }
+                gridLoadInFlight = false;
+                if (gridLoadQueued) {
+                    gridLoadQueued = false;
+                    void loadLaneGrid(true);
+                }
+            }
+        }
+
+        function startCountdownTicker() {
+            if (countdownTimerId) clearInterval(countdownTimerId);
+            const tick = () => {
+                if (wallClock) {
+                    wallClock.textContent = new Date().toLocaleTimeString("az-AZ", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit"
+                    });
+                }
+                updateCountdownRings();
+            };
+            tick();
+            countdownTimerId = setInterval(tick, 1000);
+        }
+
+        async function startSignalR() {
+            if (typeof signalR === "undefined" || !signalR?.HubConnectionBuilder) {
+                setTimeout(startSignalR, 5000);
+                return;
+            }
+
+            try {
+                const connection = new signalR.HubConnectionBuilder()
+                    .withUrl("/hubs/lane")
+                    .withAutomaticReconnect()
+                    .build();
+
+                connection.onreconnected(() => void loadLaneGrid(true));
+                connection.on("lane-updated", () => void loadLaneGrid(false));
+                connection.on("score-updated", () => void loadLaneGrid(false));
+
+                await connection.start();
+            } catch {
+                setTimeout(startSignalR, 5000);
+            }
+        }
+
+        refreshBtn?.addEventListener("click", () => void loadLaneGrid(true));
+
+        void loadLaneGrid(true);
+        startCountdownTicker();
+        setTimeout(startSignalR, 0);
+        setInterval(() => void loadLaneGrid(false), 15000);
+    </script>
+</body>
+</html>

@@ -26,7 +26,10 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
-        var athleteById = athletes.ToDictionary(x => x.Id, x => new { x.FullName, x.MembershipType });
+        var equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
+        var athleteById = athletes.ToDictionary(
+            x => x.Id,
+            x => new { x.FullName, x.FirstName, x.LastName, x.MembershipType });
 
         var result = lanes
             .OrderBy(x => x.Number)
@@ -54,14 +57,19 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                             return startUtc > nowUtc && startUtc < endOfTodayUtc;
                         })
                         .OrderBy(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
+                        .FirstOrDefault()
+                    ?? laneSessions
+                        .Where(x => IsOverdueOpenSession(x, nowUtc))
+                        .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.EndTimeUtc))
                         .FirstOrDefault();
 
-                var athleteName = activeSession is null
+                var athlete = activeSession is null
                     ? null
-                    : athleteById.GetValueOrDefault(activeSession.AthleteId)?.FullName;
-                var membershipType = activeSession is null
-                    ? null
-                    : athleteById.GetValueOrDefault(activeSession.AthleteId)?.MembershipType;
+                    : athleteById.GetValueOrDefault(activeSession.AthleteId);
+                var athleteName = athlete?.FullName;
+                var athleteFirstName = athlete?.FirstName;
+                var athleteLastName = athlete?.LastName;
+                var membershipType = athlete?.MembershipType;
                 var queueAthleteNames = laneSessions
                     .OrderBy(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
                     .Select(x => athleteById.GetValueOrDefault(x.AthleteId))
@@ -99,6 +107,8 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     LaneNumber = lane.Number,
                     LaneType = lane.LaneType,
                     AthleteName = athleteName,
+                    AthleteFirstName = athleteFirstName,
+                    AthleteLastName = athleteLastName,
                     AthleteMembershipType = membershipType,
                     QueueAthleteNames = queueAthleteNames,
                     StartTimeUtc = startTimeUtc,
@@ -108,12 +118,27 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     Status = status,
                     Warning = warning,
                     IsEquipmentIssued = activeSession?.IsEquipmentIssued ?? false,
-                    IsEquipmentReturned = (activeSession?.EquipmentReturnedAtUtc is not null)
+                    IsEquipmentReturned = activeSession?.EquipmentReturnedAtUtc is not null,
+                    HasPendingRentalEquipment = activeSession is not null
+                        && SessionEquipmentRules.HasPendingRentalEquipment(activeSession, equipmentIssues),
+                    IsSessionOpen = activeSession?.Status != SessionStatus.Completed
                 };
             })
             .ToList();
 
         return result;
+    }
+
+    private static bool IsOverdueOpenSession(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)
+    {
+        var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        if (!HasValidTimeWindow(start, end))
+        {
+            return false;
+        }
+
+        return nowUtc >= end;
     }
 
     private static bool IsInLiveWindow(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)

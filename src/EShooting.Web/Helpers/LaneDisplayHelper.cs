@@ -157,6 +157,82 @@ public static class LaneDisplayHelper
         return string.IsNullOrEmpty(core) ? "Atıcı: —" : $"Atıcı: {core}";
     }
 
+    /// <summary>TV ekranı üçün Ad və Soyadı ayırır (DB sahələri və ya FullName-dən).</summary>
+    public static (string First, string Last) SplitAthleteDisplayName(
+        string? fullName,
+        string? firstName = null,
+        string? lastName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(firstName) || !string.IsNullOrWhiteSpace(lastName))
+        {
+            return (firstName?.Trim() ?? "", lastName?.Trim() ?? "");
+        }
+
+        var core = StripAthleteLabelPrefix(fullName);
+        if (string.IsNullOrEmpty(core))
+        {
+            return ("", "");
+        }
+
+        if (IsGroupAthleteName(fullName))
+        {
+            return (core, "");
+        }
+
+        var spaceIdx = core.IndexOf(' ');
+        if (spaceIdx <= 0)
+        {
+            return (core, "");
+        }
+
+        return (core[..spaceIdx], core[(spaceIdx + 1)..].Trim());
+    }
+
+    public sealed record GroupAthleteDisplayLine(string First, string Last, bool TrailingComma);
+
+    /// <summary>Qrup sessiyası üçün TV ekranı: hər adam Ad / Soyad, vergül alt-alta.</summary>
+    public static IReadOnlyList<GroupAthleteDisplayLine> ParseGroupAthleteDisplayLines(
+        string? fullName,
+        string? firstName = null,
+        string? lastName = null)
+    {
+        var core = StripAthleteLabelPrefix(fullName);
+        if (string.IsNullOrWhiteSpace(core) && string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
+        {
+            return Array.Empty<GroupAthleteDisplayLine>();
+        }
+
+        if (!IsGroupAthleteName(fullName))
+        {
+            var (first, last) = SplitAthleteDisplayName(fullName, firstName, lastName);
+            return [new GroupAthleteDisplayLine(first, last, false)];
+        }
+
+        var parts = core.Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var lines = new List<GroupAthleteDisplayLine>(parts.Length);
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i].Trim();
+            var spaceIdx = part.IndexOf(' ');
+            string first;
+            string last;
+            if (spaceIdx <= 0)
+            {
+                first = part;
+                last = "";
+            }
+            else
+            {
+                first = part[..spaceIdx];
+                last = part[(spaceIdx + 1)..].Trim();
+            }
+
+            lines.Add(new GroupAthleteDisplayLine(first, last, i < parts.Length - 1));
+        }
+
+        return lines;
+    }
+
     public static bool IsGroupAthleteName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))

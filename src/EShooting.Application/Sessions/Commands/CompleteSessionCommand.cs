@@ -1,6 +1,7 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Enums;
 using MediatR;
+using static EShooting.Application.Sessions.SessionEquipmentRules;
 
 namespace EShooting.Application.Sessions.Commands;
 
@@ -14,6 +15,17 @@ public sealed class CompleteSessionCommandHandler(
     {
         var session = await repository.GetSessionByIdAsync(request.SessionId, cancellationToken)
             ?? throw new InvalidOperationException("Session not found.");
+
+        if (session.Status == SessionStatus.Completed)
+        {
+            return;
+        }
+
+        var equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
+        if (HasPendingRentalEquipment(session, equipmentIssues))
+        {
+            throw new InvalidOperationException("İcarə avadanlığı təhvil alınmalıdır.");
+        }
 
         session.Status = SessionStatus.Completed;
         await repository.UpdateSessionAsync(session, cancellationToken);

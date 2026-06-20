@@ -1,0 +1,425 @@
+@using EShooting.Application.Common.Models
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Analitika";
+    var a = ViewData["Analytics"] as OperationsAnalyticsResult;
+}
+
+<style>
+    .preset-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .preset-btn {
+        border-radius:999px;
+        border:1px solid var(--border);
+        background:#fff;
+        padding:6px 14px;
+        font-weight:700;
+        cursor:pointer;
+        font-size:13px;
+        color:#253060;
+    }
+    .preset-btn:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
+    .preset-btn.active {
+        background: var(--primary);
+        color:#fff;
+        border-color: rgba(79,70,229,0.35);
+    }
+    .range-controls {
+        display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:10px;
+    }
+    .range-controls label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); font-weight:700; }
+    .range-controls input { min-width: 160px; }
+    .grid3 { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    @@media (max-width: 900px){ .grid3 { grid-template-columns: 1fr; } }
+    .hint { font-size:12px; color: var(--muted); margin-top: 4px; }
+    .money { color: #166534; }
+    .section-title { font-weight: 900; font-size: 16px; margin: 0 0 10px; }
+    .top-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+</style>
+
+<div class="topbar">
+    <h1>Analitika</h1>
+    <div class="top-actions">
+        <button type="button" class="btn" id="analyticsRefreshBtn">Yenilə</button>
+        <a class="btn btn-excel" id="analyticsExportBtn" href="/admin/analytics/export.xlsx?mode=today">Excel-ə çıxart</a>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+        <div>
+            <div class="statLabel">Tarix aralığı</div>
+            <div style="font-weight:800; font-size:18px; margin-top:2px;" id="analyticsLabel">@(a?.Label ?? "")</div>
+        </div>
+        <div class="preset-row">
+            <button type="button" class="preset-btn active" data-mode="today">Bu gün</button>
+            <button type="button" class="preset-btn" data-mode="yesterday">Dünən</button>
+            <button type="button" class="preset-btn" data-mode="last7">Son 7 gün</button>
+            <button type="button" class="preset-btn" data-mode="month">Cari ay</button>
+            <button type="button" class="preset-btn" data-mode="range">Aralıq</button>
+        </div>
+    </div>
+
+    <div class="range-controls" id="analyticsRangeRow" style="display:none;">
+        <label>Başlanğıc tarixi
+            <input type="date" id="analyticsFromDate" />
+        </label>
+        <label>Bitmə tarixi
+            <input type="date" id="analyticsToDate" />
+        </label>
+        <button type="button" class="btn btn-primary" id="analyticsRangeApply">Tətbiq et</button>
+    </div>
+
+    <div class="range-controls" id="analyticsMonthRow" style="display:none;">
+        <label>Ay seç
+            <input type="month" id="analyticsMonthPicker" />
+        </label>
+        <button type="button" class="btn btn-primary" id="analyticsMonthApply">Tətbiq et</button>
+    </div>
+</div>
+
+<div class="grid3" style="margin-bottom:16px;">
+    <div class="card">
+        <div class="statLabel">Gələn müştəri</div>
+        <div class="statValue" id="statUniqueCustomers">@(a?.UniqueCustomerCount ?? 0)</div>
+        <div class="hint">Seçilmiş aralıqda kluba gələn fərqli şəxslər</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Yeni müştəri</div>
+        <div class="statValue" id="statNewCustomers">@(a?.NewCustomerCount ?? 0)</div>
+        <div class="hint">İlk dəfə seans edənlər</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Seans sayı</div>
+        <div class="statValue" id="statSessionCount">@(a?.SessionCount ?? 0)</div>
+        <div class="hint">Zolağa yazılan sessiyalar</div>
+    </div>
+</div>
+
+<div class="grid3" style="margin-bottom:16px;">
+    <div class="card">
+        <div class="statLabel">Yeni abunə yazılışı</div>
+        <div class="statValue" id="statSubscriptions">@(a?.SubscriptionCreatedCount ?? 0)</div>
+        <div class="hint">Aralıqda yaradılan abunə planları</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Avadanlıq satışı</div>
+        <div class="statValue" id="statSaleCount">@(a?.EquipmentSaleCount ?? 0)</div>
+        <div class="hint money" id="statSaleRevenue">Gəlir: @(a?.EquipmentSaleRevenue.ToString("0.##") ?? "0") ₼</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Avadanlıq icarəsi</div>
+        <div class="statValue" id="statRentalCount">@(a?.EquipmentRentalCount ?? 0)</div>
+        <div class="hint money" id="statRentalRevenue">Dəyər: @(a?.EquipmentRentalRevenue.ToString("0.##") ?? "0") ₼</div>
+    </div>
+</div>
+
+<div class="grid3" style="margin-bottom:16px;">
+    <div class="card">
+        <div class="statLabel">Zolaq aktiv saatı</div>
+        <div class="statValue" id="statLaneHours">@(a?.TotalLaneHours.ToString("0.##") ?? "0")</div>
+        <div class="hint">Bütün zolaqlar üzrə cəmi saat</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Ən yüklü zolaq</div>
+        <div class="statValue" id="statBusiestLane">@(a?.BusiestLaneNumber is int ln ? $"Zolaq {ln}" : "—")</div>
+        <div class="hint">Ən çox saat aktiv olan zolaq</div>
+    </div>
+    <div class="card">
+        <div class="statLabel">Avadanlıq cəmi</div>
+        <div class="statValue" id="statEquipmentTotal">@((a?.EquipmentSaleCount ?? 0) + (a?.EquipmentRentalCount ?? 0))</div>
+        <div class="hint money" id="statEquipmentRevenue">Cəmi: @(((a?.EquipmentSaleRevenue ?? 0) + (a?.EquipmentRentalRevenue ?? 0)).ToString("0.##")) ₼</div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <div class="section-title">Günlük icmal</div>
+    <div class="tableWrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tarix</th>
+                    <th>Gələn müştəri</th>
+                    <th>Yeni müştəri</th>
+                    <th>Seans</th>
+                    <th>Abunə</th>
+                    <th>Satış</th>
+                    <th>İcarə</th>
+                    <th>Zolaq saatı</th>
+                </tr>
+            </thead>
+            <tbody id="dailyBreakdownBody">
+                @if (a?.DailyBreakdown is { Count: > 0 } dailyRows)
+                {
+                    foreach (var row in dailyRows)
+                    {
+                        <tr>
+                            <td>@row.DateLocal</td>
+                            <td>@row.UniqueCustomerCount</td>
+                            <td>@row.NewCustomerCount</td>
+                            <td>@row.SessionCount</td>
+                            <td>@row.SubscriptionCreatedCount</td>
+                            <td>@row.EquipmentSaleCount</td>
+                            <td>@row.EquipmentRentalCount</td>
+                            <td>@row.LaneHoursTotal.ToString("0.##")</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="8" style="color:var(--muted);">Məlumat yoxdur.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <div class="section-title">Zolaq üzrə aktivlik</div>
+    <div class="tableWrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Zolaq</th>
+                    <th>Seans sayı</th>
+                    <th>Aktiv saat</th>
+                </tr>
+            </thead>
+            <tbody id="laneActivityBody">
+                @if (a?.LaneActivity is { Count: > 0 } laneRows)
+                {
+                    foreach (var row in laneRows.Where(x => x.SessionCount > 0 || x.TotalHours > 0))
+                    {
+                        <tr>
+                            <td>Zolaq @row.LaneNumber</td>
+                            <td>@row.SessionCount</td>
+                            <td>@row.TotalHours.ToString("0.##")</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="3" style="color:var(--muted);">Seçilmiş aralıqda aktiv zolaq yoxdur.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">Avadanlıq üzrə detallar</div>
+    <div class="tableWrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Avadanlıq</th>
+                    <th>Satış</th>
+                    <th>İcarə</th>
+                    <th>Satış gəliri</th>
+                    <th>İcarə dəyəri</th>
+                </tr>
+            </thead>
+            <tbody id="equipmentBreakdownBody">
+                @if (a?.EquipmentBreakdown is { Count: > 0 } equipRows)
+                {
+                    foreach (var row in equipRows)
+                    {
+                        <tr>
+                            <td>@row.EquipmentName</td>
+                            <td>@row.SaleCount</td>
+                            <td>@row.RentalCount</td>
+                            <td>@row.SaleRevenue.ToString("0.##") ₼</td>
+                            <td>@row.RentalRevenue.ToString("0.##") ₼</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="5" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq əməliyyatı yoxdur.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const analyticsUrl = "/admin/analytics/data";
+        let currentMode = "today";
+        const labelEl = document.getElementById("analyticsLabel");
+        const exportBtn = document.getElementById("analyticsExportBtn");
+        const rangeRow = document.getElementById("analyticsRangeRow");
+        const monthRow = document.getElementById("analyticsMonthRow");
+        const fromDateEl = document.getElementById("analyticsFromDate");
+        const toDateEl = document.getElementById("analyticsToDate");
+        const monthPickerEl = document.getElementById("analyticsMonthPicker");
+
+        function fmtMoney(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return "0 ₼";
+            return n.toFixed(2).replace(/\.00$/, "") + " ₼";
+        }
+
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(value ?? "");
+        }
+
+        function buildQueryParams() {
+            const params = new URLSearchParams();
+            params.set("mode", currentMode);
+            if (currentMode === "range") {
+                if (fromDateEl instanceof HTMLInputElement && fromDateEl.value) params.set("fromDate", fromDateEl.value);
+                if (toDateEl instanceof HTMLInputElement && toDateEl.value) params.set("toDate", toDateEl.value);
+            }
+            if (currentMode === "month" && monthPickerEl instanceof HTMLInputElement && monthPickerEl.value) {
+                params.set("month", monthPickerEl.value);
+            }
+            return params;
+        }
+
+        function buildUrl() {
+            return analyticsUrl + "?" + buildQueryParams().toString();
+        }
+
+        function syncExportLink() {
+            if (!(exportBtn instanceof HTMLAnchorElement)) return;
+            exportBtn.href = "/admin/analytics/export.xlsx?" + buildQueryParams().toString();
+        }
+
+        function renderDaily(rows) {
+            const body = document.getElementById("dailyBreakdownBody");
+            if (!body) return;
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">Məlumat yoxdur.</td></tr>';
+                return;
+            }
+            body.innerHTML = list.map(function (row) {
+                return "<tr>"
+                    + "<td>" + (row.dateLocal || "—") + "</td>"
+                    + "<td>" + (row.uniqueCustomerCount ?? 0) + "</td>"
+                    + "<td>" + (row.newCustomerCount ?? 0) + "</td>"
+                    + "<td>" + (row.sessionCount ?? 0) + "</td>"
+                    + "<td>" + (row.subscriptionCreatedCount ?? 0) + "</td>"
+                    + "<td>" + (row.equipmentSaleCount ?? 0) + "</td>"
+                    + "<td>" + (row.equipmentRentalCount ?? 0) + "</td>"
+                    + "<td>" + Number(row.laneHoursTotal ?? 0).toFixed(2) + "</td>"
+                    + "</tr>";
+            }).join("");
+        }
+
+        function renderLanes(rows) {
+            const body = document.getElementById("laneActivityBody");
+            if (!body) return;
+            const list = (Array.isArray(rows) ? rows : []).filter(function (x) {
+                return (Number(x.sessionCount) || 0) > 0 || (Number(x.totalHours) || 0) > 0;
+            });
+            if (!list.length) {
+                body.innerHTML = '<tr><td colspan="3" style="color:var(--muted);">Seçilmiş aralıqda aktiv zolaq yoxdur.</td></tr>';
+                return;
+            }
+            body.innerHTML = list.map(function (row) {
+                return "<tr>"
+                    + "<td>Zolaq " + (row.laneNumber ?? "—") + "</td>"
+                    + "<td>" + (row.sessionCount ?? 0) + "</td>"
+                    + "<td>" + Number(row.totalHours ?? 0).toFixed(2) + "</td>"
+                    + "</tr>";
+            }).join("");
+        }
+
+        function renderEquipment(rows) {
+            const body = document.getElementById("equipmentBreakdownBody");
+            if (!body) return;
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq əməliyyatı yoxdur.</td></tr>';
+                return;
+            }
+            body.innerHTML = list.map(function (row) {
+                return "<tr>"
+                    + "<td>" + (row.equipmentName || "—") + "</td>"
+                    + "<td>" + (row.saleCount ?? 0) + "</td>"
+                    + "<td>" + (row.rentalCount ?? 0) + "</td>"
+                    + "<td>" + fmtMoney(row.saleRevenue) + "</td>"
+                    + "<td>" + fmtMoney(row.rentalRevenue) + "</td>"
+                    + "</tr>";
+            }).join("");
+        }
+
+        function renderData(data) {
+            if (!data) return;
+            if (labelEl) labelEl.textContent = data.label || "";
+            setText("statUniqueCustomers", data.uniqueCustomerCount ?? 0);
+            setText("statNewCustomers", data.newCustomerCount ?? 0);
+            setText("statSessionCount", data.sessionCount ?? 0);
+            setText("statSubscriptions", data.subscriptionCreatedCount ?? 0);
+            setText("statSaleCount", data.equipmentSaleCount ?? 0);
+            setText("statRentalCount", data.equipmentRentalCount ?? 0);
+            setText("statLaneHours", Number(data.totalLaneHours ?? 0).toFixed(2));
+            setText("statBusiestLane", data.busiestLaneNumber ? ("Zolaq " + data.busiestLaneNumber) : "—");
+            setText("statEquipmentTotal", (Number(data.equipmentSaleCount) || 0) + (Number(data.equipmentRentalCount) || 0));
+
+            const saleRev = document.getElementById("statSaleRevenue");
+            if (saleRev) saleRev.textContent = "Gəlir: " + fmtMoney(data.equipmentSaleRevenue);
+            const rentalRev = document.getElementById("statRentalRevenue");
+            if (rentalRev) rentalRev.textContent = "Dəyər: " + fmtMoney(data.equipmentRentalRevenue);
+            const totalRev = document.getElementById("statEquipmentRevenue");
+            if (totalRev) {
+                const sum = (Number(data.equipmentSaleRevenue) || 0) + (Number(data.equipmentRentalRevenue) || 0);
+                totalRev.textContent = "Cəmi: " + fmtMoney(sum);
+            }
+
+            renderDaily(data.dailyBreakdown);
+            renderLanes(data.laneActivity);
+            renderEquipment(data.equipmentBreakdown);
+            syncExportLink();
+        }
+
+        function syncPresetUi() {
+            document.querySelectorAll(".preset-btn[data-mode]").forEach(function (btn) {
+                btn.classList.toggle("active", btn.getAttribute("data-mode") === currentMode);
+            });
+            if (rangeRow) rangeRow.style.display = currentMode === "range" ? "" : "none";
+            if (monthRow) monthRow.style.display = currentMode === "month" ? "" : "none";
+        }
+
+        function loadAnalytics() {
+            syncExportLink();
+            return fetch(buildUrl(), { credentials: "same-origin", cache: "no-store" })
+                .then(function (res) { return res.ok ? res.json() : null; })
+                .then(renderData)
+                .catch(function () { /* ignore */ });
+        }
+
+        document.querySelectorAll(".preset-btn[data-mode]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                currentMode = btn.getAttribute("data-mode") || "today";
+                syncPresetUi();
+                loadAnalytics();
+            });
+        });
+
+        document.getElementById("analyticsRangeApply")?.addEventListener("click", loadAnalytics);
+        document.getElementById("analyticsMonthApply")?.addEventListener("click", loadAnalytics);
+        document.getElementById("analyticsRefreshBtn")?.addEventListener("click", loadAnalytics);
+        fromDateEl?.addEventListener("change", function () {
+            if (currentMode === "range") loadAnalytics();
+        });
+        toDateEl?.addEventListener("change", function () {
+            if (currentMode === "range") loadAnalytics();
+        });
+        monthPickerEl?.addEventListener("change", function () {
+            if (currentMode === "month") loadAnalytics();
+        });
+
+        const today = new Date();
+        const iso = today.toISOString().slice(0, 10);
+        if (fromDateEl instanceof HTMLInputElement && !fromDateEl.value) fromDateEl.value = iso;
+        if (toDateEl instanceof HTMLInputElement && !toDateEl.value) toDateEl.value = iso;
+        if (monthPickerEl instanceof HTMLInputElement && !monthPickerEl.value) {
+            monthPickerEl.value = iso.slice(0, 7);
+        }
+        syncPresetUi();
+        syncExportLink();
+    })();
+</script>

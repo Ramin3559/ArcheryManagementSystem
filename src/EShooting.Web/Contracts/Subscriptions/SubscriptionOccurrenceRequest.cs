@@ -12,3 +12,12 @@ public sealed class UpsertSubscriptionOccurrenceOverrideRequest
     public int LaneNumber { get; set; }
     public int? DurationMinutes { get; set; }
 }
+
+public sealed class RescheduleSubscriptionOccurrenceRequest
+{
+    public string SourceDateLocal { get; set; } = "";
+    public string TargetDateLocal { get; set; } = "";
+    public string StartTimeLocal { get; set; } = "";
+    public int LaneNumber { get; set; }
+    public int? DurationMinutes { get; set; }
+}

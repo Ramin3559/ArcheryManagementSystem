@@ -19,6 +19,15 @@ public sealed class DashboardPartialController(CachedLaneDashboardService laneDa
         return PartialView("Lanes/_LaneGrid", lanes);
     }
 
+    /// <summary>Planşet monitoru — Stop düyməsi və digər əməliyyatlar olmadan.</summary>
+    [HttpGet("lanes/partial/grid-readonly")]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    public async Task<IActionResult> LaneGridReadOnly(CancellationToken cancellationToken)
+    {
+        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
+        return PartialView("Lanes/_LaneGridReadOnly", lanes);
+    }
+
     [HttpGet("lanes/partial/table")]
     public async Task<IActionResult> LaneTable(CancellationToken cancellationToken)
     {

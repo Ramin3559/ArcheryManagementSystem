@@ -24,6 +24,7 @@
 
         var isEffectivelyActive = string.Equals(effectiveStatus, "Active", StringComparison.Ordinal);
         var laneTypeText = LaneDisplayHelper.TranslateLaneType(Model.LaneType);
+        var showSession = Model.IsSessionOpen && Model.SessionId is not null;
     }
     <div class="lane-head">
         <h3 class="lane-title">Zolaq @Model.LaneNumber</h3>
@@ -37,13 +38,13 @@
                 ? $"Atıcı ({laneTypeText})"
                 : laneTypeText
         )</div>
-    @if (effectiveStatus is "Active" or "Scheduled")
+    @if (showSession)
     {
         <div class="lane-meta">
             @LaneDisplayHelper.FormatAthleteLabel(Model.AthleteName)
-            @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
+            @if (Model.HasPendingRentalEquipment)
             {
-                <span title="Avadanlıq verilib" style="margin-left:6px;">🏹</span>
+                <span title="İcarə avadanlığı verilib" style="margin-left:6px;">🏹</span>
             }
         </div>
         <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc)</div>
@@ -53,7 +54,8 @@
          data-countdown-ring
          data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
          data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
-         data-status="@effectiveStatus">
+         data-status="@effectiveStatus"
+         data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
         <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
             <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
@@ -70,15 +72,14 @@
     <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
 
     <div class="@LaneDisplayHelper.WarningCssClass(Model.Warning)" style="display:none;">@LaneDisplayHelper.TranslateWarning(Model.Warning)</div>
-    @if (Model.SessionId is { } sid)
+    @if (showSession)
     {
-        @if (!string.Equals(effectiveStatus, "Completed", StringComparison.Ordinal))
+        @if (Model.IsSessionOpen)
         {
             <button type="button"
                     class="stop-session-btn"
-                    data-stop-session="@sid"
-                    data-equipment-issued="@(Model.IsEquipmentIssued ? "1" : "0")"
-                    data-equipment-returned="@(Model.IsEquipmentReturned ? "1" : "0")">Stop</button>
+                    data-stop-session="@Model.SessionId"
+                    data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">Stop</button>
         }
     }
 </article>

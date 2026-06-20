@@ -97,7 +97,8 @@ public sealed class RegisterGroupOnLaneCommandHandler(
             athlete = await repository.AddAthleteAsync(new Athlete
             {
                 FullName = mergedAthleteName,
-                IsSubscriber = false
+                IsSubscriber = false,
+                IsGroupPlaceholder = true
             }, cancellationToken);
         }
 

@@ -1,4 +1,5 @@
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.StaffMembers;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Infrastructure.Persistence;
@@ -31,6 +32,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
         existing.IsFullPackage = athlete.IsFullPackage;
+        existing.IsVip = athlete.IsVip;
+        existing.IsGroupPlaceholder = athlete.IsGroupPlaceholder;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -136,6 +139,28 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(
+        DateTime fromLocalDate,
+        DateTime toLocalDate,
+        CancellationToken cancellationToken)
+    {
+        var from = fromLocalDate.Date;
+        var to = toLocalDate.Date;
+        if (to < from)
+        {
+            (from, to) = (to, from);
+        }
+
+        var startUtc = DateTime.SpecifyKind(from, DateTimeKind.Local).ToUniversalTime();
+        var endUtc = DateTime.SpecifyKind(to.AddDays(1), DateTimeKind.Local).ToUniversalTime();
+
+        return await dbContext.Sessions
+            .Include(x => x.Scores)
+            .AsNoTracking()
+            .Where(x => x.StartTimeUtc >= startUtc && x.StartTimeUtc < endUtc)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<Athlete?> GetAthleteByIdAsync(Guid athleteId, CancellationToken cancellationToken)
     {
         return dbContext.Athletes
@@ -154,7 +179,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         var idQ = (idCardNormalized ?? "").Trim();
 
         var hasQuery =
-            (!string.IsNullOrWhiteSpace(phoneQ) && phoneQ.Length >= 4)
+            (!string.IsNullOrWhiteSpace(phoneQ) && phoneQ.Length >= 3)
             || (!string.IsNullOrWhiteSpace(emailQ) && emailQ.Length >= 4)
             || (!string.IsNullOrWhiteSpace(idQ) && idQ.Length >= 3);
 
@@ -305,5 +330,287 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             .OrderBy(x => x.DayOfWeek)
             .ThenBy(x => x.StartTimeLocal)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ServicePackage>> GetServicePackagesAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = dbContext.ServicePackages.AsNoTracking().Where(x => !x.IsDeleted);
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public Task<ServicePackage?> GetServicePackageByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return dbContext.ServicePackages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<ServicePackage> AddServicePackageAsync(ServicePackage package, CancellationToken cancellationToken)
+    {
+        await dbContext.ServicePackages.AddAsync(package, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return package;
+    }
+
+    public async Task UpdateServicePackageAsync(ServicePackage package, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ServicePackages
+            .FirstOrDefaultAsync(x => x.Id == package.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Paket tapılmadı.");
+
+        existing.Name = package.Name;
+        existing.BillingType = package.BillingType;
+        existing.Scope = package.Scope;
+        existing.SchedulingMode = package.SchedulingMode;
+        existing.Price = package.Price;
+        existing.SessionDurationMinutes = package.SessionDurationMinutes;
+        existing.PeriodMinutesQuota = package.PeriodMinutesQuota;
+        existing.WeeklyDaysCsv = package.WeeklyDaysCsv;
+        existing.ValidityDays = package.ValidityDays;
+        existing.UnlimitedGym = package.UnlimitedGym;
+        existing.IsActive = package.IsActive;
+        existing.IsDeleted = package.IsDeleted;
+        existing.UpdatedAtUtc = package.UpdatedAtUtc;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<EquipmentItem>> GetEquipmentItemsAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = dbContext.EquipmentItems.AsNoTracking().Where(x => !x.IsDeleted);
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public Task<EquipmentItem?> GetEquipmentItemByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return dbContext.EquipmentItems.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<EquipmentItem> AddEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken)
+    {
+        await dbContext.EquipmentItems.AddAsync(item, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return item;
+    }
+
+    public async Task UpdateEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.EquipmentItems
+            .FirstOrDefaultAsync(x => x.Id == item.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Avadanlıq tapılmadı.");
+
+        existing.Name = item.Name;
+        existing.Category = item.Category;
+        existing.Quantity = item.Quantity;
+        existing.Price = item.Price;
+        existing.IsActive = item.IsActive;
+        existing.IsDeleted = item.IsDeleted;
+        existing.UpdatedAtUtc = item.UpdatedAtUtc;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<SessionEquipmentIssue>> GetSessionEquipmentIssuesAsync(CancellationToken cancellationToken)
+    {
+        return await dbContext.SessionEquipmentIssues.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
+    public async Task AddSessionEquipmentIssuesAsync(IReadOnlyCollection<SessionEquipmentIssue> issues, CancellationToken cancellationToken)
+    {
+        if (issues.Count == 0) return;
+        await dbContext.SessionEquipmentIssues.AddRangeAsync(issues, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<SessionEquipmentIssue?> GetSessionEquipmentIssueByIdAsync(Guid issueId, CancellationToken cancellationToken)
+    {
+        return dbContext.SessionEquipmentIssues.FirstOrDefaultAsync(x => x.Id == issueId, cancellationToken);
+    }
+
+    public async Task UpdateSessionEquipmentIssueAsync(SessionEquipmentIssue issue, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.SessionEquipmentIssues
+            .FirstOrDefaultAsync(x => x.Id == issue.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Avadanlıq verilməsi tapılmadı.");
+
+        existing.ReturnedAtUtc = issue.ReturnedAtUtc;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<StaffPosition>> GetStaffPositionsAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = dbContext.StaffPositions.AsNoTracking().Where(x => !x.IsDeleted);
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public Task<StaffPosition?> GetStaffPositionByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return dbContext.StaffPositions.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<StaffPosition> AddStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken)
+    {
+        await dbContext.StaffPositions.AddAsync(position, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return position;
+    }
+
+    public async Task UpdateStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.StaffPositions
+            .FirstOrDefaultAsync(x => x.Id == position.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Vəzifə tapılmadı.");
+
+        existing.Name = position.Name;
+        existing.Description = position.Description;
+        existing.IsActive = position.IsActive;
+        existing.IsDeleted = position.IsDeleted;
+        existing.UpdatedAtUtc = position.UpdatedAtUtc;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<AccessProfile>> GetAccessProfilesAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = dbContext.AccessProfiles.AsNoTracking().Where(x => !x.IsDeleted);
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public Task<AccessProfile?> GetAccessProfileByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return dbContext.AccessProfiles.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<AccessProfile> AddAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken)
+    {
+        await dbContext.AccessProfiles.AddAsync(profile, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return profile;
+    }
+
+    public async Task UpdateAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.AccessProfiles
+            .FirstOrDefaultAsync(x => x.Id == profile.Id, cancellationToken)
+            ?? throw new InvalidOperationException("İcazə profili tapılmadı.");
+
+        existing.Name = profile.Name;
+        existing.Description = profile.Description;
+        existing.CanRegisterCustomers = profile.CanRegisterCustomers;
+        existing.CanManageSubscriptions = profile.CanManageSubscriptions;
+        existing.CanManageSessions = profile.CanManageSessions;
+        existing.CanManageEquipment = profile.CanManageEquipment;
+        existing.CanViewHistory = profile.CanViewHistory;
+        existing.IsActive = profile.IsActive;
+        existing.IsDeleted = profile.IsDeleted;
+        existing.UpdatedAtUtc = profile.UpdatedAtUtc;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<StaffMember>> GetStaffMembersAsync(bool activeOnly, CancellationToken cancellationToken)
+    {
+        var query = dbContext.StaffMembers
+            .AsNoTracking()
+            .Include(x => x.StaffPosition)
+            .Include(x => x.AccessProfile)
+            .AsQueryable();
+
+        query = query.Where(x => !x.IsDeleted);
+
+        if (activeOnly)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<StaffMember?> GetStaffMemberByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await dbContext.StaffMembers
+            .Include(x => x.StaffPosition)
+            .Include(x => x.AccessProfile)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<StaffMember?> GetStaffMemberByPinAsync(string pin, CancellationToken cancellationToken)
+    {
+        var hash = StaffPinHasher.Hash(pin);
+        return await dbContext.StaffMembers
+            .AsNoTracking()
+            .Include(x => x.StaffPosition)
+            .Include(x => x.AccessProfile)
+            .FirstOrDefaultAsync(
+                x => x.PinHash == hash && x.IsActive && !x.IsDeleted,
+                cancellationToken);
+    }
+
+    public async Task<StaffMember> AddStaffMemberAsync(StaffMember member, CancellationToken cancellationToken)
+    {
+        await dbContext.StaffMembers.AddAsync(member, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return member;
+    }
+
+    public async Task UpdateStaffMemberAsync(StaffMember member, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.StaffMembers
+            .FirstOrDefaultAsync(x => x.Id == member.Id, cancellationToken)
+            ?? throw new InvalidOperationException("İşçi tapılmadı.");
+
+        existing.FirstName = member.FirstName;
+        existing.LastName = member.LastName;
+        existing.StaffPositionId = member.StaffPositionId;
+        existing.AccessProfileId = member.AccessProfileId;
+        existing.PhoneNumber = member.PhoneNumber;
+        existing.PinHash = member.PinHash;
+        existing.IsActive = member.IsActive;
+        existing.IsDeleted = member.IsDeleted;
+        existing.UpdatedAtUtc = member.UpdatedAtUtc;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsStaffPinInUseAsync(string pin, Guid? excludeMemberId, CancellationToken cancellationToken)
+    {
+        var hash = StaffPinHasher.Hash(pin);
+        var query = dbContext.StaffMembers.AsNoTracking().Where(x => x.PinHash == hash);
+        if (excludeMemberId is not null && excludeMemberId != Guid.Empty)
+        {
+            query = query.Where(x => x.Id != excludeMemberId.Value);
+        }
+
+        return await query.AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsStaffPhoneInUseAsync(string phoneNumber, Guid? excludeMemberId, CancellationToken cancellationToken)
+    {
+        var phone = (phoneNumber ?? "").Trim();
+        var query = dbContext.StaffMembers.AsNoTracking().Where(x => x.PhoneNumber != null && x.PhoneNumber == phone);
+        if (excludeMemberId is not null && excludeMemberId != Guid.Empty)
+        {
+            query = query.Where(x => x.Id != excludeMemberId.Value);
+        }
+
+        return await query.AnyAsync(cancellationToken);
     }
 }

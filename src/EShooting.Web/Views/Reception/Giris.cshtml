@@ -1,0 +1,142 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Qeydiyyat pəncərəsi — giriş</title>
+    <style>
+        :root {
+            --bg-a: #fff3e8;
+            --bg-b: #f7f4ff;
+            --bg-c: #ecf8ff;
+            --panel: rgba(255, 255, 255, 0.9);
+            --text: #1d2440;
+            --muted: #657296;
+            --primary: #5543f3;
+            --danger: #d1435f;
+            --border: rgba(122, 138, 178, 0.28);
+            --shadow: 0 18px 45px rgba(65, 45, 120, 0.16);
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 0% 0%, #ffd7be 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, #dacdff 0%, transparent 36%),
+                radial-gradient(circle at 100% 100%, #cbe8ff 0%, transparent 45%),
+                linear-gradient(145deg, var(--bg-a), var(--bg-b) 46%, var(--bg-c));
+        }
+
+        .login-shell {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+
+        .login-card {
+            width: min(420px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 32px 28px;
+        }
+
+        .login-brand {
+            margin: 0 0 6px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #202c56;
+        }
+
+        .login-sub {
+            margin: 0 0 24px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #3a4668;
+        }
+
+        .pin-input {
+            width: 100%;
+            font-size: 28px;
+            letter-spacing: 0.35em;
+            text-align: center;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pin-input:focus {
+            outline: none;
+            border-color: rgba(85, 67, 243, 0.55);
+            box-shadow: 0 0 0 4px rgba(85, 67, 243, 0.14);
+        }
+
+        .login-btn {
+            width: 100%;
+            margin-top: 18px;
+            min-height: 48px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #6c5cff, #5543f3);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .login-btn:hover { filter: brightness(1.03); }
+
+        .field-error {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(209, 67, 95, 0.1);
+            color: var(--danger);
+            font-size: 14px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-shell">
+        <div class="login-card">
+            <h1 class="login-brand">Qeydiyyat pəncərəsi</h1>
+            <p class="login-sub">PIN kodunuzu daxil edin.</p>
+
+            <form method="post" action="/resepsiya/giris" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <label for="pin">PIN</label>
+                <input id="pin" name="pin" class="pin-input" type="password" inputmode="numeric"
+                       pattern="[0-9]*" maxlength="6" autofocus required />
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="field-error">
+                        @Html.ValidationSummary(false)
+                    </div>
+                }
+
+                <button type="submit" class="login-btn">Daxil ol</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

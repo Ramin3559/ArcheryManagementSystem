@@ -1,5 +1,6 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.Common.Models;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using MediatR;
@@ -12,7 +13,8 @@ public sealed record ScheduleSessionCommand(
     DateTime StartTimeUtc,
     int DurationMinutes,
     bool IsEquipmentIssued,
-    EShooting.Domain.Enums.PreferredLaneType PreferredLaneType) : IRequest<Guid>;
+    PreferredLaneType PreferredLaneType,
+    IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -173,6 +175,10 @@ public sealed class ScheduleSessionCommandHandler(
             }
         }
 
+        var equipmentIssues = request.EquipmentIssues ?? [];
+        var hasRentalEquipment = equipmentIssues.Any(x => x.IssueType == EquipmentIssueType.Rental);
+        var legacyEquipmentFlag = request.IsEquipmentIssued && equipmentIssues.Count == 0;
+
         var session = new TrainingSession
         {
             AthleteId = request.AthleteId,
@@ -180,11 +186,32 @@ public sealed class ScheduleSessionCommandHandler(
             StartTimeUtc = startTimeUtc,
             EndTimeUtc = requestedEndTimeUtc,
             Status = startTimeUtc <= nowUtc ? SessionStatus.Active : SessionStatus.Scheduled,
-            IsEquipmentIssued = request.IsEquipmentIssued,
+            IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
             EquipmentReturnedAtUtc = null
         };
 
         var created = await repository.AddSessionAsync(session, cancellationToken);
+
+        if (equipmentIssues.Count > 0)
+        {
+            var catalog = await repository.GetEquipmentItemsAsync(activeOnly: true, cancellationToken);
+            var issueRows = new List<SessionEquipmentIssue>();
+            foreach (var issue in equipmentIssues)
+            {
+                var catalogItem = catalog.FirstOrDefault(x => x.Id == issue.EquipmentItemId)
+                    ?? throw new InvalidOperationException("Seçilmiş avadanlıq tapılmadı və ya deaktivdir.");
+                issueRows.Add(new SessionEquipmentIssue
+                {
+                    SessionId = created.Id,
+                    EquipmentItemId = catalogItem.Id,
+                    IssueType = issue.IssueType,
+                    ReturnedAtUtc = null
+                });
+            }
+
+            await repository.AddSessionEquipmentIssuesAsync(issueRows, cancellationToken);
+        }
+
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);
         return created.Id;
     }

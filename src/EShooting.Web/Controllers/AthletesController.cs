@@ -1,4 +1,5 @@
 using EShooting.Web.Contracts.Athletes;
+using EShooting.Application.Athletes;
 using EShooting.Application.Athletes.Commands;
 using EShooting.Application.Common.Interfaces;
 using MediatR;
@@ -44,7 +45,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                         existing.Category,
                         existing.MembershipType,
                         existing.IsSubscriber,
-                        existing.IsFullPackage
+                        existing.IsFullPackage,
+                        existing.IsVip
                     }
                 });
             }
@@ -61,14 +63,39 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                     request.IdCardNumber,
                     request.Category,
                     request.IsSubscriber,
-                    request.MembershipType),
+                    request.MembershipType,
+                    request.IsVip),
                 cancellationToken);
 
             return Ok(new { id });
         }
         catch (DbUpdateException)
         {
-            // Unique index violation or other DB constraint; return a user-friendly message.
+            var existingAfterError = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
+            if (existingAfterError is not null)
+            {
+                return Conflict(new
+                {
+                    error = "Bu şəxs artıq sistemdə qeydiyyatdadır.",
+                    existingId = existingAfterError.Id,
+                    existing = new
+                    {
+                        existingAfterError.Id,
+                        existingAfterError.FullName,
+                        existingAfterError.FirstName,
+                        existingAfterError.LastName,
+                        existingAfterError.PhoneNumber,
+                        existingAfterError.Email,
+                        existingAfterError.IdCardNumber,
+                        existingAfterError.Category,
+                        existingAfterError.MembershipType,
+                        existingAfterError.IsSubscriber,
+                        existingAfterError.IsFullPackage,
+                        existingAfterError.IsVip
+                    }
+                });
+            }
+
             return Conflict(new { error = "Bu məlumatlarla artıq qeydiyyat mövcuddur." });
         }
     }
@@ -78,6 +105,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     {
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var result = athletes
+            .Where(AthleteSearchRules.IsSearchable)
             .OrderBy(x => x.FullName)
             .Select(x => new
             {
@@ -91,7 +119,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.IsSubscriber,
                 x.MembershipType,
                 x.Category,
-                x.IsFullPackage
+                x.IsFullPackage,
+                x.IsVip
             });
 
         return Ok(result);
@@ -129,7 +158,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 Category = request.Category,
                 IsSubscriber = request.IsSubscriber,
                 MembershipType = request.MembershipType,
-                IsFullPackage = existing.IsFullPackage
+                IsFullPackage = existing.IsFullPackage,
+                IsVip = request.IsVip
             }, cancellationToken);
 
             return Ok(new { message = "Məlumatlar uğurla yeniləndi." });
@@ -164,6 +194,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var matches = athletes
+            .Where(AthleteSearchRules.IsSearchable)
             .Select(a =>
             {
                 var firstLower = (a.FirstName ?? string.Empty).ToLowerInvariant();
@@ -221,7 +252,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.Athlete.Category,
                 x.Athlete.MembershipType,
                 x.Athlete.IsSubscriber,
-                x.Athlete.IsFullPackage
+                x.Athlete.IsFullPackage,
+                x.Athlete.IsVip
             })
             .ToList();
 
@@ -236,7 +268,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var idQ = NormalizeText(idCardNumber);
 
         var hasQuery =
-            (!string.IsNullOrWhiteSpace(phoneQ) && phoneQ.Length >= 4)
+            (!string.IsNullOrWhiteSpace(phoneQ) && phoneQ.Length >= 3)
             || (!string.IsNullOrWhiteSpace(emailQ) && emailQ.Length >= 4)
             || (!string.IsNullOrWhiteSpace(idQ) && idQ.Length >= 3);
 
@@ -246,7 +278,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
 
         var best = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
-        if (best is null)
+        if (best is null || !AthleteSearchRules.IsSearchable(best))
         {
             return NotFound();
         }
@@ -263,7 +295,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.Category,
             best.MembershipType,
             best.IsSubscriber,
-            best.IsFullPackage
+            best.IsFullPackage,
+            best.IsVip
         });
     }
 

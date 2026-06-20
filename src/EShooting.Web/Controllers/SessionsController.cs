@@ -2,6 +2,8 @@ using EShooting.Web.Contracts.Sessions;
 using EShooting.Application.Sessions.Commands;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Common;
+using EShooting.Application.Common.Models;
+using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Web.Helpers;
 using MediatR;
@@ -103,6 +105,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     [HttpPost]
     public async Task<IActionResult> Schedule([FromBody] ScheduleSessionRequest request, CancellationToken cancellationToken)
     {
+        var equipmentIssues = MapEquipmentIssues(request.EquipmentIssues);
         try
         {
             var sessionId = await mediator.Send(new ScheduleSessionCommand(
@@ -111,7 +114,8 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 request.StartTimeUtc,
                 request.DurationMinutes,
                 request.IsEquipmentIssued,
-                request.PreferredLaneType), cancellationToken);
+                request.PreferredLaneType,
+                equipmentIssues), cancellationToken);
 
             var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
             var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -159,7 +163,8 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                                 request.StartTimeUtc,
                                 request.DurationMinutes,
                                 request.IsEquipmentIssued,
-                                request.PreferredLaneType),
+                                request.PreferredLaneType,
+                                equipmentIssues),
                             cancellationToken);
                         return Ok(new
                         {
@@ -277,38 +282,80 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
-
+        var equipmentItems = await repository.GetEquipmentItemsAsync(activeOnly: false, cancellationToken);
+        var issues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
         var buffer = LaneReservationRules.SessionBuffer;
 
-        var pending = sessions
-            .Where(s => s.IsEquipmentIssued && s.EquipmentReturnedAtUtc is null)
-            .OrderBy(s => DateTimeAssumedUtc.AsUtc(s.EndTimeUtc))
-            .Select(s =>
+        var pending = new List<(DateTime TrainingEndUtc, object Row)>();
+
+        foreach (var issue in issues.Where(x => x.IssueType == EquipmentIssueType.Rental && x.ReturnedAtUtc is null))
+        {
+            var session = sessions.FirstOrDefault(s => s.Id == issue.SessionId);
+            if (session is null) continue;
+
+            var startUtc = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+            if (nowUtc < startUtc) continue;
+
+            var laneNumber = lanes.FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? 0;
+            var athleteName = athletes.FirstOrDefault(a => a.Id == session.AthleteId)?.FullName ?? "—";
+            var equipmentName = equipmentItems.FirstOrDefault(e => e.Id == issue.EquipmentItemId)?.Name ?? "Avadanlıq";
+            var endUtc = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+            var trainingEndUtc = endUtc - buffer;
+            var remaining = trainingEndUtc - nowUtc;
+            var color = remaining <= TimeSpan.Zero
+                ? "red"
+                : remaining <= TimeSpan.FromMinutes(5)
+                    ? "yellow"
+                    : "normal";
+
+            pending.Add((trainingEndUtc, new
             {
-                var laneNumber = lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0;
-                var athleteName = athletes.FirstOrDefault(a => a.Id == s.AthleteId)?.FullName ?? "—";
-                var endUtc = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc);
-                var trainingEndUtc = endUtc - buffer;
-                var remaining = trainingEndUtc - nowUtc;
+                issueId = issue.Id,
+                sessionId = session.Id,
+                athleteName,
+                laneNumber,
+                equipmentName,
+                issueType = issue.IssueType.ToString(),
+                trainingEndUtc,
+                color
+            }));
+        }
 
-                var color = remaining <= TimeSpan.Zero
-                    ? "red"
-                    : remaining <= TimeSpan.FromMinutes(5)
-                        ? "yellow"
-                        : "normal";
+        foreach (var session in sessions.Where(s => s.IsEquipmentIssued && s.EquipmentReturnedAtUtc is null))
+        {
+            if (issues.Any(i => i.SessionId == session.Id && i.IssueType == EquipmentIssueType.Rental))
+            {
+                continue;
+            }
 
-                return new
-                {
-                    sessionId = s.Id,
-                    athleteName,
-                    laneNumber,
-                    trainingEndUtc,
-                    color
-                };
-            })
-            .ToList();
+            var startUtc = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+            if (nowUtc < startUtc) continue;
 
-        return Ok(new { pending });
+            var laneNumber = lanes.FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? 0;
+            var athleteName = athletes.FirstOrDefault(a => a.Id == session.AthleteId)?.FullName ?? "—";
+            var endUtc = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+            var trainingEndUtc = endUtc - buffer;
+            var remaining = trainingEndUtc - nowUtc;
+            var color = remaining <= TimeSpan.Zero
+                ? "red"
+                : remaining <= TimeSpan.FromMinutes(5)
+                    ? "yellow"
+                    : "normal";
+
+            pending.Add((trainingEndUtc, new
+            {
+                issueId = (Guid?)null,
+                sessionId = session.Id,
+                athleteName,
+                laneNumber,
+                equipmentName = "Avadanlıq",
+                issueType = "Rental",
+                trainingEndUtc,
+                color
+            }));
+        }
+
+        return Ok(new { pending = pending.OrderBy(x => x.TrainingEndUtc).Select(x => x.Row).ToList() });
     }
 
     [HttpPost("{sessionId:guid}/equipment/return")]
@@ -341,23 +388,63 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     [HttpPost("equipment/return-bulk")]
     public async Task<IActionResult> ReturnEquipmentBulk([FromBody] ReturnEquipmentBulkRequest request, CancellationToken cancellationToken)
     {
-        if (request.SessionIds is null || request.SessionIds.Count == 0)
+        var issueIds = request.IssueIds ?? [];
+        var sessionIds = request.SessionIds ?? [];
+        if (issueIds.Count == 0 && sessionIds.Count == 0)
         {
-            return BadRequest(new { error = "Sessiya seçilməyib." });
+            return BadRequest(new { error = "Avadanlıq seçilməyib." });
         }
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var touchedLaneNumbers = new HashSet<int>();
+        var touchedSessionIds = new HashSet<Guid>();
 
-        foreach (var sessionId in request.SessionIds.Distinct())
+        foreach (var issueId in issueIds.Distinct())
+        {
+            var issue = await repository.GetSessionEquipmentIssueByIdAsync(issueId, cancellationToken);
+            if (issue is null || issue.IssueType != EquipmentIssueType.Rental || issue.ReturnedAtUtc is not null)
+            {
+                continue;
+            }
+
+            issue.ReturnedAtUtc = DateTime.UtcNow;
+            await repository.UpdateSessionEquipmentIssueAsync(issue, cancellationToken);
+            touchedSessionIds.Add(issue.SessionId);
+        }
+
+        foreach (var sessionId in sessionIds.Distinct())
         {
             var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
             if (session is null) continue;
+
+            var issues = (await repository.GetSessionEquipmentIssuesAsync(cancellationToken))
+                .Where(x => x.SessionId == sessionId && x.IssueType == EquipmentIssueType.Rental && x.ReturnedAtUtc is null)
+                .ToList();
+
+            if (issues.Count > 0)
+            {
+                foreach (var issue in issues)
+                {
+                    issue.ReturnedAtUtc = DateTime.UtcNow;
+                    await repository.UpdateSessionEquipmentIssueAsync(issue, cancellationToken);
+                }
+
+                touchedSessionIds.Add(sessionId);
+                continue;
+            }
+
             if (!session.IsEquipmentIssued || session.EquipmentReturnedAtUtc is not null) continue;
 
             session.EquipmentReturnedAtUtc = DateTime.UtcNow;
             await repository.UpdateSessionAsync(session, cancellationToken);
+            touchedSessionIds.Add(sessionId);
+        }
 
+        foreach (var sessionId in touchedSessionIds)
+        {
+            await SyncSessionEquipmentReturnStatusAsync(sessionId, cancellationToken);
+            var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
+            if (session is null) continue;
             var laneNumber = lanes.FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? 0;
             if (laneNumber > 0) touchedLaneNumbers.Add(laneNumber);
         }
@@ -376,8 +463,15 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     [HttpPost("{sessionId:guid}/complete")]
     public async Task<IActionResult> Complete(Guid sessionId, CancellationToken cancellationToken)
     {
-        await mediator.Send(new CompleteSessionCommand(sessionId), cancellationToken);
-        return NoContent();
+        try
+        {
+            await mediator.Send(new CompleteSessionCommand(sessionId), cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -439,6 +533,47 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static IReadOnlyList<SessionEquipmentIssueRequest> MapEquipmentIssues(IReadOnlyList<SessionEquipmentIssueDto>? items)
+    {
+        if (items is null || items.Count == 0)
+        {
+            return [];
+        }
+
+        return items
+            .Where(x => x.EquipmentItemId != Guid.Empty)
+            .Select(x => new SessionEquipmentIssueRequest
+            {
+                EquipmentItemId = x.EquipmentItemId,
+                IssueType = x.IssueType
+            })
+            .ToList();
+    }
+
+    private async Task SyncSessionEquipmentReturnStatusAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
+        if (session is null || !session.IsEquipmentIssued)
+        {
+            return;
+        }
+
+        var rentals = (await repository.GetSessionEquipmentIssuesAsync(cancellationToken))
+            .Where(x => x.SessionId == sessionId && x.IssueType == EquipmentIssueType.Rental)
+            .ToList();
+
+        if (rentals.Count == 0)
+        {
+            return;
+        }
+
+        if (rentals.All(x => x.ReturnedAtUtc is not null))
+        {
+            session.EquipmentReturnedAtUtc = DateTime.UtcNow;
+            await repository.UpdateSessionAsync(session, cancellationToken);
         }
     }
 }

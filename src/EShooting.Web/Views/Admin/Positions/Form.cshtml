@@ -1,0 +1,42 @@
+@using EShooting.Web.Contracts.StaffPositions
+@model StaffPositionFormModel
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    var isEdit = Model.Id is not null && Model.Id != Guid.Empty;
+    ViewData["Title"] = isEdit ? "Vəzifəni dəyişdir" : "Yeni vəzifə";
+}
+
+<div class="topbar">
+    <h1>@ViewData["Title"]</h1>
+    <a class="btn" href="/admin/positions">← Siyahı</a>
+</div>
+
+<div class="card">
+    <form method="post" action="@(isEdit ? $"/admin/positions/{Model.Id}/edit" : "/admin/positions/new")">
+        @Html.AntiForgeryToken()
+        @if (!ViewData.ModelState.IsValid) {
+            <div style="color:#b91c1c; font-weight:700; margin-bottom:10px;">
+                @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@err.ErrorMessage</div> }
+            </div>
+        }
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="grid-column:1/-1;">
+                <label style="font-size:12px; font-weight:800; color:var(--muted);">Vəzifə adı</label>
+                <input name="Name" value="@Model.Name" required maxlength="80" placeholder="Məs: Resepsiya" style="width:100%;" />
+            </div>
+            <div style="grid-column:1/-1;">
+                <label style="font-size:12px; font-weight:800; color:var(--muted);">Qısa təsvir</label>
+                <input name="Description" value="@Model.Description" maxlength="240" placeholder="İstəyə bağlı" style="width:100%;" />
+            </div>
+            <div>
+                <label class="check-row" style="display:flex; gap:8px; align-items:center; min-height:42px;">
+                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
+                    <span>Aktiv</span>
+                </label>
+            </div>
+        </div>
+        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">@(isEdit ? "Yadda saxla" : "Yarat")</button>
+        </div>
+    </form>
+</div>

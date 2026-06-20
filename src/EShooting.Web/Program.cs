@@ -10,6 +10,7 @@ using EShooting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +41,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 return Task.CompletedTask;
             }
 
+            if ((context.Request.Path.StartsWithSegments("/resepsiya")
+                    && !context.Request.Path.StartsWithSegments("/resepsiya/giris"))
+                || context.Request.Path.StartsWithSegments("/qeydiyyat"))
+            {
+                context.Response.Redirect("/resepsiya/giris");
+                return Task.CompletedTask;
+            }
+
             context.Response.Redirect(context.RedirectUri);
             return Task.CompletedTask;
         };
@@ -52,6 +61,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
             {
                 var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
                 context.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
+                return Task.CompletedTask;
+            }
+
+            if ((context.Request.Path.StartsWithSegments("/resepsiya")
+                    && !context.Request.Path.StartsWithSegments("/resepsiya/giris"))
+                || context.Request.Path.StartsWithSegments("/qeydiyyat"))
+            {
+                context.Response.Redirect("/resepsiya/giris");
                 return Task.CompletedTask;
             }
 
@@ -73,7 +90,11 @@ builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<ScoreDisplayState>();
 builder.Services.AddScoped<CachedLaneDashboardService>();
 
-var mvcBuilder = builder.Services.AddControllersWithViews();
+var mvcBuilder = builder.Services.AddControllersWithViews()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 if (builder.Environment.IsDevelopment())
 {
     // Production/IIS-də runtime compilation 500.30 verə bilər.
@@ -116,6 +137,9 @@ app.MapGet("/admin/login", (HttpContext context) =>
 
 // Kiosk-friendly short URLs (TV / tablet bookmarks).
 app.MapGet("/admin-panel", () => Results.Redirect("/admin"))
+    .AllowAnonymous();
+
+app.MapGet("/zolaq-monitor", () => Results.Redirect("/planset/zolaqlar"))
     .AllowAnonymous();
 
 app.MapControllers();

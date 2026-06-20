@@ -23,7 +23,7 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
         {
             // If an old/invalid cookie exists without the required role,
             // redirecting back to a protected page causes an infinite redirect loop.
-            if (!User.IsInRole("Reception") && !User.IsInRole("Admin"))
+            if (!User.IsInRole("Reception") && !User.IsInRole("ReceptionStaff") && !User.IsInRole("Admin"))
             {
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             }
@@ -76,24 +76,11 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
         if (string.Equals(userName, _auth.UserName, StringComparison.Ordinal)
             && string.Equals(password, _auth.Password, StringComparison.Ordinal))
         {
-            var claims = new List<Claim>
-            {
-                new(ClaimTypes.Name, userName),
-                new(ClaimTypes.Role, "Reception")
-            };
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var principal = new ClaimsPrincipal(identity);
-            await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                principal,
-                new AuthenticationProperties
-                {
-                    IsPersistent = true
-                });
-
-            // Never redirect Reception to /admin (it would cause an access-denied loop).
-            if (isAdminReturnUrl) return Redirect("/qeydiyyat");
-            return RedirectToLocal(returnUrl);
+            ModelState.AddModelError(
+                string.Empty,
+                "Köhnə resepsiya girişi deaktivdir. PIN ilə /resepsiya/giris səhifəsindən daxil olun.");
+            ViewData["ReturnUrl"] = returnUrl;
+            return View();
         }
 
         ModelState.AddModelError(string.Empty, "İstifadəçi adı və ya şifrə yanlışdır.");
@@ -117,6 +104,6 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
             return Redirect(returnUrl);
         }
 
-        return Redirect("/qeydiyyat");
+        return Redirect("/resepsiya");
     }
 }

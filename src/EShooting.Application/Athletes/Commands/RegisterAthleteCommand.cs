@@ -13,7 +13,8 @@ public sealed record RegisterAthleteCommand(
     string? IdCardNumber,
     CustomerCategory Category,
     bool IsSubscriber,
-    MembershipType MembershipType) : IRequest<Guid>;
+    MembershipType MembershipType,
+    bool IsVip = false) : IRequest<Guid>;
 
 public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repository)
     : IRequestHandler<RegisterAthleteCommand, Guid>
@@ -38,7 +39,8 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
             Category = request.Category,
             FullName = $"{first} {last}".Trim(),
             IsSubscriber = request.IsSubscriber,
-            MembershipType = request.MembershipType
+            MembershipType = request.MembershipType,
+            IsVip = request.IsVip
         };
 
         var created = await repository.AddAthleteAsync(athlete, cancellationToken);

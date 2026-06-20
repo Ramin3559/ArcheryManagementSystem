@@ -63,12 +63,17 @@ public sealed class SubscriptionAutoStartService(
                 continue;
             }
 
+            var todayKey = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             if (schedule.DayOfWeek != (int)nowLocal.DayOfWeek)
             {
-                continue;
+                var hasOverrideToday = OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson)
+                    .Any(o => string.Equals(o.DateLocal?.Trim(), todayKey, StringComparison.Ordinal));
+                if (!hasOverrideToday)
+                {
+                    continue;
+                }
             }
 
-            var todayKey = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             if (OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson).Contains(todayKey))
             {
                 continue;

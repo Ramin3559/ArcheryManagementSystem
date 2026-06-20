@@ -9,6 +9,8 @@ public sealed class LaneDashboardItem
     public int LaneNumber { get; init; }
     public LaneType LaneType { get; init; }
     public string? AthleteName { get; init; }
+    public string? AthleteFirstName { get; init; }
+    public string? AthleteLastName { get; init; }
     public MembershipType? AthleteMembershipType { get; init; }
     public IReadOnlyCollection<string> QueueAthleteNames { get; init; } = [];
     public DateTime? StartTimeUtc { get; init; }
@@ -20,4 +22,6 @@ public sealed class LaneDashboardItem
 
     public bool IsEquipmentIssued { get; init; }
     public bool IsEquipmentReturned { get; init; }
+    public bool HasPendingRentalEquipment { get; init; }
+    public bool IsSessionOpen { get; init; }
 }

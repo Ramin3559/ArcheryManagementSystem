@@ -5,7 +5,27 @@
     var rows = (List<HistoryRow>?)ViewData["Rows"] ?? new List<HistoryRow>();
     var f = (HistoryFilter?)ViewData["Filter"] ?? new HistoryFilter();
     var identityNoMatch = ViewData["IdentitySearchNoMatch"] is bool b && b;
+    var rangeLabel = (string?)ViewData["HistoryRangeLabel"] ?? "";
+    var fromIso = f.FromDate?.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd");
+    var toIso = f.ToDate?.ToString("yyyy-MM-dd") ?? fromIso;
+    var exportUrl = $"/admin/export.xlsx?phone={Uri.EscapeDataString(f.Phone ?? "")}&email={Uri.EscapeDataString(f.Email ?? "")}&idCardNumber={Uri.EscapeDataString(f.IdCardNumber ?? "")}&fromDate={fromIso}&toDate={toIso}";
 }
+
+<style>
+    .preset-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+    .preset-btn {
+        border-radius:999px;
+        border:1px solid var(--border);
+        background:#fff;
+        padding:6px 14px;
+        font-weight:700;
+        cursor:pointer;
+        font-size:13px;
+        color:#253060;
+    }
+    .preset-btn:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
+    .range-hint { font-size:13px; color: var(--muted); margin-top:8px; }
+</style>
 
 @if (identityNoMatch)
 {
@@ -18,37 +38,48 @@
 
 <div class="topbar">
     <h1>Tarixçə</h1>
-    <a class="btn btn-excel" href="@($"/admin/export.xlsx?phone={Uri.EscapeDataString(f.Phone ?? "")}&email={Uri.EscapeDataString(f.Email ?? "")}&idCardNumber={Uri.EscapeDataString(f.IdCardNumber ?? "")}&fromDate={(f.FromDate?.ToString("yyyy-MM-dd") ?? "")}&toDate={(f.ToDate?.ToString("yyyy-MM-dd") ?? "")}")">
-        Excel-ə çıxart
-    </a>
+    <a class="btn btn-excel" id="historyExportBtn" href="@exportUrl">Excel-ə çıxart</a>
 </div>
 
 <div class="card" style="margin-bottom:12px;">
-    <form method="get" action="/admin/history">
+    <form method="get" action="/admin/history" id="historyFilterForm">
         <div class="row">
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Telefon</div>
-                <input name="phone" value="@(f.Phone ?? "")" placeholder="Telefon" />
+                <input name="phone" id="historyPhone" value="@(f.Phone ?? "")" placeholder="Telefon" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">E-mail</div>
-                <input name="email" value="@(f.Email ?? "")" placeholder="E-mail" />
+                <input name="email" id="historyEmail" value="@(f.Email ?? "")" placeholder="E-mail" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Ş/V / FİN</div>
-                <input name="idCardNumber" value="@(f.IdCardNumber ?? "")" placeholder="Ş/V / FİN" />
+                <input name="idCardNumber" id="historyIdCard" value="@(f.IdCardNumber ?? "")" placeholder="Ş/V / FİN" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Başlanğıc</div>
-                <input name="fromDate" type="date" value="@(f.FromDate?.ToString("yyyy-MM-dd") ?? "")" />
+                <input name="fromDate" id="historyFromDate" type="date" value="@fromIso" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Bitmə</div>
-                <input name="toDate" type="date" value="@(f.ToDate?.ToString("yyyy-MM-dd") ?? "")" />
+                <input name="toDate" id="historyToDate" type="date" value="@toIso" />
             </div>
             <div>
                 <button class="btn btn-primary" type="submit">Göstər</button>
             </div>
+        </div>
+
+        <div class="preset-row">
+            <span class="statLabel" style="margin:0;">Tez seçim:</span>
+            <button type="button" class="preset-btn" data-preset="today">Bu gün</button>
+            <button type="button" class="preset-btn" data-preset="yesterday">Dünən</button>
+            <button type="button" class="preset-btn" data-preset="last7">Son 7 gün</button>
+            <button type="button" class="preset-btn" data-preset="month">Cari ay</button>
+        </div>
+
+        <div class="range-hint">
+            Göstərilən aralıq: <strong id="historyRangeLabel">@rangeLabel</strong>.
+            Səhifə ilk açılanda yalnız <strong>bu günün</strong> nəticələri yüklənir; geniş tarix seçəndə «Göstər» basın.
         </div>
     </form>
 </div>
@@ -75,29 +106,105 @@
             </tr>
             </thead>
             <tbody>
-            @foreach (var r in rows)
+            @if (rows.Count == 0)
             {
                 <tr>
-                    <td>@r.DateLocal</td>
-                    <td>@r.AthleteName</td>
-                    <td>@r.Phone</td>
-                    <td>@r.Category</td>
-                    <td>@(r.LaneNumber <= 0 ? "—" : r.LaneNumber)</td>
-                    <td>@r.StartTimeLocal</td>
-                    <td>@r.EndTimeLocal</td>
-                    <td style="text-align:right;">@r.ScoreCount</td>
-                    <td style="text-align:right; font-weight:800;">@r.TotalScore</td>
+                    <td colspan="9" style="color:var(--muted);">Seçilmiş aralıqda nəticə yoxdur.</td>
                 </tr>
             }
+            else
+            {
+                foreach (var r in rows)
+                {
+                    <tr>
+                        <td>@r.DateLocal</td>
+                        <td>@r.AthleteName</td>
+                        <td>@r.Phone</td>
+                        <td>@r.Category</td>
+                        <td>@(r.LaneNumber <= 0 ? "—" : r.LaneNumber)</td>
+                        <td>@r.StartTimeLocal</td>
+                        <td>@r.EndTimeLocal</td>
+                        <td style="text-align:right;">@r.ScoreCount</td>
+                        <td style="text-align:right; font-weight:800;">@r.TotalScore</td>
+                    </tr>
+                }
+            }
             </tbody>
-            <tfoot>
-            <tr style="background:#f3f4f6; font-weight:900;">
-                <td colspan="7" style="text-align:right;">Yekun (@rows.Count sətir):</td>
-                <td style="text-align:right;">@grandScoreCount</td>
-                <td style="text-align:right;">@grandTotalScore</td>
-            </tr>
-            </tfoot>
+            @if (rows.Count > 0)
+            {
+                <tfoot>
+                <tr style="background:#f3f4f6; font-weight:900;">
+                    <td colspan="7" style="text-align:right;">Yekun (@rows.Count sətir):</td>
+                    <td style="text-align:right;">@grandScoreCount</td>
+                    <td style="text-align:right;">@grandTotalScore</td>
+                </tr>
+                </tfoot>
+            }
         </table>
     </div>
 </div>
 
+<script>
+    (function () {
+        const form = document.getElementById("historyFilterForm");
+        const fromEl = document.getElementById("historyFromDate");
+        const toEl = document.getElementById("historyToDate");
+        const exportBtn = document.getElementById("historyExportBtn");
+        const rangeLabelEl = document.getElementById("historyRangeLabel");
+
+        function isoDate(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return y + "-" + m + "-" + day;
+        }
+
+        function syncExportLink() {
+            if (!(exportBtn instanceof HTMLAnchorElement) || !(form instanceof HTMLFormElement)) return;
+            const params = new URLSearchParams(new FormData(form));
+            exportBtn.href = "/admin/export.xlsx?" + params.toString();
+        }
+
+        function syncRangeLabel() {
+            if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement) || !rangeLabelEl) return;
+            const from = fromEl.value;
+            const to = toEl.value || from;
+            rangeLabelEl.textContent = from && to && from !== to ? (from + " — " + to) : (from || to || "—");
+            syncExportLink();
+        }
+
+        function applyPreset(preset) {
+            if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement)) return;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let from = new Date(today);
+            let to = new Date(today);
+
+            if (preset === "yesterday") {
+                from.setDate(from.getDate() - 1);
+                to = new Date(from);
+            } else if (preset === "last7") {
+                from.setDate(from.getDate() - 6);
+            } else if (preset === "month") {
+                from = new Date(today.getFullYear(), today.getMonth(), 1);
+                to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            }
+
+            fromEl.value = isoDate(from);
+            toEl.value = isoDate(to);
+            syncRangeLabel();
+            form.submit();
+        }
+
+        document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                applyPreset(btn.getAttribute("data-preset") || "today");
+            });
+        });
+
+        fromEl?.addEventListener("change", syncRangeLabel);
+        toEl?.addEventListener("change", syncRangeLabel);
+        form?.addEventListener("input", syncExportLink);
+        syncRangeLabel();
+    })();
+</script>

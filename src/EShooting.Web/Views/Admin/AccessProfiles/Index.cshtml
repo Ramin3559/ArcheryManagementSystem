@@ -1,0 +1,66 @@
+@using EShooting.Application.Common.Models
+@using EShooting.Web.Helpers
+@model IReadOnlyCollection<AccessProfileItem>
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "İcazə profilləri";
+    var notice = TempData["AccessProfileNotice"] as string;
+}
+
+<style>
+    .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; }
+    .badge--ok { background:rgba(22,163,74,0.15); color:#166534; }
+    .badge--off { background:rgba(107,114,128,0.18); color:#374151; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .notice { padding:10px 12px; border-radius:12px; margin-bottom:12px; font-weight:700; background:#ecfdf5; color:#166534; border:1px solid rgba(22,163,74,0.25); }
+    .perm { font-size:12px; color:#374151; }
+</style>
+
+<div class="topbar">
+    <h1>İcazə profilləri</h1>
+    <div style="display:flex; gap:10px;">
+        <button type="button" class="btn" id="adminRefreshBtn">Yenilə</button>
+        <a class="btn btn-primary" href="/admin/access-profiles/new">+ Yeni profil</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(notice)) { <div class="notice">@notice</div> }
+
+<div class="card">
+    <div class="tableWrap">
+        <table>
+            <thead><tr><th>Ad</th><th>İcazələr</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            @if (Model.Count == 0) { <tr><td colspan="4">Hələ profil yoxdur.</td></tr> }
+            else {
+                foreach (var p in Model) {
+                    <tr style="@(p.IsActive ? "" : "opacity:0.65;")">
+                        <td>
+                            <strong>@p.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(p.Description)) {
+                                <div class="perm">@p.Description</div>
+                            }
+                        </td>
+                        <td class="perm">@AccessProfileDisplayHelper.PermissionsShort(p)</td>
+                        <td><span class="badge @(p.IsActive ? "badge--ok" : "badge--off")">@(p.IsActive ? "Aktiv" : "Deaktiv")</span></td>
+                        <td>
+                            <div class="actions">
+                                <a class="btn btn-primary" href="/admin/access-profiles/@p.Id/edit">Dəyişdir</a>
+                                <form method="post" action="/admin/access-profiles/@p.Id/toggle-active" style="margin:0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn @(p.IsActive ? "btn-warning" : "btn-excel")">@(p.IsActive ? "Deaktiv et" : "Aktiv et")</button>
+                                </form>
+                                <form method="post" action="/admin/access-profiles/@p.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-danger">Sil</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>document.getElementById("adminRefreshBtn")?.addEventListener("click", () => location.reload());</script>

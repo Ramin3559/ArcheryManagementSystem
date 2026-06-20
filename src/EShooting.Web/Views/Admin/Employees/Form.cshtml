@@ -1,0 +1,99 @@
+@using EShooting.Web.Contracts.StaffMembers
+@model StaffMemberFormModel
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    var isEdit = Model.Id is not null && Model.Id != Guid.Empty;
+    ViewData["Title"] = isEdit ? "İşçini dəyişdir" : "Yeni işçi";
+}
+
+<style>
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    @@media (max-width:800px){ .form-grid { grid-template-columns:1fr; } }
+    .field label { display:block; font-size:12px; font-weight:800; color:var(--muted); margin-bottom:6px; text-transform:uppercase; }
+    .field input, .field select { width:100%; min-width:0; }
+    .field--full { grid-column:1/-1; }
+    .hint { font-size:12px; color:var(--muted); margin-top:4px; }
+    .validation { color:#b91c1c; font-weight:700; margin-bottom:10px; }
+    .check-row { display:flex; align-items:center; gap:8px; min-height:42px; }
+</style>
+
+<div class="topbar">
+    <h1>@ViewData["Title"]</h1>
+    <a class="btn" href="/admin/employees">← Siyahı</a>
+</div>
+
+<div class="card">
+    <form method="post" action="@(isEdit ? $"/admin/employees/{Model.Id}/edit" : "/admin/employees/new")">
+        @Html.AntiForgeryToken()
+
+        @if (!ViewData.ModelState.IsValid) {
+            <div class="validation">
+                @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@err.ErrorMessage</div> }
+            </div>
+        }
+
+        <div class="form-grid">
+            <div class="field">
+                <label for="FirstName">Ad</label>
+                <input id="FirstName" name="FirstName" value="@Model.FirstName" required maxlength="80" />
+            </div>
+            <div class="field">
+                <label for="LastName">Soyad</label>
+                <input id="LastName" name="LastName" value="@Model.LastName" required maxlength="80" />
+            </div>
+
+            <div class="field">
+                <label for="StaffPositionId">Vəzifə</label>
+                <select id="StaffPositionId" name="StaffPositionId" required>
+                    <option value="">— Seçin —</option>
+                    @foreach (var p in Model.Positions) {
+                        if (Model.StaffPositionId == p.Id) {
+                            <option value="@p.Id" selected>@p.Name</option>
+                        } else {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    }
+                </select>
+                <div class="hint"><a href="/admin/positions">Vəzifələr</a> siyahısından</div>
+            </div>
+
+            <div class="field">
+                <label for="AccessProfileId">İcazə profili</label>
+                <select id="AccessProfileId" name="AccessProfileId" required>
+                    <option value="">— Seçin —</option>
+                    @foreach (var p in Model.Profiles) {
+                        if (Model.AccessProfileId == p.Id) {
+                            <option value="@p.Id" selected>@p.Name</option>
+                        } else {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    }
+                </select>
+                <div class="hint"><a href="/admin/access-profiles">İcazə profilləri</a> siyahısından</div>
+            </div>
+
+            <div class="field">
+                <label for="PhoneNumber">Telefon</label>
+                <input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" maxlength="40" placeholder="+994..." required />
+            </div>
+
+            <div class="field">
+                <label for="Pin">Giriş kodu (PIN)</label>
+                <input id="Pin" name="Pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" autocomplete="new-password" @(isEdit ? "" : "required") />
+                <div class="hint">@(isEdit ? "Boş buraxsanız — köhnə PIN qalır. Yeni PIN: 4–6 rəqəm." : "4–6 rəqəm — resepsiyaya daxil olmaq üçün")</div>
+            </div>
+
+            <div class="field">
+                <label>&nbsp;</label>
+                <label class="check-row">
+                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
+                    <span>Aktiv (resepsiyaya daxil ola bilər)</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">@(isEdit ? "Yadda saxla" : "Yarat")</button>
+        </div>
+    </form>
+</div>

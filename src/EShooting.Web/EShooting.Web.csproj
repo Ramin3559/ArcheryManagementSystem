@@ -19,5 +19,9 @@
     <ProjectReference Include="..\EShooting.Infrastructure\EShooting.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Debug/run qalıbsa DLL kilidlənir — build-dən əvvəl dayandır. -->
+  <Target Name="StopRunningWebHostBeforeBuild" BeforeTargets="Build">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-Process -Name EShooting.Web -ErrorAction SilentlyContinue | Stop-Process -Force&quot;" IgnoreExitCode="true" />
+  </Target>
 
 </Project>

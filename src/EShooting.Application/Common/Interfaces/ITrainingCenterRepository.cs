@@ -13,6 +13,10 @@ public interface ITrainingCenterRepository
     Task<IReadOnlyCollection<TrainingSession>> GetSessionsAsync(CancellationToken cancellationToken);
     /// <summary>Sessiya planlaması üçün — xal cədvəli olmadan, daha sürətli.</summary>
     Task<IReadOnlyCollection<TrainingSession>> GetSessionsLightAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(
+        DateTime fromLocalDate,
+        DateTime toLocalDate,
+        CancellationToken cancellationToken);
     Task<Lane?> GetLaneByNumberAsync(int laneNumber, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<Lane>> GetLanesAsync(CancellationToken cancellationToken);
     Task<IReadOnlyCollection<Athlete>> GetAthletesAsync(CancellationToken cancellationToken);
@@ -22,4 +26,37 @@ public interface ITrainingCenterRepository
     Task<SubscriptionSchedule> AddSubscriptionScheduleAsync(SubscriptionSchedule schedule, CancellationToken cancellationToken);
     Task UpdateSubscriptionScheduleAsync(SubscriptionSchedule schedule, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<SubscriptionSchedule>> GetSubscriptionSchedulesAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<ServicePackage>> GetServicePackagesAsync(bool activeOnly, CancellationToken cancellationToken);
+    Task<ServicePackage?> GetServicePackageByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<ServicePackage> AddServicePackageAsync(ServicePackage package, CancellationToken cancellationToken);
+    Task UpdateServicePackageAsync(ServicePackage package, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<EquipmentItem>> GetEquipmentItemsAsync(bool activeOnly, CancellationToken cancellationToken);
+    Task<EquipmentItem?> GetEquipmentItemByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<EquipmentItem> AddEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken);
+    Task UpdateEquipmentItemAsync(EquipmentItem item, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<SessionEquipmentIssue>> GetSessionEquipmentIssuesAsync(CancellationToken cancellationToken);
+    Task AddSessionEquipmentIssuesAsync(IReadOnlyCollection<SessionEquipmentIssue> issues, CancellationToken cancellationToken);
+    Task<SessionEquipmentIssue?> GetSessionEquipmentIssueByIdAsync(Guid issueId, CancellationToken cancellationToken);
+    Task UpdateSessionEquipmentIssueAsync(SessionEquipmentIssue issue, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<StaffPosition>> GetStaffPositionsAsync(bool activeOnly, CancellationToken cancellationToken);
+    Task<StaffPosition?> GetStaffPositionByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<StaffPosition> AddStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken);
+    Task UpdateStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<AccessProfile>> GetAccessProfilesAsync(bool activeOnly, CancellationToken cancellationToken);
+    Task<AccessProfile?> GetAccessProfileByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<AccessProfile> AddAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken);
+    Task UpdateAccessProfileAsync(AccessProfile profile, CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<StaffMember>> GetStaffMembersAsync(bool activeOnly, CancellationToken cancellationToken);
+    Task<StaffMember?> GetStaffMemberByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<StaffMember?> GetStaffMemberByPinAsync(string pin, CancellationToken cancellationToken);
+    Task<StaffMember> AddStaffMemberAsync(StaffMember member, CancellationToken cancellationToken);
+    Task UpdateStaffMemberAsync(StaffMember member, CancellationToken cancellationToken);
+    Task<bool> IsStaffPinInUseAsync(string pin, Guid? excludeMemberId, CancellationToken cancellationToken);
+    Task<bool> IsStaffPhoneInUseAsync(string phoneNumber, Guid? excludeMemberId, CancellationToken cancellationToken);
 }

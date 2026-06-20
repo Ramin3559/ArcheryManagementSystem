@@ -147,16 +147,19 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
     [HttpGet("history")]
     public async Task<IActionResult> History([FromQuery] HistoryFilter filter, CancellationToken cancellationToken)
     {
+        filter = NormalizeHistoryFilter(filter);
         var outcome = await QueryHistoryRowsAsync(filter, cancellationToken);
         ViewData["Rows"] = outcome.Rows;
         ViewData["Filter"] = filter;
         ViewData["IdentitySearchNoMatch"] = outcome.IdentityCriteriaNoAthleteMatch;
+        ViewData["HistoryRangeLabel"] = BuildHistoryRangeLabel(filter);
         return View("~/Views/Admin/History.cshtml");
     }
 
     [HttpGet("export.xlsx")]
     public async Task<IActionResult> Export([FromQuery] HistoryFilter filter, CancellationToken cancellationToken)
     {
+        filter = NormalizeHistoryFilter(filter);
         var outcome = await QueryHistoryRowsAsync(filter, cancellationToken);
         var bytes = AdminExcelExporter.Export(outcome.Rows);
         var name = $"EShooting-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
@@ -165,9 +168,47 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
 
     private sealed record HistoryQueryOutcome(List<HistoryRow> Rows, bool IdentityCriteriaNoAthleteMatch);
 
+    internal static HistoryFilter NormalizeHistoryFilter(HistoryFilter filter)
+    {
+        var today = DateTime.Now.Date;
+        if (filter.FromDate is null && filter.ToDate is null)
+        {
+            filter.FromDate = today;
+            filter.ToDate = today;
+            return filter;
+        }
+
+        if (filter.FromDate is null)
+        {
+            filter.FromDate = filter.ToDate?.Date ?? today;
+        }
+
+        if (filter.ToDate is null)
+        {
+            filter.ToDate = filter.FromDate?.Date ?? today;
+        }
+
+        if (filter.ToDate!.Value.Date < filter.FromDate!.Value.Date)
+        {
+            (filter.FromDate, filter.ToDate) = (filter.ToDate, filter.FromDate);
+        }
+
+        return filter;
+    }
+
+    private static string BuildHistoryRangeLabel(HistoryFilter filter)
+    {
+        var from = filter.FromDate?.Date ?? DateTime.Now.Date;
+        var to = filter.ToDate?.Date ?? from;
+        return from == to ? from.ToString("yyyy-MM-dd") : $"{from:yyyy-MM-dd} — {to:yyyy-MM-dd}";
+    }
+
     private async Task<HistoryQueryOutcome> QueryHistoryRowsAsync(HistoryFilter filter, CancellationToken cancellationToken)
     {
-        var sessions = await repository.GetSessionsAsync(cancellationToken);
+        var fromLocal = filter.FromDate!.Value.Date;
+        var toLocal = filter.ToDate!.Value.Date;
+
+        var sessions = await repository.GetSessionsByLocalDateRangeAsync(fromLocal, toLocal, cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athleteById = athletes.ToDictionary(a => a.Id, a => a);
@@ -195,22 +236,9 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
             athleteIdFilter = match.Id;
         }
 
-        DateTime? fromLocal = filter.FromDate?.Date;
-        DateTime? toLocal = filter.ToDate?.Date;
-
         var rows = sessions
             .OrderByDescending(s => DateTimeAssumedUtc(s.StartTimeUtc))
-            .Where(s =>
-            {
-                if (athleteIdFilter is not null && s.AthleteId != athleteIdFilter) return false;
-                if (fromLocal is null && toLocal is null) return true;
-
-                var startLocal = DateTimeAssumedLocal(DateTimeAssumedUtc(s.StartTimeUtc));
-                var day = startLocal.Date;
-                if (fromLocal is not null && day < fromLocal.Value) return false;
-                if (toLocal is not null && day > toLocal.Value) return false;
-                return true;
-            })
+            .Where(s => athleteIdFilter is null || s.AthleteId == athleteIdFilter)
             .Select(s =>
             {
                 athleteById.TryGetValue(s.AthleteId, out var a);

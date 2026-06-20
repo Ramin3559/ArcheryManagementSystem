@@ -1,3 +1,4 @@
+using System.Globalization;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
 using EShooting.Web;
@@ -64,7 +65,34 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             })
             .ToList();
 
-        var occurrencesFlat = BuildFlatOccurrences(athlete.FullName ?? "", schedules.Where(s => s.AthleteId == athlete.Id && s.IsEnabled).ToList());
+        var activeSchedules = schedules.Where(s => s.AthleteId == athlete.Id && s.IsEnabled).ToList();
+        var weeklySchedules = activeSchedules
+            .Where(s => !s.IsFullPackage)
+            .Select(s =>
+            {
+                var endTime = s.StartTimeLocal.Add(TimeSpan.FromMinutes(s.DurationMinutes));
+                return new
+                {
+                    scheduleId = s.Id,
+                    dayOfWeek = s.DayOfWeek,
+                    dayLabel = DayLabelAz(s.DayOfWeek),
+                    startTimeLocal = FormatTimeLocal(s.StartTimeLocal),
+                    endTimeLocal = FormatTimeLocal(endTime),
+                    durationMinutes = s.DurationMinutes,
+                    laneNumber = s.LaneNumber,
+                    laneLabel = s.LaneNumber > 0 ? $"Zolaq {s.LaneNumber}" : "—",
+                    activeFromDateLocal = s.ActiveFromDateLocal.ToString("yyyy-MM-dd"),
+                    activeToDateLocal = s.ActiveToDateLocal.ToString("yyyy-MM-dd"),
+                    preferredLaneType = (int)s.PreferredLaneType,
+                    isFullPackage = s.IsFullPackage
+                };
+            })
+            .OrderBy(s => s.dayOfWeek)
+            .ThenBy(s => s.startTimeLocal)
+            .Cast<object>()
+            .ToList();
+
+        var occurrencesFlat = BuildFlatOccurrences(athlete.FullName ?? "", activeSchedules);
 
         var lastSessions = sessions
             .Where(x => x.AthleteId == athlete.Id)
@@ -93,7 +121,18 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         {
             athleteId = athlete.Id,
             fullName = athlete.FullName,
+            firstName = athlete.FirstName,
+            lastName = athlete.LastName,
+            phoneNumber = athlete.PhoneNumber,
+            email = athlete.Email,
+            idCardNumber = athlete.IdCardNumber,
+            category = athlete.Category,
+            membershipType = athlete.MembershipType,
+            isSubscriber = athlete.IsSubscriber,
+            isFullPackage = athlete.IsFullPackage,
+            isVip = athlete.IsVip,
             packages,
+            weeklySchedules,
             occurrencesFlat,
             lastSessions
         });
@@ -110,6 +149,7 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             var overrides = OccurrenceJson.OverridesToMap(OccurrenceJson.DeserializeOverrides(s.OccurrenceOverridesJson));
             var from = s.ActiveFromDateLocal.Date;
             var to = s.ActiveToDateLocal.Date;
+            var addedDates = new HashSet<string>(StringComparer.Ordinal);
             for (var day = from; day <= to; day = day.AddDays(1))
             {
                 if ((int)day.DayOfWeek != s.DayOfWeek) continue;
@@ -130,9 +170,9 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                 }
 
                 var endT = start.Add(TimeSpan.FromMinutes(dur));
-                var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Sistem təyin edəcək";
-                var startKey = start.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture);
-                var endKey = endT.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture);
+                var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Zolaq təyin edilməyib";
+                var startKey = FormatTimeLocal(start);
+                var endKey = FormatTimeLocal(endT);
                 var row = new
                 {
                     scheduleId = s.Id,
@@ -148,6 +188,67 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                     isFullPackage = s.IsFullPackage
                 };
                 temp.Add((dateKey, startKey, row));
+                addedDates.Add(dateKey);
+            }
+
+            foreach (var kv in overrides)
+            {
+                var dateKey = kv.Key?.Trim();
+                if (string.IsNullOrWhiteSpace(dateKey) || excluded.Contains(dateKey) || addedDates.Contains(dateKey))
+                {
+                    continue;
+                }
+
+                if (!DateTime.TryParseExact(dateKey, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var rescheduledDay))
+                {
+                    continue;
+                }
+
+                if (rescheduledDay.Date < from || rescheduledDay.Date > to)
+                {
+                    continue;
+                }
+
+                var ov = kv.Value;
+                var start = s.StartTimeLocal;
+                var dur = s.DurationMinutes;
+                var lane = s.LaneNumber;
+                if (!string.IsNullOrWhiteSpace(ov.StartTimeLocal) && TimeSpan.TryParse(ov.StartTimeLocal, out var st))
+                {
+                    start = st;
+                }
+
+                if (ov.DurationMinutes is > 0)
+                {
+                    dur = ov.DurationMinutes.Value;
+                }
+
+                if (ov.LaneNumber is > 0)
+                {
+                    lane = ov.LaneNumber.Value;
+                }
+
+                var endT = start.Add(TimeSpan.FromMinutes(dur));
+                var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Zolaq təyin edilməyib";
+                var startKey = FormatTimeLocal(start);
+                var endKey = FormatTimeLocal(endT);
+                var row = new
+                {
+                    scheduleId = s.Id,
+                    athleteFullName,
+                    dateLocal = dateKey,
+                    dayLabel = DayLabelAz((int)rescheduledDay.DayOfWeek),
+                    startTime = startKey,
+                    endTime = endKey,
+                    durationMinutes = dur,
+                    laneNumber = lane,
+                    laneLabel,
+                    preferredLaneType = (int)s.PreferredLaneType,
+                    isFullPackage = s.IsFullPackage,
+                    isRescheduled = true
+                };
+                temp.Add((dateKey, startKey, row));
+                addedDates.Add(dateKey);
             }
         }
 
@@ -174,6 +275,12 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
     private static string NormalizeText(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
+    }
+
+    private static string FormatTimeLocal(TimeSpan time)
+    {
+        var normalized = time - TimeSpan.FromDays(time.Days);
+        return $"{normalized.Hours:D2}:{normalized.Minutes:D2}";
     }
 
     private static string DayLabelAz(int dayOfWeek)

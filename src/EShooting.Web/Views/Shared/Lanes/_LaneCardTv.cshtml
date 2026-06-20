@@ -20,9 +20,15 @@
         else effectiveStatus = "Active";
     }
 
-    var hasSession = effectiveStatus is "Active" or "Scheduled";
+    var hasSession = Model.IsSessionOpen && Model.SessionId is not null;
     var startText = LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc);
     var endText = LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc);
+    var wallClockNow = LaneDisplayHelper.FormatTimeLocal(DateTime.UtcNow);
+    var athleteLines = LaneDisplayHelper.ParseGroupAthleteDisplayLines(
+        Model.AthleteName,
+        Model.AthleteFirstName,
+        Model.AthleteLastName);
+    var isGroupDisplay = athleteLines.Count > 1;
 }
 @await Html.PartialAsync("Lanes/_LaneCardTvStyles")
 <article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")" data-tv-layout="v3">
@@ -34,44 +40,55 @@
                  onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/logoZolag.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/club-logo.jpg';}else if(this.dataset.fallback==='2'){this.dataset.fallback='3';this.src='/images/placeholder-logo.jpg';}" />
         </div>
 
-        <div class="lane-tv-panel lane-tv-panel--zolaq">
+        <div class="lane-tv-panel lane-tv-panel--center-stack">
             <h2 class="lane-tv-lane-num">Zolaq @Model.LaneNumber</h2>
+            @if (hasSession)
+            {
+                <div class="lane-tv-schedule" data-role="lane-schedule">
+                    <div class="lane-tv-schedule__row">
+                        <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
+                    </div>
+                    <div class="lane-tv-schedule__row">
+                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="lane-tv-panel lane-tv-panel--clock">
-            <div class="lane-tv-wall-clock" title="Canlı saat">
-                <span class="lane-tv-wall-clock__label">CANLI SAAT</span>
-                <span class="lane-tv-wall-clock__value" id="wallClock">--:--:--</span>
-            </div>
+            <span id="laneTvWallClockGrid" class="lane-tv-wall-clock__value" data-role="wall-clock-display">@wallClockNow</span>
         </div>
 
         @if (hasSession)
         {
             <div class="lane-tv-panel lane-tv-panel--name">
-                <div class="lane-tv-athlete">
-                    @LaneDisplayHelper.FormatAthleteLabel(Model.AthleteName)
-                    @if (Model.IsEquipmentIssued && !Model.IsEquipmentReturned)
+                <div class="lane-tv-athlete@(isGroupDisplay ? " lane-tv-athlete--group" : "")">
+                    @foreach (var person in athleteLines)
+                    {
+                        <div class="lane-tv-person">
+                            @if (!string.IsNullOrEmpty(person.First))
+                            {
+                                <span class="lane-tv-first-name">@person.First</span>
+                            }
+                            @if (!string.IsNullOrEmpty(person.Last))
+                            {
+                                <span class="lane-tv-last-name">@person.Last@(person.TrailingComma ? "," : "")</span>
+                            }
+                            else if (person.TrailingComma)
+                            {
+                                <span class="lane-tv-last-name">,</span>
+                            }
+                        </div>
+                    }
+                    @if (athleteLines.Count == 0)
+                    {
+                        <span class="lane-tv-first-name">—</span>
+                    }
+                    @if (Model.HasPendingRentalEquipment)
                     {
                         <span class="lane-tv-equip" aria-hidden="true">🏹</span>
                     }
                 </div>
-            </div>
-
-            <div class="lane-tv-panel lane-tv-panel--meta">
-                <div class="lane-tv-schedule" data-role="lane-schedule">
-                    <div class="lane-tv-schedule__row">
-                        <span class="lane-tv-schedule__icon" aria-hidden="true">🕒</span>
-                        <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
-                    </div>
-                    <div class="lane-tv-schedule__row">
-                        <span class="lane-tv-schedule__icon" aria-hidden="true">🏁</span>
-                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitiş: @endText</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="lane-tv-panel lane-tv-panel--hint">
-                <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
             </div>
         }
 
@@ -80,16 +97,23 @@
                  data-countdown-ring
                  data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
                  data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
-                 data-status="@effectiveStatus">
+                 data-status="@effectiveStatus"
+                 data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
                 <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
                     <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
                     <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
                 </svg>
                 <div class="countdown-ring__center">
-                    <div class="countdown-ring__timer" data-role="timer">—</div>
-                    <div class="countdown-ring__caption" data-role="caption">QALAN VAXT</div>
+                    <div class="countdown-ring__timer-shell">
+                        <div class="countdown-ring__timer" data-role="timer">—</div>
+                    </div>
+                    <div class="countdown-ring__caption" data-role="caption" aria-hidden="true"></div>
                 </div>
             </div>
         </div>
     </div>
+    @if (hasSession)
+    {
+        <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
+    }
 </article>
