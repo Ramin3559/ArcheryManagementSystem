@@ -1,13 +1,14 @@
 @{
     Layout = null;
     var returnUrl = ViewData["ReturnUrl"] as string;
+    var passwordChanged = TempData["PasswordChanged"] as string;
 }
 <!DOCTYPE html>
 <html lang="az">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EShooting — Giriş</title>
+    <title>Target — Giriş</title>
     <style>
         :root {
             --bg: #0b1220;
@@ -37,8 +38,14 @@
             border: 1px solid var(--border);
             border-radius: 14px;
         }
-        h1 { margin: 0 0 8px; font-size: 22px; }
-        p { margin: 0 0 20px; color: var(--text-muted); font-size: 14px; }
+        .brand {
+            margin: 0 0 24px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            color: var(--text);
+        }
         label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-muted); }
         input[type="text"], input[type="password"] {
             width: 100%;
@@ -49,7 +56,7 @@
             background: #17213a;
             color: var(--text);
         }
-        button {
+        button[type="submit"] {
             width: 100%;
             margin-top: 8px;
             padding: 12px;
@@ -60,24 +67,66 @@
             font-weight: 600;
             cursor: pointer;
         }
-        button:hover { filter: brightness(1.06); }
-        .error {
+        button[type="submit"]:hover { filter: brightness(1.06); }
+        .msg {
             margin-bottom: 14px;
             padding: 10px 12px;
             border-radius: 10px;
-            background: rgba(235, 87, 87, 0.15);
-            color: #ff9a9a;
             font-size: 14px;
         }
-        .error:empty { display: none; }
+        .msg--error {
+            background: rgba(235, 87, 87, 0.15);
+            color: #ff9a9a;
+        }
+        .msg--ok {
+            background: rgba(15, 157, 119, 0.18);
+            color: #7dffc8;
+        }
+        .toggle-link {
+            display: block;
+            width: 100%;
+            margin-top: 16px;
+            padding: 0;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-decoration: underline;
+            cursor: pointer;
+            text-align: center;
+        }
+        .toggle-link:hover { color: var(--text); }
+        .change-panel {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        .change-panel.is-open { display: block; }
+        .change-panel h2 {
+            margin: 0 0 14px;
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>EShooting</h1>
-        <p>Reception üçün giriş edin; təsdiqləndikdən sonra idarə paneli açılacaq.</p>
+        <h1 class="brand">Target giriş</h1>
 
-        <div class="error" asp-validation-summary="All"></div>
+        @if (!string.IsNullOrEmpty(passwordChanged))
+        {
+            <div class="msg msg--ok">@passwordChanged</div>
+        }
+
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="msg msg--error">
+                @string.Join(" ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
+            </div>
+        }
 
         <form asp-controller="Account" asp-action="Login" method="post">
             <input type="hidden" name="returnUrl" value="@returnUrl" />
@@ -91,6 +140,42 @@
 
             <button type="submit">Daxil ol</button>
         </form>
+
+        <button type="button" class="toggle-link" id="toggleChangePassword" aria-expanded="false">
+            Parolu dəyiş
+        </button>
+
+        <div class="change-panel" id="changePasswordPanel" aria-hidden="true">
+            <h2>Parolu dəyiş</h2>
+            <form asp-controller="Account" asp-action="ChangePassword" method="post">
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                @Html.AntiForgeryToken()
+
+                <label for="currentPassword">Köhnə şifrə</label>
+                <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required />
+
+                <label for="newPassword">Yeni şifrə</label>
+                <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" required minlength="6" />
+
+                <label for="confirmPassword">Yeni şifrə (təkrar)</label>
+                <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required minlength="6" />
+
+                <button type="submit">Parolu yenilə</button>
+            </form>
+        </div>
     </div>
+    <script>
+        (function () {
+            var btn = document.getElementById("toggleChangePassword");
+            var panel = document.getElementById("changePasswordPanel");
+            if (!btn || !panel) return;
+            btn.addEventListener("click", function () {
+                var open = panel.classList.toggle("is-open");
+                btn.setAttribute("aria-expanded", open ? "true" : "false");
+                panel.setAttribute("aria-hidden", open ? "false" : "true");
+                btn.textContent = open ? "Parolu dəyişməni bağla" : "Parolu dəyiş";
+            });
+        })();
+    </script>
 </body>
 </html>

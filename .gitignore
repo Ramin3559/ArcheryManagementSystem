@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Admin credentials override (local password changes)
+**/App_Data/admin-auth.json

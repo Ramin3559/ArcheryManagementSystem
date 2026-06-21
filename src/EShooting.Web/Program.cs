@@ -15,6 +15,8 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<ReceptionAuthOptions>(builder.Configuration.GetSection(ReceptionAuthOptions.SectionName));
+builder.Services.Configure<AdminAuthOptions>(builder.Configuration.GetSection(AdminAuthOptions.SectionName));
+builder.Services.AddSingleton<IAdminCredentialStore, AdminCredentialStore>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

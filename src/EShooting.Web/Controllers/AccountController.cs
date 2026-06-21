@@ -8,7 +8,9 @@ using Microsoft.Extensions.Options;
 
 namespace EShooting.Web.Controllers;
 
-public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : Controller
+public sealed class AccountController(
+    IOptions<ReceptionAuthOptions> options,
+    IAdminCredentialStore adminCredentials) : Controller
 {
     private readonly ReceptionAuthOptions _auth = options.Value;
 
@@ -21,16 +23,12 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
 
         if (User.Identity?.IsAuthenticated == true)
         {
-            // If an old/invalid cookie exists without the required role,
-            // redirecting back to a protected page causes an infinite redirect loop.
             if (!User.IsInRole("Reception") && !User.IsInRole("ReceptionStaff") && !User.IsInRole("Admin"))
             {
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             }
             else if (isAdminReturnUrl && !User.IsInRole("Admin"))
             {
-                // Reception user hitting an admin returnUrl would bounce forever (/admin -> /Account/Login -> /admin ...).
-                // We force a clean state and let admin login flow handle it.
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return Redirect($"/admin/login?returnUrl={Uri.EscapeDataString(returnUrl!)}");
             }
@@ -43,17 +41,13 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
         ViewData["ReturnUrl"] = returnUrl;
         return View();
     }
-   
+
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(string userName, string password, string? returnUrl)
     {
-        var isAdminReturnUrl = !string.IsNullOrWhiteSpace(returnUrl)
-            && returnUrl.StartsWith("/admin", StringComparison.OrdinalIgnoreCase);
-
-        if (string.Equals(userName, "admin", StringComparison.Ordinal)
-            && string.Equals(password, "adminadmin", StringComparison.Ordinal))
+        if (adminCredentials.TryValidate(userName, password))
         {
             var claims = new List<Claim>
             {
@@ -89,6 +83,33 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
     }
 
     [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public IActionResult ChangePassword(
+        string currentPassword,
+        string newPassword,
+        string confirmPassword,
+        string? returnUrl)
+    {
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        {
+            ModelState.AddModelError(string.Empty, "Yeni şifrələr uyğun gəlmir.");
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(nameof(Login));
+        }
+
+        if (!adminCredentials.TryChangePassword(currentPassword, newPassword, out var error))
+        {
+            ModelState.AddModelError(string.Empty, error ?? "Parol dəyişdirilmədi.");
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(nameof(Login));
+        }
+
+        TempData["PasswordChanged"] = "Parol uğurla dəyişdirildi. Yeni şifrə ilə daxil ola bilərsiniz.";
+        return RedirectToAction(nameof(Login), new { returnUrl });
+    }
+
+    [HttpPost]
     [Authorize]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
@@ -104,6 +125,6 @@ public sealed class AccountController(IOptions<ReceptionAuthOptions> options) : 
             return Redirect(returnUrl);
         }
 
-        return Redirect("/resepsiya");
+        return Redirect("/admin");
     }
 }

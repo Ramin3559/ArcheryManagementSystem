@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using EShooting.Web.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,7 @@ namespace EShooting.Web.Controllers.Admin;
 
 [Route("admin-auth")]
 [AllowAnonymous]
-public sealed class AdminAuthController : Controller
+public sealed class AdminAuthController(IAdminCredentialStore adminCredentials) : Controller
 {
     [HttpGet("login")]
     [AllowAnonymous]
@@ -33,8 +34,7 @@ public sealed class AdminAuthController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> LoginPost(string userName, string password, string? returnUrl)
     {
-        if (string.Equals(userName, "admin", StringComparison.Ordinal)
-            && string.Equals(password, "adminadmin", StringComparison.Ordinal))
+        if (adminCredentials.TryValidate(userName, password))
         {
             var claims = new List<Claim>
             {
@@ -78,4 +78,3 @@ public sealed class AdminAuthController : Controller
         return Redirect("/admin");
     }
 }
-
