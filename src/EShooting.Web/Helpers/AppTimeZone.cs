@@ -28,6 +28,17 @@ public static class AppTimeZone
         return ToLocal(utc.Value).ToString("HH:mm:ss", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>TV Başlama/Bitmə — saniyəsiz (HH:mm).</summary>
+    public static string FormatScheduleTimeLocal(DateTime? utc)
+    {
+        if (utc is null)
+        {
+            return "—";
+        }
+
+        return ToLocal(utc.Value).ToString("HH:mm", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>
     /// JS <c>parseApiDate</c> üçün offset-li ISO (məs. +04:00).
     /// </summary>

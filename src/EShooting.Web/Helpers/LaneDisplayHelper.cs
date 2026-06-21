@@ -124,6 +124,8 @@ public static class LaneDisplayHelper
 
     public static string FormatTimeLocal(DateTime? utc) => AppTimeZone.FormatTimeLocal(utc);
 
+    public static string FormatScheduleTimeLocal(DateTime? utc) => AppTimeZone.FormatScheduleTimeLocal(utc);
+
     public static string ToIsoOffset(DateTime? utc) => AppTimeZone.ToIsoOffset(utc);
 
     /// <summary>

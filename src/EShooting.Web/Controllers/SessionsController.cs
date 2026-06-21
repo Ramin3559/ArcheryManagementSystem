@@ -482,11 +482,6 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     public async Task<IActionResult> AssignFullPackage([FromBody] FullPackageAssignRequest request, CancellationToken cancellationToken)
     {
         var duration = request.DurationMinutes;
-        if (duration <= 0 || duration > 240)
-        {
-            return BadRequest(new { error = "DurationMinutes must be between 1 and 240." });
-        }
-
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var athlete = athletes.FirstOrDefault(x => x.Id == request.AthleteId);
         if (athlete is null)
@@ -496,14 +491,35 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         if (!athlete.IsSubscriber || !athlete.IsFullPackage)
         {
-            return BadRequest(new { error = "Athlete is not a Full Package subscriber." });
+            return BadRequest(new { error = "Bu müştərinin aktiv çevik abunəsi yoxdur." });
         }
 
+        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var activeWalkIn = WalkInSubscriptionRules.GetActiveWalkInSchedule(
+            schedules,
+            athlete.Id,
+            DateTime.Now);
+
+        if (activeWalkIn is null)
+        {
+            return BadRequest(new { error = "Çevik abunə müddəti bitib və ya aktiv deyil. Yeniləyin." });
+        }
+
+        var sessionDuration = activeWalkIn.DurationMinutes;
+        if (sessionDuration <= 0 && duration > 0)
+        {
+            sessionDuration = duration;
+        }
+
+        if (sessionDuration < 0 || sessionDuration > 600)
+        {
+            return BadRequest(new { error = "DurationMinutes must be between 0 and 600." });
+        }
         var allLanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var nowUtc = DateTime.UtcNow;
         var startUtc = nowUtc;
-        var endUtc = startUtc.AddMinutes(duration);
+        var endUtc = startUtc.AddMinutes(sessionDuration);
 
         var candidates = athlete.Category == CustomerCategory.Amateur
             ? allLanes.Where(l => l.Number is >= 1 and <= 8).ToList()
@@ -523,7 +539,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                     athlete.Id,
                     selected.Number,
                     startUtc,
-                    duration,
+                    sessionDuration,
                     request.IsEquipmentIssued,
                     PreferredLaneType.Any),
                 cancellationToken);

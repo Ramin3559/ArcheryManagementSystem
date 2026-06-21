@@ -12,6 +12,7 @@ public sealed record CreateSubscriptionPackageCommand(
     TimeSpan StartTimeLocal,
     int DurationMinutes,
     DateTime StartDateLocal,
+    DateTime? EndDateLocal,
     IReadOnlyDictionary<int, PreferredLaneType> PreferredLaneTypesByDayOfWeek,
     bool IsFullPackage) : IRequest<CreateSubscriptionPackageResult>;
 
@@ -51,10 +52,49 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
 
         if (request.IsFullPackage)
         {
-            // Flexible package: no fixed schedule required.
+            var startDate = request.StartDateLocal.Date;
+            var endDate = request.EndDateLocal?.Date ?? startDate.AddDays(30);
+            if (endDate < startDate)
+            {
+                throw new InvalidOperationException("Abunə bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
+            }
+
+            var durationMinutes = request.DurationMinutes;
+            if (durationMinutes < 0 || durationMinutes > 600)
+            {
+                throw new InvalidOperationException("DurationMinutes must be between 0 and 600.");
+            }
+
+            var walkInSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+            foreach (var old in walkInSchedules.Where(x => x.AthleteId == athlete.Id && x.IsEnabled && x.IsFullPackage))
+            {
+                old.IsEnabled = false;
+                await repository.UpdateSubscriptionScheduleAsync(old, cancellationToken);
+            }
+
+            athlete.IsSubscriber = true;
             athlete.IsFullPackage = true;
+            if (durationMinutes == 0)
+            {
+                athlete.IsVip = true;
+            }
             await repository.UpdateAthleteAsync(athlete, cancellationToken);
-            return new CreateSubscriptionPackageResult(0, request.StartDateLocal.Date, request.StartDateLocal.Date);
+
+            await repository.AddSubscriptionScheduleAsync(new SubscriptionSchedule
+            {
+                AthleteId = athlete.Id,
+                LaneNumber = 0,
+                DayOfWeek = 0,
+                StartTimeLocal = TimeSpan.Zero,
+                DurationMinutes = durationMinutes,
+                ActiveFromDateLocal = startDate,
+                ActiveToDateLocal = endDate,
+                IsEnabled = true,
+                PreferredLaneType = PreferredLaneType.Any,
+                IsFullPackage = true
+            }, cancellationToken);
+
+            return new CreateSubscriptionPackageResult(1, startDate, endDate);
         }
 
         if (request.VisitsCount <= 0)

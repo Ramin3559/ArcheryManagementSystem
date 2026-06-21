@@ -48,10 +48,12 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             {
                 var from = g.Key.From;
                 var to = g.Key.To;
-                var dayLabels = g
-                    .Select(x => DayLabelAz(x.DayOfWeek))
-                    .Distinct()
-                    .ToList();
+                var dayLabels = g.Key.IsFullPackage
+                    ? new List<string> { "Limitsiz — istənilən vaxt gəliş" }
+                    : g
+                        .Select(x => DayLabelAz(x.DayOfWeek))
+                        .Distinct()
+                        .ToList();
 
                 return new
                 {

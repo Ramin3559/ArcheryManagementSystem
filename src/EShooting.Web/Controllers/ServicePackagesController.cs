@@ -23,6 +23,8 @@ public sealed class ServicePackagesController(IMediator mediator) : ControllerBa
                 PackageBillingType.OneTime => "Birdefəlik",
                 PackageBillingType.Monthly => "Aylıq",
                 PackageBillingType.Yearly => "İllik",
+                PackageBillingType.Vip => "VIP",
+                PackageBillingType.Gym => "Zal",
                 _ => p.BillingType.ToString()
             },
             scope = p.Scope.ToString(),

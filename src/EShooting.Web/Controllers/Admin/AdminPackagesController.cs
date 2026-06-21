@@ -112,16 +112,45 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
 
         try
         {
-            var scope = PackageScope.Archery;
-            var scheduling = model.BillingType == PackageBillingType.OneTime
-                ? PackageSchedulingMode.None
-                : PackageSchedulingMode.FixedWeekly;
-            int? validity = model.BillingType switch
+            PackageScope scope;
+            PackageSchedulingMode scheduling;
+            int sessionDuration;
+            int? validity;
+            var unlimitedGym = false;
+
+            switch (model.BillingType)
             {
-                PackageBillingType.Monthly => 30,
-                PackageBillingType.Yearly => 365,
-                _ => null
-            };
+                case PackageBillingType.Vip:
+                    scope = PackageScope.Vip;
+                    scheduling = PackageSchedulingMode.WalkInFlexible;
+                    sessionDuration = 0;
+                    validity = null;
+                    unlimitedGym = true;
+                    break;
+                case PackageBillingType.Gym:
+                    scope = PackageScope.Gym;
+                    scheduling = PackageSchedulingMode.None;
+                    sessionDuration = model.SessionDurationMinutes;
+                    validity = null;
+                    break;
+                case PackageBillingType.OneTime:
+                    scope = PackageScope.Archery;
+                    scheduling = PackageSchedulingMode.None;
+                    sessionDuration = model.SessionDurationMinutes;
+                    validity = null;
+                    break;
+                default:
+                    scope = PackageScope.Archery;
+                    scheduling = PackageSchedulingMode.FixedWeekly;
+                    sessionDuration = model.SessionDurationMinutes;
+                    validity = model.BillingType switch
+                    {
+                        PackageBillingType.Monthly => 30,
+                        PackageBillingType.Yearly => 365,
+                        _ => null
+                    };
+                    break;
+            }
 
             var id = await mediator.Send(new UpsertServicePackageCommand(
                 model.Id,
@@ -130,11 +159,11 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                 scope,
                 scheduling,
                 model.Price,
-                model.SessionDurationMinutes,
+                sessionDuration,
                 PeriodMinutesQuota: null,
                 WeeklyDaysCsv: null,
                 validity,
-                UnlimitedGym: false,
+                unlimitedGym,
                 model.IsActive), cancellationToken);
 
             TempData["PackageNotice"] = model.Id is null

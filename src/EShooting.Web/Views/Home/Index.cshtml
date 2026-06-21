@@ -1382,13 +1382,14 @@
                     <option value="0">Yalnız oxatma</option>
                     <option value="1">Yalnız zal</option>
                 </select>
+                <input id="includesLane" type="checkbox" checked />
                 <input id="includesShooting" type="checkbox" checked />
                 <input id="includesGym" type="checkbox" />
                 <input id="isVip" type="checkbox" />
             </div>
 
             <h2 class="section-heading">Zolağa yazılma</h2>
-            <p class="section-hint">Paket seçin. Birdefəlik paketdə zolaq və başlama vaxtını təyin edin. Aylıq/illik paketdə abunə tarixi, həftə günləri, hər gün üçün saat və zolaq seçin.</p>
+            <p class="section-hint" id="laneBookingHint">Paket seçin. Birdefəlik paketdə zolaq və başlama vaxtını təyin edin. Sabit aylıq paketdə həftə günləri və saat seçin. <strong>Aylıq çevik paket</strong>də limit yoxdur — müştəri istənilən vaxt gəlir, resepsiyon boş zolaq aktiv edir.</p>
             <div class="row">
                 <select id="bookingPackage" title="Paket">
                     <option value="" selected disabled>Paket seçin</option>
@@ -1415,10 +1416,20 @@
                     <span class="section-hint" style="margin:0;">Abunə başlanğıcı</span>
                     <input id="bookingSubStartDate" type="date" title="Abunə başlanğıc tarixi" />
                 </label>
-                <label style="display:flex;flex-direction:column;gap:4px;">
+                <label id="bookingSubEndDateWrap" style="display:flex;flex-direction:column;gap:4px;">
                     <span class="section-hint" style="margin:0;">Abunə bitməsi</span>
                     <input id="bookingSubEndDate" type="date" title="Abunə bitmə tarixi" />
                 </label>
+                <label id="bookingSubMonthsWrap" style="display:none; flex-direction:column; gap:4px;">
+                    <span class="section-hint" style="margin:0;">Neçə ay (VIP)</span>
+                    <input id="bookingSubMonths" type="number" min="1" max="120" value="1" title="VIP abunə müddəti — ay sayı" />
+                </label>
+            </div>
+            <div id="bookingWalkInHint" class="notice" style="display:none; margin-top:8px;">
+                Limitsiz çevik abunə — həftəlik plan lazım deyil. Müştəri ay ərzində istənilən vaxt gələ bilər; hər gəlişdə «Boş zolaq aktiv et» ilə yazılır.
+            </div>
+            <div id="bookingVipHint" class="notice" style="display:none; margin-top:8px;">
+                VIP full paket — sessiya müddəti yoxdur. Qeydiyyatda neçə ay olduğunu qeyd edin; müştəri istənilən vaxt gələndə boş zolağa yazılır.
             </div>
             <div id="bookingSubscriptionScheduleRow" style="display:none;">
                 <div class="notice" style="margin-bottom:8px;">Həftə günlərini seçin. Seçdiyin hər gün üçün aşağıda ayrıca saat və zolaq təyin edin.</div>
@@ -1446,9 +1457,11 @@
                     <option value="9">Zolaq 9 (Peşəkar)</option>
                     <option value="10">Zolaq 10 (Peşəkar)</option>
                     <option value="11">Zolaq 11 (Peşəkar)</option>
+                    <option value="12">Zal</option>
                 </select>
                 <button id="scheduleBtn" type="button" class="btn btn-primary">Zolağa yaz</button>
             </div>
+            <div id="receptionWalkInBanner" class="notice" style="display:none; margin-top:8px; border-color:rgba(15,157,119,0.35); background:rgba(15,157,119,0.08); color:#0b6b52;"></div>
             <div class="notice" id="groupInfo" style="display:none;" aria-hidden="true"></div>
             <div class="notice" id="sessionInfo">Müştəri və paket seçin, sonra zolaq və vaxt təyin edin.</div>
         </article>
@@ -1615,15 +1628,7 @@
                 <option value="1">Professional</option>
                 <option value="2">Məşqçi</option>
             </select>
-            <label class="checkbox-chip" title="Oxatma zolağından istifadə">
-                <input id="modalIncludesShooting" type="checkbox" checked />
-                Oxatma (zolaq)
-            </label>
-            <label class="checkbox-chip" title="Zalda məşq">
-                <input id="modalIncludesGym" type="checkbox" />
-                Zalda daxildir
-            </label>
-            <label class="vip-chip" title="Xüsusi VIP müştəri">
+            <label class="vip-chip" title="Bütün zolaqlar və idman zalı daxildir">
                 <input id="modalIsVip" type="checkbox" />
                 VIP müştəri
             </label>
@@ -1972,8 +1977,6 @@
     const modalEmail = document.getElementById("modalEmail");
     const modalIdCardNumber = document.getElementById("modalIdCardNumber");
     const modalCategory = document.getElementById("modalCategory");
-    const modalIncludesShooting = document.getElementById("modalIncludesShooting");
-    const modalIncludesGym = document.getElementById("modalIncludesGym");
     const modalIsVip = document.getElementById("modalIsVip");
     const lastNameInput = document.getElementById("lastName");
     const phoneNumberInput = document.getElementById("phoneNumber");
@@ -1986,10 +1989,20 @@
     const subscriptionPeriodRow = document.getElementById("subscriptionPeriodRow");
     const bookingSubStartDate = document.getElementById("bookingSubStartDate");
     const bookingSubEndDate = document.getElementById("bookingSubEndDate");
+    const bookingSubEndDateWrap = document.getElementById("bookingSubEndDateWrap");
+    const bookingSubMonthsWrap = document.getElementById("bookingSubMonthsWrap");
+    const bookingSubMonths = document.getElementById("bookingSubMonths");
+    const bookingVipHint = document.getElementById("bookingVipHint");
+    const bookingWalkInHint = document.getElementById("bookingWalkInHint");
     const bookingSubscriptionScheduleRow = document.getElementById("bookingSubscriptionScheduleRow");
+    const receptionWalkInBanner = document.getElementById("receptionWalkInBanner");
+    const laneBookingHint = document.getElementById("laneBookingHint");
+    const DEFAULT_LANE_BOOKING_HINT = "Paket seçin. Birdefəlik paketdə zolaq və başlama vaxtını təyin edin. Sabit aylıq paketdə həftə günləri və saat seçin. Aylıq çevik paketdə limit yoxdur — müştəri istənilən vaxt gəlir, resepsiyon boş zolaq aktiv edir.";
+    const GYM_LANE_NUMBER = 12;
     const bookingSubscriptionLaneTypesByDayEl = document.getElementById("bookingSubscriptionLaneTypesByDay");
     const manageCustomerBtn = document.getElementById("manageCustomerBtn");
     const membershipTypeInput = document.getElementById("membershipType");
+    const includesLaneInput = document.getElementById("includesLane");
     const includesShootingInput = document.getElementById("includesShooting");
     const includesGymInput = document.getElementById("includesGym");
     const laneNumberInput = document.getElementById("laneNumber");
@@ -2082,6 +2095,7 @@
     let selectedEquipmentIssues = [];
     let equipmentPickerDraft = [];
     let receptionMatchedAthleteId = null;
+    let _receptionWalkIn = null;
     let receptionMatchedSnapshot = null; // last "known-good" db snapshot of person fields
     let isAutoFillingReception = false;
 
@@ -2113,43 +2127,196 @@
             if (!res.ok) return;
             const list = await res.json().catch(() => []);
             bookingPackagesCache = Array.isArray(list) ? list : [];
-            const prev = bookingPackageSelect.value;
-            bookingPackageSelect.innerHTML = '<option value="" selected disabled>Paket seçin</option>';
-            for (const p of bookingPackagesCache) {
-                const opt = document.createElement("option");
-                opt.value = p.id;
-                const price = p.price != null && p.price !== "" ? ` · ${p.price} ₼` : "";
-                opt.textContent = `${p.name} (${p.billingTypeLabel}) · ${p.sessionDurationMinutes} dəq${price}`;
-                bookingPackageSelect.appendChild(opt);
-            }
-            if (prev && bookingPackagesCache.some(x => String(x.id) === String(prev))) {
-                bookingPackageSelect.value = prev;
-            }
+            populateBookingPackageSelect();
             syncBookingPackageUi();
         } catch (e) {
             console.error("Paketlər yüklənmədi", e);
         }
     }
 
-    function syncBookingPackageUi() {
+    function isVipBillingPackage(pkg) {
+        return pkg?.billingType === "Vip";
+    }
+
+    function isGymPackage(pkg) {
+        return pkg?.scope === "Gym" || pkg?.billingType === "Gym";
+    }
+
+    function isGymLaneNumber(laneNumber) {
+        return Number(laneNumber) === GYM_LANE_NUMBER;
+    }
+
+    function isGymLaneSelected() {
+        return isGymLaneNumber(laneNumberInput?.value ?? 0);
+    }
+
+    function isGymPackageSelected() {
         const pkg = getSelectedBookingPackage();
+        return Boolean(pkg && isGymPackage(pkg));
+    }
+
+    function isGymBookingMode() {
+        return isGymLaneSelected() || isGymPackageSelected();
+    }
+
+    function ensureGymLaneForPackage() {
+        if (!(laneNumberInput instanceof HTMLSelectElement)) return;
+        const pkg = getSelectedBookingPackage();
+        if (pkg && isGymPackage(pkg)) {
+            laneNumberInput.value = String(GYM_LANE_NUMBER);
+            lastValidLaneNumber = String(GYM_LANE_NUMBER);
+            return;
+        }
+        if (pkg && !isGymPackage(pkg) && isGymLaneNumber(laneNumberInput.value)) {
+            const fallback = lastValidLaneNumber && !isGymLaneNumber(lastValidLaneNumber)
+                ? lastValidLaneNumber
+                : "1";
+            laneNumberInput.value = fallback;
+            lastValidLaneNumber = fallback;
+        }
+    }
+
+    function filterPackagesForBooking(packages) {
+        const list = Array.isArray(packages) ? packages : [];
+        if (isGymBookingMode()) return list.filter(isGymPackage);
+        return list.filter(p => !isGymPackage(p));
+    }
+
+    function populateBookingPackageSelect() {
+        if (!(bookingPackageSelect instanceof HTMLSelectElement)) return;
+        const prev = bookingPackageSelect.value;
+        const filtered = filterPackagesForBooking(bookingPackagesCache);
+        bookingPackageSelect.innerHTML = '<option value="" selected disabled>Paket seçin</option>';
+        for (const p of filtered) {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            const price = p.price != null && p.price !== "" ? ` · ${p.price} ₼` : "";
+            const durLabel = Number(p.sessionDurationMinutes) > 0 ? ` · ${p.sessionDurationMinutes} dəq` : (p.billingType === "Vip" ? " · müddətsiz" : "");
+            opt.textContent = `${p.name} (${p.billingTypeLabel})${durLabel}${price}`;
+            bookingPackageSelect.appendChild(opt);
+        }
+        if (prev && filtered.some(x => String(x.id) === String(prev))) {
+            bookingPackageSelect.value = prev;
+        } else {
+            bookingPackageSelect.value = "";
+        }
+    }
+
+    function isWalkInPackage(pkg) {
+        return pkg?.schedulingMode === "WalkInFlexible";
+    }
+
+    function calcSubscriptionEndDateLocal(startIso, pkg) {
+        if (!startIso) return "";
+        if (isVipBillingPackage(pkg)) {
+            const months = Number(bookingSubMonths?.value ?? 1);
+            const start = new Date(`${startIso}T12:00:00`);
+            start.setMonth(start.getMonth() + months);
+            return start.toISOString().slice(0, 10);
+        }
+        return bookingSubEndDate?.value ?? "";
+    }
+
+    function isActiveVipReception() {
+        return Boolean(_receptionWalkIn?.isActive && _receptionWalkIn?.isVip);
+    }
+
+    function syncVipReceptionBookingUi() {
+        const vipActive = isActiveVipReception();
+        if (bookingPackageSelect instanceof HTMLSelectElement) {
+            bookingPackageSelect.disabled = vipActive;
+            if (vipActive) {
+                bookingPackageSelect.value = "";
+            }
+        }
+        if (laneBookingHint instanceof HTMLElement) {
+            laneBookingHint.textContent = vipActive
+                ? "VIP müştəri — aktiv abunə var. İndi başla və ya saat seçin, zolağı təyin edib «Zolağa yaz» basın."
+                : DEFAULT_LANE_BOOKING_HINT;
+        }
+        if (vipActive) {
+            if (registrationModeInput instanceof HTMLInputElement) {
+                registrationModeInput.value = "instant";
+            }
+            if (durationMinutesInput instanceof HTMLInputElement) {
+                durationMinutesInput.value = "0";
+            }
+            if (subscriptionPeriodRow instanceof HTMLElement) subscriptionPeriodRow.style.display = "none";
+            if (bookingSubscriptionScheduleRow instanceof HTMLElement) bookingSubscriptionScheduleRow.style.display = "none";
+            if (bookingWalkInHint instanceof HTMLElement) bookingWalkInHint.style.display = "none";
+            if (bookingVipHint instanceof HTMLElement) {
+                bookingVipHint.style.display = "block";
+                bookingVipHint.textContent = "VIP abunə aktivdir — paket seçimi lazım deyil.";
+            }
+            if (packageDurationHint instanceof HTMLElement) {
+                packageDurationHint.textContent = "VIP — müddətsiz";
+            }
+            if (sessionInfo instanceof HTMLElement) {
+                sessionInfo.textContent = "VIP müştəri — zolaq və vaxt seçib «Zolağa yaz» basın.";
+            }
+        } else if (bookingPackageSelect instanceof HTMLSelectElement) {
+            bookingPackageSelect.disabled = false;
+        }
+    }
+
+    function syncBookingPackageUi() {
+        if (isActiveVipReception()) {
+            syncVipReceptionBookingUi();
+            syncRegistrationModeUi();
+            return;
+        }
+        if (_receptionWalkIn?.isActive && bookingPackageSelect instanceof HTMLSelectElement && bookingPackageSelect.value) {
+            bookingPackageSelect.value = "";
+            if (registrationModeInput instanceof HTMLInputElement) registrationModeInput.value = "";
+            showSessionNotice("Aktiv abunə var — paket seçməyin, «Boş zolaq aktiv et» basın.", "ok");
+            syncRegistrationModeUi();
+            return;
+        }
+        const pkg = getSelectedBookingPackage();
+        ensureGymLaneForPackage();
         const isSubscription = pkg && pkg.billingType !== "OneTime";
+        const isWalkIn = isWalkInPackage(pkg);
+        const isVip = isVipBillingPackage(pkg);
+        const gymMode = isGymBookingMode();
         if (packageDurationHint instanceof HTMLElement) {
-            packageDurationHint.textContent = pkg ? `Müddət: ${pkg.sessionDurationMinutes} dəq` : "";
+            if (!pkg) packageDurationHint.textContent = "";
+            else if (isVip) packageDurationHint.textContent = "VIP — müddətsiz full paket";
+            else packageDurationHint.textContent = `Müddət: ${pkg.sessionDurationMinutes} dəq`;
         }
         if (subscriptionPeriodRow instanceof HTMLElement) {
             subscriptionPeriodRow.style.display = isSubscription ? "" : "none";
         }
+        if (bookingSubEndDateWrap instanceof HTMLElement) {
+            bookingSubEndDateWrap.style.display = isSubscription && !isVip ? "" : "none";
+        }
+        if (bookingSubMonthsWrap instanceof HTMLElement) {
+            bookingSubMonthsWrap.style.display = isSubscription && isVip ? "flex" : "none";
+        }
         if (bookingSubscriptionScheduleRow instanceof HTMLElement) {
-            bookingSubscriptionScheduleRow.style.display = isSubscription ? "" : "none";
+            const hideWeekly = pkg && isGymPackage(pkg);
+            bookingSubscriptionScheduleRow.style.display = isSubscription && !isWalkIn && !hideWeekly ? "" : "none";
+        }
+        if (bookingWalkInHint instanceof HTMLElement) {
+            bookingWalkInHint.style.display = isSubscription && isWalkIn && !isVip ? "block" : "none";
+        }
+        if (bookingVipHint instanceof HTMLElement) {
+            bookingVipHint.style.display = isSubscription && isVip ? "block" : "none";
         }
         if (isSubscription && pkg) {
             syncBookingSubscriptionPeriodDefaults(pkg);
-            renderBookingSubscriptionLaneTypesByDay();
+            const hideWeekly = pkg && isGymPackage(pkg);
+            if (!isWalkIn && !hideWeekly) {
+                renderBookingSubscriptionLaneTypesByDay();
+            }
+        }
+        if (durationMinutesInput instanceof HTMLInputElement && isVip) {
+            durationMinutesInput.value = "0";
         }
         if (registrationModeInput instanceof HTMLInputElement) {
             if (!pkg) {
                 registrationModeInput.value = "";
+            } else if (isGymPackage(pkg)) {
+                registrationModeInput.value = "subscription";
             } else if (pkg.billingType === "OneTime") {
                 registrationModeInput.value = "instant";
             } else {
@@ -2220,10 +2387,17 @@
     }
 
     function syncBookingSubscriptionPeriodDefaults(pkg) {
-        if (!(bookingSubStartDate instanceof HTMLInputElement) || !(bookingSubEndDate instanceof HTMLInputElement)) return;
+        if (!(bookingSubStartDate instanceof HTMLInputElement)) return;
         const today = new Date();
         const startIso = today.toISOString().slice(0, 10);
         if (!bookingSubStartDate.value) bookingSubStartDate.value = startIso;
+        if (isVipBillingPackage(pkg)) {
+            if (bookingSubMonths instanceof HTMLInputElement && !bookingSubMonths.value) {
+                bookingSubMonths.value = "1";
+            }
+            return;
+        }
+        if (!(bookingSubEndDate instanceof HTMLInputElement)) return;
         if (!bookingSubEndDate.value) {
             const validity = Number(pkg?.validityDays ?? 0) || (pkg?.billingType === "Yearly" ? 365 : 30);
             const end = new Date(today);
@@ -2328,7 +2502,40 @@
         return { selectedDays, timeByDay, laneByDay };
     }
 
-    function validateBookingSubscriptionSchedule() {
+    function validateWalkInSubscriptionPeriod(pkg) {
+        const package = pkg ?? getSelectedBookingPackage();
+        const periodStart = bookingSubStartDate?.value ?? "";
+        if (!periodStart) {
+            return "Abunə başlanğıc tarixin seçin.";
+        }
+
+        if (isVipBillingPackage(package)) {
+            const months = Number(bookingSubMonths?.value ?? 0);
+            if (!Number.isInteger(months) || months <= 0 || months > 120) {
+                return "VIP abunə müddətini ay sayı ilə qeyd edin (1–120).";
+            }
+            return null;
+        }
+
+        const periodEnd = bookingSubEndDate?.value ?? "";
+        if (!periodEnd) {
+            return "Abunə bitmə tarixin seçin.";
+        }
+        if (new Date(periodEnd).getTime() < new Date(periodStart).getTime()) {
+            return "Abunə bitmə tarixi başlanğıcdan əvvəl ola bilməz.";
+        }
+        return null;
+    }
+
+    function validateBookingSubscriptionSchedule(pkg) {
+        const package = pkg ?? getSelectedBookingPackage();
+        if (isWalkInPackage(package)) {
+            return validateWalkInSubscriptionPeriod(package);
+        }
+        if (isGymPackage(package) && isGymBookingMode()) {
+            return validateWalkInSubscriptionPeriod(package);
+        }
+
         const periodStart = bookingSubStartDate?.value ?? "";
         const periodEnd = bookingSubEndDate?.value ?? "";
         if (!periodStart || !periodEnd) {
@@ -2430,17 +2637,69 @@
         return { resp, createdVia: "with_exceptions" };
     }
 
-    async function createSubscriptionFromSelectedPackage({ athleteId, athleteFullName, pkg }) {
-        const scheduleError = validateBookingSubscriptionSchedule();
-        if (scheduleError) {
-            alert(scheduleError);
+    async function createGymSubscriptionFromSelectedPackage({ athleteId, athleteFullName, pkg }) {
+        const periodError = validateWalkInSubscriptionPeriod(pkg);
+        if (periodError) {
+            alert(periodError);
             return false;
         }
 
         const periodStart = bookingSubStartDate?.value ?? "";
-        const periodEnd = bookingSubEndDate?.value ?? "";
+        const periodEnd = calcSubscriptionEndDateLocal(periodStart, pkg) || bookingSubEndDate?.value || "";
+        const sessionMinutes = Number(pkg?.sessionDurationMinutes ?? 60);
+        if (!Number.isInteger(sessionMinutes) || sessionMinutes <= 0) {
+            alert("Zal paketinin müddəti düzgün deyil.");
+            return false;
+        }
 
-        if (pkg?.schedulingMode === "WalkInFlexible") {
+        const response = await apiFetch("/subscriptions/packages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                athleteFullName,
+                athleteId,
+                dayPattern: "1-3-5",
+                visitsCount: 1,
+                startTimeLocal: "00:00",
+                durationMinutes: sessionMinutes,
+                startDateLocal: new Date(`${periodStart}T00:00:00`).toISOString(),
+                endDateLocal: new Date(`${periodEnd}T00:00:00`).toISOString(),
+                preferredLaneTypesByDayOfWeek: {},
+                isFullPackage: true
+            })
+        });
+        if (!response.ok) {
+            alert(await readErrorMessage(response) || "Zal abunəsi qeydə alınmadı.");
+            return false;
+        }
+        return true;
+    }
+
+    async function createSubscriptionFromSelectedPackage({ athleteId, athleteFullName, pkg }) {
+        if (isGymPackage(pkg) && isGymBookingMode()) {
+            return createGymSubscriptionFromSelectedPackage({ athleteId, athleteFullName, pkg });
+        }
+        if (isWalkInPackage(pkg)) {
+            const periodError = validateWalkInSubscriptionPeriod(pkg);
+            if (periodError) {
+                alert(periodError);
+                return false;
+            }
+        } else {
+            const scheduleError = validateBookingSubscriptionSchedule(pkg);
+            if (scheduleError) {
+                alert(scheduleError);
+                return false;
+            }
+        }
+
+        const periodStart = bookingSubStartDate?.value ?? "";
+        const periodEnd = calcSubscriptionEndDateLocal(periodStart, pkg);
+
+        if (isWalkInPackage(pkg)) {
+            const sessionMinutes = isVipBillingPackage(pkg)
+                ? 0
+                : Number(pkg.sessionDurationMinutes || 90);
             const response = await apiFetch("/subscriptions/packages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2450,8 +2709,9 @@
                     dayPattern: "1-3-5",
                     visitsCount: 1,
                     startTimeLocal: "00:00",
-                    durationMinutes: Number(pkg.sessionDurationMinutes || 60),
+                    durationMinutes: sessionMinutes,
                     startDateLocal: new Date(`${periodStart}T00:00:00`).toISOString(),
+                    endDateLocal: new Date(`${periodEnd}T00:00:00`).toISOString(),
                     preferredLaneTypesByDayOfWeek: {},
                     isFullPackage: true
                 })
@@ -3015,30 +3275,126 @@
     function syncRegistrationModeUi() {
         const mode = registrationModeInput?.value ?? "";
         const isSubscription = mode === "subscription";
+        const walkInActive = Boolean(_receptionWalkIn?.isActive);
+        const vipActive = isActiveVipReception();
+        const gymMode = isGymBookingMode();
+        const hideInstantControls = (isSubscription && !vipActive) || (walkInActive && !vipActive);
 
         if (groupInfo instanceof HTMLElement) groupInfo.style.display = "none";
 
         if (sessionStartRow instanceof HTMLElement) {
-            sessionStartRow.style.display = isSubscription ? "none" : "";
+            sessionStartRow.style.display = hideInstantControls ? "none" : "";
         }
 
         if (instantLaneRow instanceof HTMLElement) {
             instantLaneRow.style.display = "";
-            instantLaneRow.querySelectorAll("input, select, button").forEach(el => {
-                if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement)) return;
-                el.disabled = false;
-            });
         }
 
         if (laneNumberInput instanceof HTMLSelectElement) {
-            laneNumberInput.style.display = isSubscription ? "none" : "";
+            laneNumberInput.style.display = (hideInstantControls || isGymPackageSelected()) ? "none" : "";
         }
 
         syncGroupBookingUi();
         const btn = document.getElementById("scheduleBtn");
-        if (btn instanceof HTMLButtonElement && isSubscription) {
-            btn.textContent = "Abunə qeyd et";
+        if (btn instanceof HTMLButtonElement) {
+            btn.style.display = "";
+            btn.disabled = false;
+            if (gymMode) {
+                btn.textContent = "Zala yaz";
+            } else if (walkInActive && !vipActive) {
+                btn.textContent = "Boş zolaq aktiv et";
+            } else if (isSubscription && !vipActive) {
+                btn.textContent = "Abunə qeyd et";
+            } else {
+                btn.textContent = "Zolağa yaz";
+            }
         }
+        if (sessionInfo instanceof HTMLElement && gymMode && !vipActive && !walkInActive) {
+            sessionInfo.textContent = "Zal paketi və abunə tarixlərini seçin, «Zala yaz» basın — zal avtomatik seçilir, eyni vaxtda bir neçə müştəri ola bilər.";
+        }
+        syncVipReceptionBookingUi();
+    }
+
+    function applyReceptionWalkInFromAthlete(athlete) {
+        _receptionWalkIn = null;
+        if (!athlete) {
+            syncReceptionWalkInUi();
+            return;
+        }
+        if (athlete.hasActiveWalkIn) {
+            const sessionMinutes = Number(athlete.walkInSessionDurationMinutes ?? 90);
+            _receptionWalkIn = {
+                isActive: true,
+                isVip: Boolean(athlete.isVip) || sessionMinutes === 0,
+                expiresLocal: athlete.walkInExpiresLocal ?? "",
+                sessionDurationMinutes: sessionMinutes
+            };
+            if (durationMinutesInput instanceof HTMLInputElement) {
+                durationMinutesInput.value = String(_receptionWalkIn.sessionDurationMinutes);
+            }
+        }
+        syncReceptionWalkInUi();
+    }
+
+    async function refreshReceptionWalkInStatus(athleteId) {
+        if (!athleteId) {
+            applyReceptionWalkInFromAthlete(null);
+            return;
+        }
+        try {
+            const phoneQ = normalizeDigits(phoneNumberInput?.value);
+            const emailQ = normalizeText(emailInput?.value);
+            const idQ = normalizeText(idCardNumberInput?.value);
+            const qs = new URLSearchParams();
+            if (phoneQ) qs.set("phone", phoneQ);
+            if (emailQ) qs.set("email", emailQ);
+            if (idQ) qs.set("idCardNumber", idQ);
+            if (qs.toString()) {
+                const res = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 15000 });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (String(data?.id) === String(athleteId)) {
+                        applyReceptionWalkInFromAthlete(data);
+                        return;
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+
+        const info = await getActiveWalkInSubscriptionInfo(athleteId);
+        if (info) {
+            _receptionWalkIn = {
+                isActive: true,
+                isVip: info.isVip,
+                expiresLocal: info.expiresLocal,
+                sessionDurationMinutes: info.durationMinutes
+            };
+            syncReceptionWalkInUi();
+            return;
+        }
+
+        applyReceptionWalkInFromAthlete(null);
+    }
+
+    function syncReceptionWalkInUi() {
+        const active = Boolean(_receptionWalkIn?.isActive);
+        if (receptionWalkInBanner instanceof HTMLElement) {
+            if (active) {
+                const exp = _receptionWalkIn.expiresLocal ? ` · bitir ${_receptionWalkIn.expiresLocal}` : "";
+                const unlimited = _receptionWalkIn.sessionDurationMinutes === 0 ? " · müddətsiz sessiya" : "";
+                receptionWalkInBanner.style.display = "block";
+                if (_receptionWalkIn.isVip) {
+                    receptionWalkInBanner.textContent = `VIP abunə aktiv${exp}${unlimited}. Zolaq və vaxt seçib «Zolağa yaz» basın.`;
+                } else {
+                    receptionWalkInBanner.textContent = `Aktiv çevik abunə${exp}${unlimited}. «Boş zolaq aktiv et» basın — limit yoxdur.`;
+                }
+            } else {
+                receptionWalkInBanner.style.display = "none";
+                receptionWalkInBanner.textContent = "";
+            }
+        }
+        syncRegistrationModeUi();
+        refreshSelectedCustomerCard();
     }
 
     function defaultScheduledStartTimeValue() {
@@ -3081,6 +3437,16 @@
         return { ok: true, utc: startLocal.toISOString() };
     }
 
+    function syncCustomerModalVipUi() {
+        const isVip = modalIsVip instanceof HTMLInputElement && modalIsVip.checked;
+        if (modalCategory instanceof HTMLSelectElement) {
+            modalCategory.disabled = isVip;
+            if (isVip && !modalCategory.value) {
+                modalCategory.value = "1";
+            }
+        }
+    }
+
     function copyCustomerStoreToModal() {
         if (modalFirstName instanceof HTMLInputElement) modalFirstName.value = firstNameInput?.value ?? "";
         if (modalLastName instanceof HTMLInputElement) modalLastName.value = lastNameInput?.value ?? "";
@@ -3088,12 +3454,10 @@
         if (modalEmail instanceof HTMLInputElement) modalEmail.value = emailInput?.value ?? "";
         if (modalIdCardNumber instanceof HTMLInputElement) modalIdCardNumber.value = idCardNumberInput?.value ?? "";
         if (modalCategory instanceof HTMLSelectElement) modalCategory.value = categoryInput?.value ?? "";
-        const access = accessFromMembershipType(membershipTypeInput?.value ?? "");
-        if (modalIncludesShooting instanceof HTMLInputElement) modalIncludesShooting.checked = access.shooting;
-        if (modalIncludesGym instanceof HTMLInputElement) modalIncludesGym.checked = access.gym;
         if (modalIsVip instanceof HTMLInputElement && isVipInput instanceof HTMLInputElement) {
             modalIsVip.checked = isVipInput.checked;
         }
+        syncCustomerModalVipUi();
     }
 
     function copyModalToCustomerStore() {
@@ -3112,17 +3476,21 @@
         if (idCardNumberInput instanceof HTMLInputElement && modalIdCardNumber instanceof HTMLInputElement) {
             idCardNumberInput.value = modalIdCardNumber.value;
         }
-        if (categoryInput instanceof HTMLSelectElement && modalCategory instanceof HTMLSelectElement) {
-            categoryInput.value = modalCategory.value;
+        const isVip = modalIsVip instanceof HTMLInputElement && modalIsVip.checked;
+        const categoryVal = isVip
+            ? (modalCategory?.value || "1")
+            : (modalCategory?.value ?? "");
+        if (categoryInput instanceof HTMLSelectElement) {
+            categoryInput.value = categoryVal;
         }
-        const shooting = modalIncludesShooting instanceof HTMLInputElement && modalIncludesShooting.checked;
-        const gym = modalIncludesGym instanceof HTMLInputElement && modalIncludesGym.checked;
-        const membershipVal = membershipTypeFromAccess(shooting, gym);
-        if (membershipTypeInput instanceof HTMLSelectElement && membershipVal) {
+        const membershipVal = isVip ? "2" : "0";
+        if (membershipTypeInput instanceof HTMLSelectElement) {
             membershipTypeInput.value = membershipVal;
         }
-        if (includesShootingInput instanceof HTMLInputElement) includesShootingInput.checked = shooting;
-        if (includesGymInput instanceof HTMLInputElement) includesGymInput.checked = gym;
+        const access = accessFromMembershipType(membershipVal);
+        if (includesLaneInput instanceof HTMLInputElement) includesLaneInput.checked = access.shooting;
+        if (includesShootingInput instanceof HTMLInputElement) includesShootingInput.checked = access.shooting;
+        if (includesGymInput instanceof HTMLInputElement) includesGymInput.checked = access.gym;
         if (isVipInput instanceof HTMLInputElement && modalIsVip instanceof HTMLInputElement) {
             isVipInput.checked = modalIsVip.checked;
         }
@@ -3148,8 +3516,9 @@
             return;
         }
         const vip = isVipInput instanceof HTMLInputElement && isVipInput.checked ? " · VIP" : "";
+        const walkIn = _receptionWalkIn?.isActive ? " · Çevik abunə" : "";
         const gym = includesGymInput instanceof HTMLInputElement && includesGymInput.checked ? " · Zal" : "";
-        selectedCustomerName.textContent = `${first} ${last}${vip}${gym}`;
+        selectedCustomerName.textContent = `${first} ${last}${vip}${walkIn}${gym}`;
         const parts = [phone];
         const em = (emailInput?.value ?? "").trim();
         const idc = (idCardNumberInput?.value ?? "").trim();
@@ -3176,16 +3545,14 @@
         const firstName = modalFirstName?.value?.trim() ?? "";
         const lastName = modalLastName?.value?.trim() ?? "";
         const phoneNumber = modalPhoneNumber?.value?.trim() ?? "";
-        const shooting = modalIncludesShooting instanceof HTMLInputElement && modalIncludesShooting.checked;
-        const gym = modalIncludesGym instanceof HTMLInputElement && modalIncludesGym.checked;
-        const membershipTypeRaw = membershipTypeFromAccess(shooting, gym);
-        const categoryRaw = modalCategory?.value ?? "";
+        const isVip = modalIsVip instanceof HTMLInputElement && modalIsVip.checked;
+        const membershipTypeRaw = isVip ? "2" : "0";
+        const categoryRaw = isVip ? (modalCategory?.value || "1") : (modalCategory?.value ?? "");
         if (!firstName || !lastName || !phoneNumber) {
             alert("Ad, Soyad və Telefon mütləqdir.");
             return;
         }
-        if (!membershipTypeRaw) { alert("Ən azı oxatma və ya zal seçilməlidir."); return; }
-        if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
+        if (!isVip && !categoryRaw) { alert("Kateqoriya seçin."); return; }
 
         copyModalToCustomerStore();
         receptionMatchedSnapshot = buildReceptionCurrentSnapshot();
@@ -3224,7 +3591,7 @@
                         const existing = payload?.existing ?? null;
                         if (existingId) {
                             receptionMatchedAthleteId = existingId;
-                            if (existing) applyAthleteToReception(existing);
+                            if (existing) await applyAthleteToReception(existing);
                         } else {
                             alert(payload?.error ?? "Bu məlumatlarla artıq qeydiyyat mövcuddur.");
                             return;
@@ -3239,6 +3606,8 @@
                 }
             }
 
+            syncUpdateAthleteButton();
+            await refreshReceptionWalkInStatus(receptionMatchedAthleteId);
             refreshSelectedCustomerCard();
             if (customerSearchInput instanceof HTMLInputElement) {
                 customerSearchInput.value = `${firstName} ${lastName}`.trim();
@@ -3334,6 +3703,7 @@
     function categoryAllowsLane(categoryValue, laneNumber) {
         const category = Number(categoryValue);
         const lane = Number(laneNumber);
+        if (isGymLaneNumber(lane)) return true;
         if (!Number.isFinite(category) || !Number.isFinite(lane)) return false;
         // Qayda: 9-11 uzun (peşəkar), 1-8 qısa.
         if (category === 0) { // Amateur
@@ -3344,6 +3714,7 @@
     }
 
     function isLaneIdleForSelection(laneNumber) {
+        if (isGymLaneNumber(laneNumber)) return true;
         // Dashboard hələ yüklənməyibsə, səhvən disable etməyək (yalnız kateqoriya qaydası işləsin).
         if (!Array.isArray(latestLanes) || latestLanes.length === 0) return true;
 
@@ -3360,6 +3731,12 @@
 
         Array.from(laneNumberInput.options).forEach(opt => {
             const lane = Number(opt.value);
+            if (isGymLaneNumber(lane)) {
+                opt.hidden = false;
+                opt.disabled = false;
+                opt.textContent = "Zal";
+                return;
+            }
             const allowed = categoryAllowsLane(catVal, lane);
             const disabled = !allowed;
 
@@ -3415,6 +3792,7 @@
 
     function preferredLaneTypeFromLane(laneNumber) {
         const lane = Number(laneNumber);
+        if (isGymLaneNumber(lane)) return 0;
         if (lane >= 9) return 2;
         if (lane >= 1) return 1;
         return 0;
@@ -3653,6 +4031,34 @@
         return null;
     }
 
+    async function getActiveWalkInSubscriptionInfo(athleteId) {
+        if (!athleteId) return null;
+        try {
+            const res = await apiFetch(`/subscriptions/schedules?athleteId=${encodeURIComponent(athleteId)}`, { timeoutMs: 30000 });
+            if (!res.ok) return null;
+            const schedules = await res.json().catch(() => []);
+            if (!Array.isArray(schedules)) return null;
+            const today = getTodayLocalIso();
+            const active = schedules.filter(s => {
+                if (s?.isEnabled === false || !s?.isFullPackage) return false;
+                const from = String(s.activeFromDateLocal ?? "").slice(0, 10);
+                const to = String(s.activeToDateLocal ?? "").slice(0, 10);
+                return from && to && from <= today && to >= today;
+            });
+            if (!active.length) return null;
+            active.sort((a, b) => String(b.activeToDateLocal).localeCompare(String(a.activeToDateLocal)));
+            const best = active[0];
+            const durationMinutes = Number(best.durationMinutes ?? 0);
+            return {
+                expiresLocal: String(best.activeToDateLocal ?? "").slice(0, 10),
+                durationMinutes,
+                isVip: durationMinutes === 0 || Boolean(isVipInput?.checked)
+            };
+        } catch {
+            return null;
+        }
+    }
+
     async function getActiveSubscriptionPlanCount(athleteId) {
         if (!athleteId) return 0;
         try {
@@ -3731,6 +4137,46 @@
                 : `Resepsiyada seçilmiş vaxt: ${ctx.startTime}, Zolaq ${ctx.laneNumber}.`,
             "warn"
         );
+    }
+
+    async function promptActiveSubscriptionBeforeCreate(athleteId, pkg) {
+        let walkIn = _receptionWalkIn?.isActive ? _receptionWalkIn : null;
+        if (!walkIn && athleteId) {
+            const info = await getActiveWalkInSubscriptionInfo(athleteId);
+            if (info) {
+                walkIn = {
+                    isActive: true,
+                    isVip: info.isVip,
+                    expiresLocal: info.expiresLocal,
+                    sessionDurationMinutes: info.durationMinutes
+                };
+                _receptionWalkIn = walkIn;
+                syncReceptionWalkInUi();
+            }
+        }
+
+        if (walkIn?.isActive && pkg && (isWalkInPackage(pkg) || isVipBillingPackage(pkg))) {
+            const exp = walkIn.expiresLocal ? ` (bitir: ${walkIn.expiresLocal})` : "";
+            const label = walkIn.isVip ? "VIP abunə" : "çevik abunə";
+            alert(
+                `Bu müştərinin artıq aktiv ${label} var${exp}.\n\n` +
+                (walkIn.isVip
+                    ? "İdman üçün gəldikdə boş zolaq seçin, «İndi başla» və ya «Saat seç» edib «Zolağa yaz» basın."
+                    : "Gəlişdə «Boş zolaq aktiv et» basın — yenidən abunə yazmaq lazım deyil.")
+            );
+            return true;
+        }
+
+        const activePlans = await getActiveSubscriptionPlanCount(athleteId);
+        if (activePlans <= 0) return false;
+
+        const wantsManage = window.confirm(
+            "Bu müştəri artıq aylıq abunə ilə qeyd edilib.\n\nMəlumatlarını yeniləmək istəyirsiniz?"
+        );
+        if (wantsManage) {
+            await openManageCustomerModal({ bookingContext: null });
+        }
+        return true;
     }
 
     async function promptActiveSubscriberManage(athleteId, options = {}) {
@@ -3836,6 +4282,7 @@
                 const mVal = membershipToSelectValue(best.membershipType);
                 membershipTypeInput.value = mVal;
                 const access = accessFromMembershipType(mVal);
+                if (includesLaneInput instanceof HTMLInputElement) includesLaneInput.checked = access.shooting;
                 if (includesShootingInput instanceof HTMLInputElement) includesShootingInput.checked = access.shooting;
                 if (includesGymInput instanceof HTMLInputElement) includesGymInput.checked = access.gym;
             }
@@ -3848,6 +4295,7 @@
                 customerSearchInput.value = displayName;
             }
             setLookupHint(`Müştəri tapıldı: ${displayName}`);
+            applyReceptionWalkInFromAthlete(best);
             refreshSelectedCustomerCard();
             syncUpdateAthleteButton();
         } finally {
@@ -3912,7 +4360,7 @@
     }
 
     // Backenddən gələn idmançını reception xanalarına yerləşdirir və "matched" snapshot-u qurur.
-    function applyAthleteToReception(best) {
+    async function applyAthleteToReception(best) {
         console.log("[autocomplete] applyAthleteToReception çağrıldı", best);
         if (!best) {
             console.warn("[autocomplete] applyAthleteToReception: boş obyekt verildi", best);
@@ -3959,6 +4407,7 @@
                 const mVal = membershipToSelectValue(best.membershipType);
                 membershipTypeInput.value = mVal;
                 const access = accessFromMembershipType(mVal);
+                if (includesLaneInput instanceof HTMLInputElement) includesLaneInput.checked = access.shooting;
                 if (includesShootingInput instanceof HTMLInputElement) includesShootingInput.checked = access.shooting;
                 if (includesGymInput instanceof HTMLInputElement) includesGymInput.checked = access.gym;
             }
@@ -3973,6 +4422,8 @@
             }
             setLookupHint(`Müştəri seçildi: ${displayName}`);
             syncUpdateAthleteButton();
+            applyReceptionWalkInFromAthlete(best);
+            await refreshReceptionWalkInStatus(receptionMatchedAthleteId);
             try { syncSubscriptionAthleteNameFromReception(); } catch (e) { /* ignore */ }
             refreshSelectedCustomerCard();
             console.log("[autocomplete] xanalar dolduruldu", {
@@ -4473,7 +4924,7 @@
         var ath = document.getElementById("scheduleEditAthlete");
         if (dow instanceof HTMLSelectElement) dow.value = String(item.dayOfWeek != null ? item.dayOfWeek : 1);
         if (st instanceof HTMLInputElement) st.value = String(item.startTimeLocal || "10:00");
-        if (dur instanceof HTMLInputElement) dur.value = String(item.durationMinutes || 60);
+        if (dur instanceof HTMLInputElement) dur.value = String(item.durationMinutes || 90);
         if (plt instanceof HTMLSelectElement) plt.value = String(item.preferredLaneType != null ? item.preferredLaneType : 0);
         if (lane instanceof HTMLSelectElement) {
             const laneVal = Number(item.laneNumber);
@@ -4842,6 +5293,7 @@
         if (bookingPackageSelect instanceof HTMLSelectElement) bookingPackageSelect.value = "";
         if (bookingSubStartDate instanceof HTMLInputElement) bookingSubStartDate.value = "";
         if (bookingSubEndDate instanceof HTMLInputElement) bookingSubEndDate.value = "";
+        if (bookingSubMonths instanceof HTMLInputElement) bookingSubMonths.value = "1";
         document.querySelectorAll("#bookingSubscriptionDays .booking-sub-day").forEach(el => {
             if (el instanceof HTMLInputElement) el.checked = false;
         });
@@ -4850,6 +5302,7 @@
         }
         if (durationMinutesInput instanceof HTMLInputElement) durationMinutesInput.value = "0";
         clearSelectedEquipment();
+        if (includesLaneInput instanceof HTMLInputElement) includesLaneInput.checked = true;
         if (isVipInput instanceof HTMLInputElement) isVipInput.checked = false;
         if (customerSearchInput instanceof HTMLInputElement) customerSearchInput.value = "";
         const nowStartRadio = document.querySelector('input[name="sessionStartMode"][value="now"]');
@@ -4860,13 +5313,15 @@
         }
         receptionMatchedAthleteId = null;
         receptionMatchedSnapshot = null;
+        _receptionWalkIn = null;
+        syncReceptionWalkInUi();
         if (updateAthleteBtn instanceof HTMLButtonElement) updateAthleteBtn.disabled = true;
         if (updateAthleteBtn instanceof HTMLButtonElement) updateAthleteBtn.classList.remove("btn-success");
         if (receptionLookupHint instanceof HTMLElement) {
             receptionLookupHint.style.display = "none";
             receptionLookupHint.textContent = "";
         }
-        try { syncBookingPackageUi(); } catch { }
+        try { populateBookingPackageSelect(); syncBookingPackageUi(); } catch { }
         try { syncSubscriptionAthleteNameFromReception(); } catch { }
         try { syncRegistrationModeUi(); } catch { }
         refreshSelectedCustomerCard();
@@ -5872,7 +6327,7 @@
                         dayPattern: "1-3-5",
                         visitsCount: 1,
                         startTimeLocal: "00:00",
-                        durationMinutes: 60,
+                        durationMinutes: 90,
                         startDateLocal: new Date(`${startDate}T00:00:00`).toISOString(),
                         preferredLaneTypesByDayOfWeek: {},
                         isFullPackage: true
@@ -6281,6 +6736,68 @@
     }
 
     function validateReceptionBeforeSchedule() {
+        if (isGymBookingMode()) {
+            const firstName = firstNameInput?.value?.trim() ?? "";
+            const lastName = lastNameInput?.value?.trim() ?? "";
+            const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+            if (!firstName || !lastName || !phoneNumber) {
+                return "Əvvəlcə müştəri seçin və ya «Müştəri əlavə et» ilə qeydə alın.";
+            }
+            const pkg = getSelectedBookingPackage();
+            if (!pkg || !isGymPackage(pkg)) {
+                return "Zal paketi seçin.";
+            }
+            const categoryRaw = categoryInput?.value ?? "";
+            if (!categoryRaw) {
+                return "Kateqoriya seçin (müştəri məlumatlarında).";
+            }
+            const registrationMode = registrationModeInput?.value ?? "";
+            if (registrationMode === "subscription") {
+                return validateWalkInSubscriptionPeriod(pkg);
+            }
+            const durationValue = Number(durationMinutesInput?.value ?? "0");
+            if (!Number.isInteger(durationValue) || durationValue <= 0) {
+                return "Seçilmiş paketin müddəti düzgün deyil.";
+            }
+            return null;
+        }
+
+        const registrationMode = registrationModeInput?.value ?? "";
+        if (registrationMode === "subscription" && _receptionWalkIn?.isActive) {
+            if (isActiveVipReception()) {
+                return "Bu VIP müştərinin artıq aktiv abunəsi var. Paket seçməyin — zolaq və vaxt seçib «Zolağa yaz» basın.";
+            }
+            return "Bu müştərinin artıq aktiv abunəsi var. Paket seçməyin — «Boş zolaq aktiv et» basın.";
+        }
+
+        if (isActiveVipReception()) {
+            const firstName = firstNameInput?.value?.trim() ?? "";
+            const lastName = lastNameInput?.value?.trim() ?? "";
+            const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+            if (!firstName || !lastName || !phoneNumber) {
+                return "Əvvəlcə müştəri seçin və ya «Müştəri əlavə et» ilə qeydə alın.";
+            }
+            const laneNumber = Number(laneNumberInput?.value ?? "0");
+            if (!Number.isInteger(laneNumber) || laneNumber <= 0) {
+                return "Zolaq seçin.";
+            }
+            const start = resolveSessionStartTimeUtc();
+            if (!start.ok) {
+                return start.error;
+            }
+            return null;
+        }
+
+        if (_receptionWalkIn?.isActive) {
+            const firstName = firstNameInput?.value?.trim() ?? "";
+            const lastName = lastNameInput?.value?.trim() ?? "";
+            const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
+            if (!firstName || !lastName || !phoneNumber) {
+                return "Əvvəlcə müştəri seçin və ya «Müştəri əlavə et» ilə qeydə alın.";
+            }
+            return null;
+        }
+
         const firstName = firstNameInput?.value?.trim() ?? "";
         const lastName = lastNameInput?.value?.trim() ?? "";
         const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
@@ -6304,13 +6821,17 @@
         }
 
         const durationValue = Number(durationMinutesInput?.value ?? "0");
-        if (!Number.isInteger(durationValue) || durationValue <= 0) {
-            return "Seçilmiş paketin müddəti düzgün deyil.";
+        if (!isVipBillingPackage(pkg)) {
+            if (!Number.isInteger(durationValue) || durationValue <= 0) {
+                return "Seçilmiş paketin müddəti düzgün deyil.";
+            }
         }
 
-        const registrationMode = registrationModeInput?.value ?? "";
         if (registrationMode === "subscription") {
-            return validateBookingSubscriptionSchedule();
+            if (isWalkInPackage(pkg)) {
+                return validateWalkInSubscriptionPeriod(pkg);
+            }
+            return validateBookingSubscriptionSchedule(pkg);
         }
 
         const laneNumber = Number(laneNumberInput?.value ?? "0");
@@ -6402,6 +6923,7 @@
                         athleteId = found?.id ?? null;
                         foundAthlete = found;
                         receptionMatchedAthleteId = athleteId;
+                        applyReceptionWalkInFromAthlete(found);
                     }
                 } catch { /* ignore */ }
             }
@@ -6422,7 +6944,7 @@
             }
 
             // Əgər artıq sistemdə varsa: aktiv zolaq yoxlaması + ağıllı davranış
-            if (athleteId) {
+            if (athleteId && !isGymBookingMode()) {
                 // Hazırda hər hansı zolaqda aktivdirsə: yeni zolağa yazmaq olmaz
                 try {
                     const activeRes = await apiFetch(`/sessions/active-by-athlete/${encodeURIComponent(athleteId)}`, { timeoutMs: 20000 });
@@ -6449,7 +6971,7 @@
                         idCardNumber: idCardNumberInput?.value?.trim() || null,
                         category: Number(categoryRaw),
                         isSubscriber,
-                        membershipType: Number(membershipTypeRaw),
+                        membershipType: isGymBookingMode() ? 1 : Number(membershipTypeRaw),
                         isVip: Boolean(isVipInput?.checked)
                     })
                 });
@@ -6495,8 +7017,24 @@
             }
 
             const athleteFullName = `${firstName} ${lastName}`.trim();
+
+            if (isGymBookingMode()) {
+                if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "1";
+                if (includesGymInput instanceof HTMLInputElement) includesGymInput.checked = true;
+                if (includesShootingInput instanceof HTMLInputElement) includesShootingInput.checked = false;
+                receptionMatchedAthleteId = athleteId;
+                const prevRegMode = registrationModeInput?.value ?? "";
+                if (registrationModeInput instanceof HTMLInputElement && isSubscriber) {
+                    registrationModeInput.value = "subscription";
+                }
+                await updateAthleteFromReception({ silentSuccess: true });
+                if (registrationModeInput instanceof HTMLInputElement) {
+                    registrationModeInput.value = prevRegMode;
+                }
+            }
+
             if (isSubscriber && selectedPkg) {
-                if (await promptActiveSubscriberManage(athleteId)) {
+                if (await promptActiveSubscriptionBeforeCreate(athleteId, selectedPkg)) {
                     return;
                 }
 
@@ -6507,11 +7045,40 @@
                 });
                 if (!subOk) return;
 
+                await refreshReceptionWalkInStatus(athleteId);
+
                 const pkgLabel = selectedPkg?.billingTypeLabel ?? "Abunə";
                 const periodStart = bookingSubStartDate?.value ?? "";
-                const periodEnd = bookingSubEndDate?.value ?? "";
-                showSessionNotice(`Abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}).`, "ok");
-                clearReceptionPersonFields();
+                const periodEnd = calcSubscriptionEndDateLocal(periodStart, selectedPkg) || bookingSubEndDate?.value || "";
+                if (isGymPackage(selectedPkg) && isGymBookingMode()) {
+                    const gymMinutes = Number(selectedPkg.sessionDurationMinutes || durationValue || 60);
+                    const gymSessionResp = await apiFetch("/sessions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        timeoutMs: 90000,
+                        body: JSON.stringify({
+                            athleteId,
+                            laneNumber: GYM_LANE_NUMBER,
+                            preferredLaneType: 0,
+                            startTimeUtc: new Date().toISOString(),
+                            durationMinutes: gymMinutes,
+                            ...buildSessionEquipmentPayload()
+                        })
+                    });
+                    if (!gymSessionResp.ok) {
+                        alert(await readErrorMessage(gymSessionResp) || "Zal abunəsi qeydə alındı, amma zala giriş yazılmadı.");
+                        return;
+                    }
+                    showSessionNotice(`Zala yazıldı (${selectedPkg.name}, ${periodStart} — ${periodEnd}).`, "ok");
+                    clearReceptionPersonFields();
+                } else if (isVipBillingPackage(selectedPkg)) {
+                    showSessionNotice(`VIP abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Boş zolaq seçib «Zolağa yaz» basın.`, "ok");
+                } else if (isWalkInPackage(selectedPkg)) {
+                    showSessionNotice(`Abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Gəlişdə «Boş zolaq aktiv et» basın.`, "ok");
+                } else {
+                    showSessionNotice(`Abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}).`, "ok");
+                    clearReceptionPersonFields();
+                }
                 await refreshReceptionPanelData();
                 return;
             }
@@ -6532,14 +7099,17 @@
             }
 
             const bookingStartUtc = startResolved.utc;
-            const isFullPackage = Boolean(foundAthlete?.isSubscriber && foundAthlete?.isFullPackage);
+            const isFullPackage = Boolean(_receptionWalkIn?.isActive)
+                || Boolean(foundAthlete?.hasActiveWalkIn)
+                || Boolean(foundAthlete?.isSubscriber && foundAthlete?.isFullPackage);
             const equipPayload = buildSessionEquipmentPayload();
+            const walkInDuration = _receptionWalkIn?.isActive
+                ? Number(_receptionWalkIn.sessionDurationMinutes ?? 0)
+                : Number(durationValue || 90);
 
             if (isFullPackage) {
-                // Əvvəl seçilmiş zolaqda cəhd et (boşdursa).
-                let scheduled = false;
-                try {
-                    const tryLaneResp = await apiFetch("/sessions", {
+                if (isActiveVipReception()) {
+                    const vipSessionResp = await apiFetch("/sessions", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         timeoutMs: 90000,
@@ -6548,22 +7118,55 @@
                             laneNumber: Number(laneNumberInput.value),
                             preferredLaneType: preferredLaneTypeFromLane(laneNumberInput.value),
                             startTimeUtc: bookingStartUtc,
-                            durationMinutes: durationValue,
+                            durationMinutes: 0,
                             ...equipPayload
                         })
                     });
-                    if (tryLaneResp.ok) {
-                        scheduled = true;
-                        sessionInfo.textContent = "Sessiya yaradıldı.";
+                    if (!vipSessionResp.ok) {
+                        const message = await readErrorMessage(vipSessionResp);
+                        alert(message || "Sessiya planlaşdırılmadı.");
+                        return;
                     }
-                } catch { /* ignore */ }
+                    const vipSessionData = await vipSessionResp.json();
+                    if (vipSessionData?.message) {
+                        showSessionNotice(vipSessionData.message, "warn");
+                    } else {
+                        showSessionNotice(`VIP müştəri zolağa yazıldı. Zolaq ${vipSessionData?.laneNumber ?? laneNumberInput.value}.`, "ok");
+                    }
+                    clearReceptionPersonFields();
+                    await refreshReceptionPanelData();
+                    return;
+                }
+
+                let scheduled = false;
+                if (!(_receptionWalkIn?.isActive)) {
+                    try {
+                        const tryLaneResp = await apiFetch("/sessions", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            timeoutMs: 90000,
+                            body: JSON.stringify({
+                                athleteId,
+                                laneNumber: Number(laneNumberInput.value),
+                                preferredLaneType: preferredLaneTypeFromLane(laneNumberInput.value),
+                                startTimeUtc: bookingStartUtc,
+                                durationMinutes: walkInDuration,
+                                ...equipPayload
+                            })
+                        });
+                        if (tryLaneResp.ok) {
+                            scheduled = true;
+                            sessionInfo.textContent = "Sessiya yaradıldı.";
+                        }
+                    } catch { /* ignore */ }
+                }
 
                 if (!scheduled) {
                     const assignResp = await apiFetch("/sessions/full-package/assign", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         timeoutMs: 90000,
-                        body: JSON.stringify({ athleteId, durationMinutes: durationValue, ...equipPayload })
+                        body: JSON.stringify({ athleteId, durationMinutes: walkInDuration, ...equipPayload })
                     });
                     if (!assignResp.ok) {
                         const message = await readErrorMessage(assignResp);
@@ -6605,6 +7208,8 @@
                 const periodStart = bookingSubStartDate?.value ?? "";
                 const periodEnd = bookingSubEndDate?.value ?? "";
                 showSessionNotice(`Abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Sessiya yaradıldı.`, "ok");
+            } else if (isGymBookingMode()) {
+                showSessionNotice(`Zala yazıldı (${selectedPkg?.name ?? "Zal"}).`, "ok");
             } else if (sessionData?.message) {
                 showSessionNotice(sessionData.message, "warn");
             } else {
@@ -7004,6 +7609,12 @@
     try { loadEquipmentCatalog(); } catch (e) { console.error(e); }
     try { bookingPackageSelect?.addEventListener("change", syncBookingPackageUi); } catch (e) { console.error(e); }
     try {
+        laneNumberInput?.addEventListener("change", () => {
+            populateBookingPackageSelect();
+            syncBookingPackageUi();
+        });
+    } catch (e) { console.error(e); }
+    try {
         const bookingDaysRoot = document.getElementById("bookingSubscriptionDays");
         bookingDaysRoot?.addEventListener("change", () => { renderBookingSubscriptionLaneTypesByDay(); });
         categoryInput?.addEventListener("change", () => { renderBookingSubscriptionLaneTypesByDay(); });
@@ -7250,6 +7861,7 @@
         customerModalSaveBtn?.addEventListener("click", () => { void saveCustomerFromModal(); });
         customerModalCancelBtn?.addEventListener("click", closeCustomerModal);
         customerModalCloseBtn?.addEventListener("click", closeCustomerModal);
+        modalIsVip?.addEventListener("change", syncCustomerModalVipUi);
         customerModal?.addEventListener("click", e => {
             if (e.target === customerModal) closeCustomerModal();
         });

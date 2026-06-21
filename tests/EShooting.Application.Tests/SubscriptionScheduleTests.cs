@@ -24,6 +24,7 @@ public sealed class SubscriptionScheduleTests
                 new TimeSpan(19, 0, 0),
                 60,
                 nextMonday,
+                EndDateLocal: null,
                 PreferredLaneTypesByDayOfWeek: new Dictionary<int, PreferredLaneType>(),
                 IsFullPackage: false),
             CancellationToken.None);
@@ -68,6 +69,7 @@ public sealed class SubscriptionScheduleTests
                 new TimeSpan(19, 0, 0),
                 60,
                 targetDate,
+                EndDateLocal: null,
                 PreferredLaneTypesByDayOfWeek: new Dictionary<int, PreferredLaneType>(),
                 IsFullPackage: false),
             CancellationToken.None);

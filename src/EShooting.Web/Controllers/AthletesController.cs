@@ -1,4 +1,5 @@
 using EShooting.Web.Contracts.Athletes;
+using EShooting.Application.Common;
 using EShooting.Application.Athletes;
 using EShooting.Application.Athletes.Commands;
 using EShooting.Application.Common.Interfaces;
@@ -283,6 +284,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return NotFound();
         }
 
+        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var activeWalkIn = WalkInSubscriptionRules.GetActiveWalkInSchedule(schedules, best.Id, DateTime.Now);
+
         return Ok(new
         {
             best.Id,
@@ -296,7 +300,10 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.MembershipType,
             best.IsSubscriber,
             best.IsFullPackage,
-            best.IsVip
+            best.IsVip,
+            hasActiveWalkIn = activeWalkIn is not null,
+            walkInExpiresLocal = activeWalkIn?.ActiveToDateLocal.ToString("yyyy-MM-dd"),
+            walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 90
         });
     }
 

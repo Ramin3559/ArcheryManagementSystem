@@ -20,8 +20,8 @@
             --text: #8B2318;
             --text-muted: #a04438;
             --border: #e8d4d0;
-            --tv-safe-x: clamp(16px, 2.5vw, 32px);
-            --tv-safe-y: clamp(12px, 2vh, 24px);
+            --tv-safe-x: clamp(10px, 1.5vw, 20px);
+            --tv-safe-y: clamp(8px, 1vh, 16px);
         }
 
         * { box-sizing: border-box; -webkit-text-size-adjust: 100%; }
@@ -52,7 +52,11 @@
             display: flex;
             align-items: stretch;
             justify-content: stretch;
-            padding: var(--tv-safe-y) var(--tv-safe-x);
+            padding:
+                max(var(--tv-safe-y), env(safe-area-inset-top, 0px))
+                max(var(--tv-safe-x), env(safe-area-inset-right, 0px))
+                max(var(--tv-safe-y), env(safe-area-inset-bottom, 0px))
+                max(var(--tv-safe-x), env(safe-area-inset-left, 0px));
             width: 100%;
             min-height: 0;
             overflow: hidden;
@@ -182,22 +186,35 @@
             return d.toLocaleTimeString("az-AZ", {
                 hour: "2-digit",
                 minute: "2-digit",
-                second: "2-digit",
                 hour12: false
             });
         }
 
         function updateLaneMetaTimes() {
             var ring = document.querySelector("[data-countdown-ring]");
-            var schedule = document.querySelector("[data-role=\"lane-schedule\"]");
-            if (!(ring instanceof HTMLElement) || !(schedule instanceof HTMLElement)) return;
+            if (!(ring instanceof HTMLElement)) return;
             var start = ring.dataset.start || "";
             var end = ring.dataset.end || "";
-            if (!start || !end) return;
-            var startItem = schedule.querySelector("[data-role=\"schedule-start\"]");
-            var endItem = schedule.querySelector("[data-role=\"schedule-end\"]");
-            if (startItem) startItem.textContent = "Başlama: " + formatLocalTimeFromApi(start);
-            if (endItem) endItem.textContent = "Bitmə: " + formatLocalTimeFromApi(end);
+            var vipMode = ring.dataset.vipMode === "1";
+            var startItem = document.querySelector("[data-role=\"schedule-start\"]");
+            var endItem = document.querySelector("[data-role=\"schedule-end\"]");
+            if (start && startItem) startItem.textContent = "Başlama: " + formatLocalTimeFromApi(start);
+            if (endItem instanceof HTMLElement) {
+                var endRow = endItem.closest(".lane-tv-schedule__row");
+                var endPanel = endItem.closest(".lane-tv-panel--session-end");
+                if (vipMode) {
+                    if (endPanel instanceof HTMLElement) endPanel.style.display = "none";
+                    else if (endRow instanceof HTMLElement) endRow.style.display = "none";
+                } else if (end) {
+                    if (endPanel instanceof HTMLElement) endPanel.style.display = "";
+                    else if (endRow instanceof HTMLElement) endRow.style.display = "";
+                    endItem.textContent = "Bitmə: " + formatLocalTimeFromApi(end);
+                }
+            }
+        }
+
+        function isVipModeRing(ringEl) {
+            return ringEl instanceof HTMLElement && ringEl.dataset.vipMode === "1";
         }
 
         function formatSeconds(milliseconds) {
@@ -248,6 +265,13 @@
             var status = ringEl.dataset.status || "";
             var start = ringEl.dataset.start || "";
             var end = ringEl.dataset.end || "";
+            if (isVipModeRing(ringEl)) {
+                if (!start || status === "Completed" || status === "Idle") return false;
+                if (ringEl.classList.contains("is-live")) return true;
+                var startMs = parseApiDate(start).getTime();
+                if (isNaN(startMs)) return false;
+                return Date.now() >= startMs && status === "Active";
+            }
             if (!start || !end) return false;
             if (status === "Completed" || status === "Idle" || status === "Scheduled") return false;
             if (ringEl.classList.contains("is-live")) return true;
@@ -318,21 +342,62 @@
             if (w >= 80) return;
             var vw = window.innerWidth || 1280;
             var vh = window.innerHeight || 720;
-            var fallback = Math.floor(Math.min(520, vw * 0.42, vh * 0.44));
-            fallback = Math.max(180, fallback);
+            var fallback = Math.floor(Math.min(660, vw * 0.52, vh * 0.54));
+            fallback = Math.max(200, fallback);
             ringEl.style.setProperty("--ring-size", fallback + "px");
         }
 
+        function getLaneTvNameMaxWidth(panel) {
+            if (!(panel instanceof HTMLElement)) return 0;
+            var gapPx = 6;
+            var card = panel.closest(".lane-card");
+            if (card instanceof HTMLElement) {
+                var gapVar = parseFloat(window.getComputedStyle(card).getPropertyValue("--tv-name-schedule-gap"));
+                if (!Number.isNaN(gapVar) && gapVar > 0) gapPx = gapVar;
+            }
+
+            var scheduleEl = null;
+            if (panel.classList.contains("lane-tv-panel--name-first")) {
+                var detail = panel.closest(".lane-tv-detail-grid");
+                scheduleEl = detail ? detail.querySelector(".lane-tv-panel--session-start") : null;
+            } else if (panel.classList.contains("lane-tv-panel--name-last")) {
+                var detailLast = panel.closest(".lane-tv-detail-grid");
+                scheduleEl = detailLast ? detailLast.querySelector(".lane-tv-panel--session-end") : null;
+            } else {
+                scheduleEl = document.querySelector(".lane-tv-panel--session-start, .lane-tv-panel--session-times");
+            }
+
+            if (scheduleEl instanceof HTMLElement) {
+                var panelRect = panel.getBoundingClientRect();
+                var schedRect = scheduleEl.getBoundingClientRect();
+                if (schedRect.left > panelRect.left) {
+                    return Math.max(48, schedRect.left - panelRect.left - gapPx);
+                }
+            }
+
+            var detailGrid = panel.closest(".lane-tv-detail-grid");
+            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0) {
+                var colGap = parseFloat(window.getComputedStyle(detailGrid).columnGap) || 0;
+                return Math.max(48, Math.floor((detailGrid.clientWidth - colGap * 2) / 3) - Math.ceil(gapPx / 2));
+            }
+
+            return Math.max(48, panel.clientWidth);
+        }
+
         function fitLaneTvAthleteNames() {
-            document.querySelectorAll(".lane-tv-body .lane-tv-panel--name").forEach(function (panel) {
+            document.querySelectorAll(".lane-tv-body .lane-tv-panel--name, .lane-tv-body .lane-tv-panel--name-first, .lane-tv-body .lane-tv-panel--name-last").forEach(function (panel) {
                 if (!(panel instanceof HTMLElement)) return;
-                var maxW = Math.max(40, panel.clientWidth - 4);
+                var maxW = getLaneTvNameMaxWidth(panel);
                 panel.querySelectorAll(".lane-tv-first-name, .lane-tv-last-name").forEach(function (line) {
                     if (!(line instanceof HTMLElement)) return;
                     line.style.removeProperty("font-size");
+                    line.style.removeProperty("transform");
+                    line.style.removeProperty("transform-origin");
+                    line.style.removeProperty("letter-spacing");
+
                     var computed = window.getComputedStyle(line);
                     var fs = parseFloat(computed.fontSize) || 48;
-                    var minFs = 32;
+                    var minFs = 8;
                     while (line.scrollWidth > maxW && fs > minFs) {
                         fs -= 1;
                         line.style.setProperty("font-size", fs + "px", "important");
@@ -374,13 +439,13 @@
             if (ringSize <= 0) return { maxW: 0, maxH: 0, ringSize: 0 };
 
             var styles = window.getComputedStyle(ringEl);
-            var padRatio = parseFloat(styles.getPropertyValue("--ring-inner-pad")) || 0.26;
-            var innerDiam = ringSize * 0.76;
-            var contentDiam = innerDiam * Math.max(0.4, 1 - padRatio * 2);
+            var padRatio = parseFloat(styles.getPropertyValue("--ring-inner-pad")) || 0.03;
+            var innerDiam = ringSize * 0.80;
+            var contentDiam = innerDiam * Math.max(0.68, 1 - padRatio * 2);
             return {
                 ringSize: ringSize,
-                maxW: contentDiam * 0.94,
-                maxH: contentDiam * 0.34
+                maxW: contentDiam,
+                maxH: contentDiam * 0.56
             };
         }
 
@@ -417,13 +482,13 @@
                 timer.style.letterSpacing = "-0.06em";
             }
 
-            var charRatio = isLongTime ? 0.53 : 0.57;
+            var charRatio = isLongTime ? 0.52 : 0.55;
             var fs = Math.floor(Math.min(
                 box.maxW / (charCount * charRatio),
-                box.maxH / 1.05,
-                box.ringSize * (isLongTime ? 0.11 : 0.13)
+                box.maxH / 0.88,
+                box.ringSize * (isLongTime ? 0.24 : 0.34)
             ));
-            fs = Math.max(16, Math.min(fs, isLongTime ? 46 : 54));
+            fs = Math.max(34, Math.min(fs, isLongTime ? 96 : 120));
             timer.style.setProperty("font-size", fs + "px", "important");
 
             var rect = timer.getBoundingClientRect();
@@ -474,7 +539,55 @@
                     card.classList.toggle("is-cleanup", Boolean(on));
                 };
 
-                el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle");
+                el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle", "is-open-ended");
+
+                const vipMode = isVipModeRing(el);
+
+                if (vipMode && start) {
+                    const startMs = parseApiDate(start).getTime();
+                    const nowMs = Date.now();
+
+                    if (status === "Completed") {
+                        el.classList.add("is-done");
+                        applyLaneEndedDisplay(timerEl, captionEl);
+                        if (!setEquipmentReturnHint()) setBottomHint("", "");
+                        setCleanupMode(true);
+                        applyRingRemaining(el, 0);
+                        resetRingCompactSize(el);
+                        return;
+                    }
+
+                    if (isNaN(startMs)) {
+                        el.classList.add("is-idle");
+                        timerEl.textContent = "—";
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 0);
+                        resetRingCompactSize(el);
+                        return;
+                    }
+
+                    if (nowMs < startMs) {
+                        el.classList.add("is-pending", "is-open-ended");
+                        const startLocal = new Date(startMs);
+                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 1);
+                        return;
+                    }
+
+                    el.classList.add("is-live", "is-open-ended");
+                    const elapsedMs = nowMs - startMs;
+                    timerEl.textContent = formatSeconds(elapsedMs);
+                    if (captionEl) captionEl.textContent = "";
+                    setBottomHint("", "");
+                    setCleanupMode(false);
+                    applyRingRemaining(el, 1);
+                    return;
+                }
 
                 if (!start || !end) {
                     el.classList.add("is-idle");
@@ -614,6 +727,7 @@
 
         function ringUsesCompactSize(ring) {
             if (!(ring instanceof HTMLElement)) return true;
+            if (isVipModeRing(ring) && ring.classList.contains("is-live")) return false;
             var start = ring.getAttribute("data-start") || "";
             var end = ring.getAttribute("data-end") || "";
             if (!start || !end) return true;
@@ -738,18 +852,24 @@
             patchClassAndText(live.querySelector(".lane-tv-lane-num"), fresh.querySelector(".lane-tv-lane-num"));
             live.querySelectorAll(".status-pill, .lane-tv-status-pill").forEach(function (pill) { pill.remove(); });
             patchTextNodes(live.querySelector(".lane-tv-athlete"), fresh.querySelector(".lane-tv-athlete"));
+            patchClassAndText(live.querySelector(".lane-tv-panel--name-first .lane-tv-first-name"), fresh.querySelector(".lane-tv-panel--name-first .lane-tv-first-name"));
+            patchClassAndText(live.querySelector(".lane-tv-panel--name-last .lane-tv-last-name"), fresh.querySelector(".lane-tv-panel--name-last .lane-tv-last-name"));
+            patchClassAndText(live.querySelector("[data-role=\"schedule-start\"]"), fresh.querySelector("[data-role=\"schedule-start\"]"));
+            patchClassAndText(live.querySelector("[data-role=\"schedule-end\"]"), fresh.querySelector("[data-role=\"schedule-end\"]"));
             patchTextNodes(
-                live.querySelector(".lane-tv-panel--center-stack [data-role=\"lane-schedule\"]") ||
+                live.querySelector(".lane-tv-panel--session-times [data-role=\"lane-schedule\"]") ||
                     live.querySelector("[data-role=\"lane-schedule\"]"),
-                fresh.querySelector(".lane-tv-panel--center-stack [data-role=\"lane-schedule\"]") ||
+                fresh.querySelector(".lane-tv-panel--session-times [data-role=\"lane-schedule\"]") ||
                     fresh.querySelector("[data-role=\"lane-schedule\"]"));
             patchClassAndText(live.querySelector("[data-role=\"lane-bottom-hint\"]"), fresh.querySelector("[data-role=\"lane-bottom-hint\"]"));
 
             var liveStack = live.querySelector(".lane-tv-panel--center-stack");
             var freshStack = fresh.querySelector(".lane-tv-panel--center-stack");
-            var liveMeta = live.querySelector(".lane-tv-panel--meta");
-            var freshMeta = fresh.querySelector(".lane-tv-panel--meta");
-            if (!!liveStack !== !!freshStack || !!liveMeta !== !!freshMeta) {
+            var liveTimes = live.querySelector(".lane-tv-panel--session-times");
+            var freshTimes = fresh.querySelector(".lane-tv-panel--session-times");
+            var liveDetail = live.querySelector(".lane-tv-detail-grid");
+            var freshDetail = fresh.querySelector(".lane-tv-detail-grid");
+            if (!!liveStack !== !!freshStack || !!liveTimes !== !!freshTimes || !!liveDetail !== !!freshDetail) {
                 mountLaneHtml(newHtml);
                 return;
             }
@@ -761,8 +881,8 @@
                 return;
             }
 
-            var liveName = live.querySelector(".lane-tv-panel--name");
-            var freshName = fresh.querySelector(".lane-tv-panel--name");
+            var liveName = live.querySelector(".lane-tv-panel--name, .lane-tv-detail-grid");
+            var freshName = fresh.querySelector(".lane-tv-panel--name, .lane-tv-detail-grid");
             if (!!liveName !== !!freshName) {
                 mountLaneHtml(newHtml);
                 return;
@@ -775,6 +895,11 @@
                 return;
             }
             if (live.classList.contains("lane-card--tv-active") !== fresh.classList.contains("lane-card--tv-active")) {
+                mountLaneHtml(newHtml);
+                return;
+            }
+
+            if (live.classList.contains("lane-card--tv-single") !== fresh.classList.contains("lane-card--tv-single")) {
                 mountLaneHtml(newHtml);
                 return;
             }
@@ -798,7 +923,7 @@
             var liveRing = live.querySelector("[data-countdown-ring]");
             var freshRing = fresh.querySelector("[data-countdown-ring]");
             if (liveRing && freshRing) {
-                var attrs = ["data-start", "data-end", "data-status"];
+                var attrs = ["data-start", "data-end", "data-status", "data-vip-mode"];
                 for (var k = 0; k < attrs.length; k++) {
                     var a = attrs[k];
                     var nv = freshRing.getAttribute(a) || "";

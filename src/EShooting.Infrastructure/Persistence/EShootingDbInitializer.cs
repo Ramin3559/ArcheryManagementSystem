@@ -17,6 +17,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureTrainingSessionsSubscriptionLinkAsync(cancellationToken);
         await EnsureServicePackagesTableAsync(cancellationToken);
         await EnsureServicePackageSeedAsync(cancellationToken);
+        await PurgeLegacyWalkInMonthlyPackageAsync(cancellationToken);
         await EnsureEquipmentItemsTableAsync(cancellationToken);
         await EnsureEquipmentItemSeedAsync(cancellationToken);
         await EnsureSessionEquipmentIssuesTableAsync(cancellationToken);
@@ -26,7 +27,13 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureAccessProfileSeedAsync(cancellationToken);
         await EnsureStaffMembersTableAsync(cancellationToken);
 
-        if (await dbContext.Lanes.AnyAsync(cancellationToken))
+        await EnsureShootingLanesSeedAsync(cancellationToken);
+        await EnsureGymLaneAsync(cancellationToken);
+    }
+
+    private async Task EnsureShootingLanesSeedAsync(CancellationToken cancellationToken)
+    {
+        if (await dbContext.Lanes.AnyAsync(l => l.Number >= 1 && l.Number <= 11, cancellationToken))
         {
             return;
         }
@@ -39,6 +46,22 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             });
 
         await dbContext.Lanes.AddRangeAsync(lanes, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureGymLaneAsync(CancellationToken cancellationToken)
+    {
+        const int gymLaneNumber = 12;
+        if (await dbContext.Lanes.AnyAsync(l => l.Number == gymLaneNumber, cancellationToken))
+        {
+            return;
+        }
+
+        await dbContext.Lanes.AddAsync(new Lane
+        {
+            Number = gymLaneNumber,
+            LaneType = LaneType.Gym
+        }, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -103,17 +126,24 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             BEGIN
                 ALTER TABLE [dbo].[Athletes] ADD [IsGroupPlaceholder] BIT NOT NULL CONSTRAINT [DF_Athletes_IsGroupPlaceholder] DEFAULT (0);
             END
-
-            UPDATE [dbo].[Athletes]
-            SET [IsGroupPlaceholder] = 1
-            WHERE [IsGroupPlaceholder] = 0
-              AND [FullName] LIKE N'%, %'
-              AND LTRIM(RTRIM(ISNULL([PhoneNumber], N''))) = N''
-              AND LTRIM(RTRIM(ISNULL([FirstName], N''))) = N''
-              AND LTRIM(RTRIM(ISNULL([LastName], N''))) = N'';;
             """;
 
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+
+        const string backfillSql = """
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'IsGroupPlaceholder') IS NOT NULL
+            BEGIN
+                UPDATE [dbo].[Athletes]
+                SET [IsGroupPlaceholder] = 1
+                WHERE [IsGroupPlaceholder] = 0
+                  AND [FullName] LIKE N'%, %'
+                  AND LTRIM(RTRIM(ISNULL([PhoneNumber], N''))) = N''
+                  AND LTRIM(RTRIM(ISNULL([FirstName], N''))) = N''
+                  AND LTRIM(RTRIM(ISNULL([LastName], N''))) = N'';
+            END
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(backfillSql, cancellationToken);
     }
 
     private async Task EnsureAthleteUniqueIndexesAsync(CancellationToken cancellationToken)
@@ -371,7 +401,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 Scope = PackageScope.Archery,
                 SchedulingMode = PackageSchedulingMode.None,
                 Price = 15m,
-                SessionDurationMinutes = 60,
+                SessionDurationMinutes = 90,
                 IsActive = true,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
@@ -383,7 +413,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 Scope = PackageScope.Archery,
                 SchedulingMode = PackageSchedulingMode.FixedWeekly,
                 Price = 120m,
-                SessionDurationMinutes = 60,
+                SessionDurationMinutes = 90,
                 PeriodMinutesQuota = 720,
                 WeeklyDaysCsv = "1,3,5",
                 ValidityDays = 30,
@@ -398,7 +428,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 Scope = PackageScope.Vip,
                 SchedulingMode = PackageSchedulingMode.WalkInFlexible,
                 Price = 800m,
-                SessionDurationMinutes = 60,
+                SessionDurationMinutes = 0,
                 ValidityDays = 365,
                 UnlimitedGym = true,
                 IsActive = true,
@@ -408,6 +438,28 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         };
 
         await dbContext.ServicePackages.AddRangeAsync(seed, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task PurgeLegacyWalkInMonthlyPackageAsync(CancellationToken cancellationToken)
+    {
+        const string packageName = "Aylıq çevik oxatma — limitsiz gəliş";
+        var legacy = await dbContext.ServicePackages
+            .Where(p => !p.IsDeleted && p.Name == packageName)
+            .ToListAsync(cancellationToken);
+        if (legacy.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var package in legacy)
+        {
+            package.IsDeleted = true;
+            package.IsActive = false;
+            package.UpdatedAtUtc = now;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

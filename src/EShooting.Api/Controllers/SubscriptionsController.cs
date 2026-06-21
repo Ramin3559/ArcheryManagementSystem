@@ -73,6 +73,7 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
                     startTimeLocal,
                     request.DurationMinutes,
                     request.StartDateLocal,
+                    request.EndDateLocal,
                     preferredLaneTypesByDay,
                     request.IsFullPackage),
                 cancellationToken);

@@ -46,7 +46,7 @@ public sealed class ScheduleSessionCommandHandler(
         static bool IsLongLane(int number) => number is >= 9 and <= 11;
 
         // Category rules: Amateur can only use short lanes.
-        if (athlete.Category == CustomerCategory.Amateur)
+        if (athlete.Category == CustomerCategory.Amateur && !GymLaneRules.IsGymLane(request.LaneNumber))
         {
             if (request.LaneNumber > 0 && !IsShortLane(request.LaneNumber))
             {
@@ -81,7 +81,7 @@ public sealed class ScheduleSessionCommandHandler(
             {
                 PreferredLaneType.Short => lanes.Where(l => IsShortLane(l.Number)).ToList(),
                 PreferredLaneType.Long => lanes.Where(l => IsLongLane(l.Number)).ToList(),
-                _ => lanes.ToList()
+                _ => lanes.Where(l => !GymLaneRules.IsGymLane(l.Number)).ToList()
             };
 
             // Ensure global manual capacity keeps subscriber slots free.
@@ -130,48 +130,53 @@ public sealed class ScheduleSessionCommandHandler(
             }
         }
 
-        var existingLaneSessions = allSessions
-            .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
+        var isGymLane = GymLaneRules.IsGymLane(lane.Number);
 
-        var hasOverlap = existingLaneSessions.Any(x =>
-            LaneReservationRules.OverlapsSession(x, startTimeUtc, requestedEndTimeUtc, nowUtc));
-
-        if (hasOverlap)
+        if (!isGymLane)
         {
-            var conflict = existingLaneSessions
-                .Select(s => new { Session = s, Start = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc), End = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc) })
-                .FirstOrDefault(x => LaneReservationRules.OverlapsSession(x.Session, startTimeUtc, requestedEndTimeUtc, nowUtc));
+            var existingLaneSessions = allSessions
+                .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
 
-            var who = conflict is null
-                ? "başqa müştəri"
-                : (athletes.FirstOrDefault(a => a.Id == conflict.Session.AthleteId)?.FullName ?? "başqa müştəri");
-            var untilLocal = conflict is null ? "" : conflict.End.ToLocalTime().ToString("HH:mm");
-            var tail = string.IsNullOrWhiteSpace(untilLocal) ? "" : $" ({who} tərəfindən saat {untilLocal}-a qədər)";
-            throw new InvalidOperationException($"Bu zolaq seçdiyiniz zaman aralığında tutulub{tail}.");
-        }
+            var hasOverlap = existingLaneSessions.Any(x =>
+                LaneReservationRules.OverlapsSession(x, startTimeUtc, requestedEndTimeUtc, nowUtc));
 
-        if (!isOpenEnded)
-        {
-            if (!LaneReservationRules.HasManualCapacityForSlot(
-                    lanes,
-                    allSessions,
-                    subscriptionSchedules,
-                    startTimeUtc,
-                    requestedEndTimeUtc,
-                    nowUtc))
+            if (hasOverlap)
             {
-                throw new InvalidOperationException(
-                    "Bu vaxt üçün zolaq təyin edilə bilməz. Abunəçilər üçün rezerv olunmuş boş yerlər saxlanılmalıdır.");
+                var conflict = existingLaneSessions
+                    .Select(s => new { Session = s, Start = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc), End = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc) })
+                    .FirstOrDefault(x => LaneReservationRules.OverlapsSession(x.Session, startTimeUtc, requestedEndTimeUtc, nowUtc));
+
+                var who = conflict is null
+                    ? "başqa müştəri"
+                    : (athletes.FirstOrDefault(a => a.Id == conflict.Session.AthleteId)?.FullName ?? "başqa müştəri");
+                var untilLocal = conflict is null ? "" : conflict.End.ToLocalTime().ToString("HH:mm");
+                var tail = string.IsNullOrWhiteSpace(untilLocal) ? "" : $" ({who} tərəfindən saat {untilLocal}-a qədər)";
+                throw new InvalidOperationException($"Bu zolaq seçdiyiniz zaman aralığında tutulub{tail}.");
             }
 
-            if (LaneReservationRules.HasSubscriberConflictOnLane(
-                    subscriptionSchedules,
-                    lane.Number,
-                    startTimeUtc,
-                    requestedEndTimeUtc))
+            if (!isOpenEnded)
             {
-                throw new InvalidOperationException(
-                    $"{lane.Number} nömrəli zolaq həmin vaxt aralığında abunə rezervasiyası ilə üst-üstə düşür.");
+                if (!LaneReservationRules.HasManualCapacityForSlot(
+                        lanes,
+                        allSessions,
+                        subscriptionSchedules,
+                        startTimeUtc,
+                        requestedEndTimeUtc,
+                        nowUtc))
+                {
+                    throw new InvalidOperationException(
+                        "Bu vaxt üçün zolaq təyin edilə bilməz. Abunəçilər üçün rezerv olunmuş boş yerlər saxlanılmalıdır.");
+                }
+
+                if (LaneReservationRules.HasSubscriberConflictOnLane(
+                        subscriptionSchedules,
+                        lane.Number,
+                        startTimeUtc,
+                        requestedEndTimeUtc))
+                {
+                    throw new InvalidOperationException(
+                        $"{lane.Number} nömrəli zolaq həmin vaxt aralığında abunə rezervasiyası ilə üst-üstə düşür.");
+                }
             }
         }
 

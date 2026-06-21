@@ -975,6 +975,7 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
                     startTimeLocal,
                     request.DurationMinutes,
                     request.StartDateLocal,
+                    request.EndDateLocal,
                     request.PreferredLaneTypesByDayOfWeek,
                     request.IsFullPackage),
                 cancellationToken);

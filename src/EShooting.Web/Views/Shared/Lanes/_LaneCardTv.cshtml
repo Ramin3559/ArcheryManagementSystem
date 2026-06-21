@@ -12,17 +12,28 @@
 
     var trainingBuffer = TimeSpan.Zero;
     var effectiveStatus = st;
+    var isVipTvMode = Model.IsAthleteVip || Model.IsOpenEndedSession;
     if (startUtc is not null && endUtc is not null)
     {
-        var trainingEndUtc = endUtc.Value - trainingBuffer;
-        if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
-        else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
-        else effectiveStatus = "Active";
+        var isOpenEnded = endUtc.Value <= startUtc.Value;
+        if (isOpenEnded || isVipTvMode)
+        {
+            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
+            else if (st == "Completed") effectiveStatus = "Completed";
+            else effectiveStatus = "Active";
+        }
+        else
+        {
+            var trainingEndUtc = endUtc.Value - trainingBuffer;
+            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
+            else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
+            else effectiveStatus = "Active";
+        }
     }
 
     var hasSession = Model.IsSessionOpen && Model.SessionId is not null;
-    var startText = LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc);
-    var endText = LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc);
+    var startText = LaneDisplayHelper.FormatScheduleTimeLocal(Model.StartTimeUtc);
+    var endText = LaneDisplayHelper.FormatScheduleTimeLocal(Model.EndTimeUtc);
     var wallClockNow = LaneDisplayHelper.FormatTimeLocal(DateTime.UtcNow);
     var athleteLines = LaneDisplayHelper.ParseGroupAthleteDisplayLines(
         Model.AthleteName,
@@ -31,7 +42,7 @@
     var isGroupDisplay = athleteLines.Count > 1;
 }
 @await Html.PartialAsync("Lanes/_LaneCardTvStyles")
-<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")" data-tv-layout="v3">
+<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")@(isVipTvMode && hasSession ? " lane-card--tv-vip" : "")@(hasSession && !isGroupDisplay ? " lane-card--tv-single" : "")" data-tv-layout="v3">
     <div class="lane-tv-grid">
         <div class="lane-tv-panel lane-tv-panel--logo">
             <img class="lane-tv-brand-logo"
@@ -41,18 +52,11 @@
         </div>
 
         <div class="lane-tv-panel lane-tv-panel--center-stack">
-            <h2 class="lane-tv-lane-num">Zolaq @Model.LaneNumber</h2>
-            @if (hasSession)
-            {
-                <div class="lane-tv-schedule" data-role="lane-schedule">
-                    <div class="lane-tv-schedule__row">
-                        <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
-                    </div>
-                    <div class="lane-tv-schedule__row">
-                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
-                    </div>
+            <div class="lane-tv-center-col">
+                <div class="lane-tv-center-inner">
+                    <h2 class="lane-tv-lane-num">Zolaq @Model.LaneNumber</h2>
                 </div>
-            }
+            </div>
         </div>
 
         <div class="lane-tv-panel lane-tv-panel--clock">
@@ -61,35 +65,101 @@
 
         @if (hasSession)
         {
-            <div class="lane-tv-panel lane-tv-panel--name">
-                <div class="lane-tv-athlete@(isGroupDisplay ? " lane-tv-athlete--group" : "")">
-                    @foreach (var person in athleteLines)
+            if (isGroupDisplay)
+            {
+                <div class="lane-tv-panel lane-tv-panel--name">
+                    <div class="lane-tv-athlete lane-tv-athlete--group">
+                        @foreach (var person in athleteLines)
+                        {
+                            <div class="lane-tv-person">
+                                @if (!string.IsNullOrEmpty(person.First))
+                                {
+                                    <span class="lane-tv-first-name">@person.First</span>
+                                }
+                                @if (!string.IsNullOrEmpty(person.Last))
+                                {
+                                    <span class="lane-tv-last-name">@person.Last@(person.TrailingComma ? "," : "")</span>
+                                }
+                                else if (person.TrailingComma)
+                                {
+                                    <span class="lane-tv-last-name">,</span>
+                                }
+                            </div>
+                        }
+                        @if (Model.HasPendingRentalEquipment)
+                        {
+                            <span class="lane-tv-equip" aria-hidden="true">🏹</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="lane-tv-panel lane-tv-panel--session-times">
+                    <div class="lane-tv-center-col">
+                        <div class="lane-tv-center-inner">
+                            <div class="lane-tv-schedule" data-role="lane-schedule">
+                                <div class="lane-tv-schedule__row">
+                                    <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
+                                </div>
+                                @if (!isVipTvMode)
+                                {
+                                    <div class="lane-tv-schedule__row lane-tv-schedule__row--end">
+                                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                var person = athleteLines.Count > 0 ? athleteLines[0] : default;
+                var hasFirst = athleteLines.Count > 0 && !string.IsNullOrEmpty(person.First);
+                var hasLast = athleteLines.Count > 0 && !string.IsNullOrEmpty(person.Last);
+
+                <div class="lane-tv-detail-grid">
+                    <div class="lane-tv-panel lane-tv-panel--name-first">
+                        @if (hasFirst)
+                        {
+                            <span class="lane-tv-first-name">@person.First</span>
+                        }
+                        else
+                        {
+                            <span class="lane-tv-first-name">—</span>
+                        }
+                    </div>
+
+                    <div class="lane-tv-panel lane-tv-panel--session-start">
+                        <div class="lane-tv-center-col">
+                            <div class="lane-tv-center-inner">
+                                <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lane-tv-panel lane-tv-panel--name-last">
+                        @if (hasLast)
+                        {
+                            <span class="lane-tv-last-name">@person.Last</span>
+                        }
+                        @if (Model.HasPendingRentalEquipment)
+                        {
+                            <span class="lane-tv-equip" aria-hidden="true">🏹</span>
+                        }
+                    </div>
+
+                    @if (!isVipTvMode)
                     {
-                        <div class="lane-tv-person">
-                            @if (!string.IsNullOrEmpty(person.First))
-                            {
-                                <span class="lane-tv-first-name">@person.First</span>
-                            }
-                            @if (!string.IsNullOrEmpty(person.Last))
-                            {
-                                <span class="lane-tv-last-name">@person.Last@(person.TrailingComma ? "," : "")</span>
-                            }
-                            else if (person.TrailingComma)
-                            {
-                                <span class="lane-tv-last-name">,</span>
-                            }
+                        <div class="lane-tv-panel lane-tv-panel--session-end">
+                            <div class="lane-tv-center-col">
+                                <div class="lane-tv-center-inner">
+                                    <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
+                                </div>
+                            </div>
                         </div>
                     }
-                    @if (athleteLines.Count == 0)
-                    {
-                        <span class="lane-tv-first-name">—</span>
-                    }
-                    @if (Model.HasPendingRentalEquipment)
-                    {
-                        <span class="lane-tv-equip" aria-hidden="true">🏹</span>
-                    }
                 </div>
-            </div>
+            }
         }
 
         <div class="lane-tv-panel lane-tv-panel--ring">
@@ -98,6 +168,7 @@
                  data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
                  data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
                  data-status="@effectiveStatus"
+                 data-vip-mode="@(isVipTvMode ? "1" : "0")"
                  data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
                 <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
                     <circle class="countdown-ring__track" cx="50" cy="50" r="42" />

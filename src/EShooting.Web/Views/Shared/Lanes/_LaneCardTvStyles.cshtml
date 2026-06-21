@@ -1,4 +1,4 @@
-<style id="lane-tv-styles-v3-3">
+<style id="lane-tv-styles-v3-24">
     /* TV zolaq kartı — layout v3 (MiBox / Android TV overscan nəzərə alınır) */
     .lane-tv-body .lane-card.is-cleanup .lane-tv-athlete {
         display: none !important;
@@ -24,29 +24,134 @@
         overflow: visible;
         color: var(--text, #8B2318);
         box-sizing: border-box;
+        --tv-row-font: clamp(46px, 5.4vmin, 66px);
+        --tv-center-nudge: clamp(28px, 4vw, 56px);
+        --tv-schedule-block-width: clamp(260px, 24vw, 380px);
+        --tv-name-schedule-gap: clamp(4px, 0.5vw, 8px);
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-grid {
         display: grid !important;
+        position: relative;
         width: 100%;
         height: 100%;
         min-height: 0;
-        grid-template-columns: minmax(0, 1.08fr) auto minmax(0, 0.92fr) !important;
-        grid-template-rows: auto auto 1fr auto !important;
-        grid-template-areas:
-            "logo   stack  clock"
-            "name   stack  ."
-            ".      .      ring" !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
         column-gap: 0 !important;
         row-gap: 0 !important;
         align-content: stretch !important;
     }
 
-    .lane-card.lane-card--tv[data-tv-layout="v3"]:not(.lane-card--tv-active) .lane-tv-grid {
-        grid-template-rows: auto 1fr auto !important;
+    .lane-card.lane-card--tv[data-tv-layout="v3"]:not(.lane-card--tv-single) .lane-tv-grid {
+        grid-template-rows: auto auto 1fr !important;
         grid-template-areas:
             "logo   stack  clock"
-            ".      .      ring" !important;
+            "name   times  ."
+            ".      .      ." !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"].lane-card--tv-single .lane-tv-grid {
+        grid-template-rows: auto auto auto 1fr !important;
+        grid-template-areas:
+            "logo   stack  clock"
+            "detail detail detail"
+            "detail detail detail"
+            ".      .      ." !important;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"].lane-card--tv-single.lane-card--tv-vip .lane-tv-detail-grid {
+        grid-template-rows: auto auto;
+        grid-template-areas:
+            "fname start ."
+            "lname .     .";
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-detail-grid {
+        grid-area: detail;
+        grid-column: 1 / -1;
+        grid-row: 2 / 4;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        grid-template-areas:
+            "fname start ."
+            "lname end   .";
+        column-gap: clamp(4px, 0.8vw, 10px);
+        row-gap: clamp(8px, 1.2vh, 14px);
+        padding-top: clamp(10px, 1.6vh, 20px);
+        z-index: 2;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--name-first,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--name-last {
+        grid-area: fname;
+        justify-self: start;
+        align-self: center;
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: visible;
+        box-sizing: border-box;
+        padding-right: 0;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--name-last {
+        grid-area: lname;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-start,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-end {
+        justify-self: center;
+        align-self: center;
+        width: var(--tv-schedule-block-width, clamp(260px, 24vw, 380px));
+        max-width: 100%;
+        text-align: left;
+        pointer-events: none;
+        transform: translateX(var(--tv-center-nudge, 28px));
+        z-index: 3;
+        box-sizing: border-box;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-start .lane-tv-center-col,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-end .lane-tv-center-col {
+        width: 100%;
+        text-align: left;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-start .lane-tv-center-inner,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-end .lane-tv-center-inner {
+        display: block;
+        width: 100%;
+        text-align: left;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-start {
+        grid-area: start;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-end {
+        grid-area: end;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-start .lane-tv-schedule__item,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-end .lane-tv-schedule__item {
+        display: block;
+        font-size: var(--tv-row-font);
+        font-weight: 700;
+        color: #8B2318;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        text-align: left;
+        line-height: 1.08;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"]:not(.lane-card--tv-active) .lane-tv-grid {
+        grid-template-rows: auto 1fr !important;
+        grid-template-areas:
+            "logo   stack  clock"
+            ".      .      ." !important;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel {
@@ -58,27 +163,69 @@
         grid-area: logo;
         align-self: start;
         justify-self: start;
+        position: relative;
+        z-index: 3;
+    }
+
+    /* Zolaq + Başlama/Bitmə — ekranın üfüqi mərkəzi (Zolaq ilə eyni xətt) */
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times {
+        justify-self: center;
+        align-self: start;
+        width: max-content;
+        max-width: 100%;
+        text-align: center;
+        pointer-events: none;
+        transform: translateX(var(--tv-center-nudge, 28px));
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack {
         grid-area: stack;
-        justify-self: center;
-        align-self: start;
-        padding-top: clamp(20px, 3.5vh, 40px);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: clamp(14px, 2vh, 22px);
-        width: max-content;
-        max-width: min(100%, 72vw);
+        grid-column: 1 / -1;
+        grid-row: 1;
+        padding-top: clamp(8px, 1.8vh, 24px);
+        z-index: 1;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times {
+        grid-area: times;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        padding-top: clamp(10px, 1.6vh, 20px);
+        z-index: 1;
+        width: var(--tv-schedule-block-width, clamp(260px, 24vw, 380px));
+        max-width: 100%;
+        text-align: left;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times .lane-tv-center-col,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times .lane-tv-center-inner {
+        width: 100%;
+        text-align: left;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-center-col {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        text-align: center;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-center-inner {
+        display: inline-block;
+        text-align: left;
+        vertical-align: top;
+        max-width: min(100%, calc(100% - 2 * var(--tv-safe-x, 20px)));
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--clock {
         grid-area: clock;
         justify-self: end;
         align-self: start;
-        padding-top: clamp(20px, 3.5vh, 40px);
+        padding-top: clamp(8px, 1.8vh, 24px);
         padding-right: 0;
+        position: relative;
+        z-index: 3;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-wall-clock__value {
@@ -93,27 +240,36 @@
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--name {
         grid-area: name !important;
+        grid-row: 2;
+        grid-column: 1;
         justify-self: start;
         align-self: start;
         width: 100%;
         max-width: 100%;
-        padding-top: clamp(18px, 2.8vh, 32px);
+        padding-top: clamp(10px, 1.6vh, 20px);
         overflow: visible;
+        position: relative;
+        z-index: 2;
+        min-width: 0;
+        box-sizing: border-box;
+        padding-right: 0;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--ring {
-        grid-area: ring;
+        position: absolute;
+        right: 0;
+        bottom: clamp(2px, 0.5vh, 8px);
+        z-index: 2;
         display: flex;
         justify-content: flex-end;
         align-items: flex-end;
-        align-self: end;
-        justify-self: end;
         overflow: visible;
         min-width: 0;
-        min-height: min(280px, 38vh);
+        min-height: min(380px, 48vh);
         max-width: 100%;
-        padding: 0 0 clamp(4px, 1vh, 12px) 0;
+        padding: 0;
         margin-right: 0;
+        pointer-events: none;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center,
@@ -141,7 +297,7 @@
         font-size: clamp(66px, 8.5vmin, 90px);
         font-weight: 800;
         color: #8B2318;
-        text-align: center;
+        text-align: left;
         line-height: 1.05;
         white-space: nowrap;
     }
@@ -153,6 +309,8 @@
         gap: clamp(4px, 0.8vh, 10px);
         width: 100%;
         max-width: 100%;
+        min-width: 0;
+        overflow: visible;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete--group {
@@ -169,46 +327,47 @@
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete--group .lane-tv-first-name,
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete--group .lane-tv-last-name {
-        font-size: clamp(34px, 4.2vmin, 58px);
+        font-size: var(--tv-row-font);
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-first-name,
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-last-name {
         display: block;
-        font-weight: 800;
+        font-weight: 700;
         color: #8B2318;
         line-height: 1.08;
         white-space: nowrap;
         max-width: 100%;
-        overflow: hidden;
-    }
-
-    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-first-name {
-        font-size: clamp(44px, 5.5vmin, 76px);
-    }
-
-    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-last-name {
-        font-size: clamp(44px, 5.5vmin, 76px);
+        overflow: visible;
+        font-size: var(--tv-row-font);
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule {
         display: flex;
         flex-direction: column;
-        gap: clamp(6px, 1vh, 10px);
+        gap: clamp(8px, 1.2vh, 14px);
         width: 100%;
-        align-items: center;
-        margin-top: clamp(8px, 1.4vh, 18px);
+        align-items: flex-start;
+        margin-top: 0;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule__row {
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-size: clamp(38px, 4.6vmin, 56px);
+        justify-content: flex-start;
+        width: 100%;
+        font-size: var(--tv-row-font);
         font-weight: 700;
         color: #8B2318;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        text-align: left;
+        line-height: 1.08;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule__item {
+        display: block;
+        text-align: left;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule__icon {
@@ -224,7 +383,7 @@
     .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint {
         position: absolute;
         left: 50%;
-        bottom: clamp(28px, 4.5vh, 52px);
+        bottom: clamp(12px, 2vh, 28px);
         transform: translateX(-50%);
         font-size: clamp(32px, 3.8vmin, 46px) !important;
         font-weight: 700;
@@ -250,13 +409,13 @@
         --ring-track: rgba(139, 35, 24, 0.14);
         --ring-accent: #8B2318;
         --ring-glow: rgba(139, 35, 24, 0.2);
-        --ring-size: min(520px, 42vmin, 44vh);
-        --ring-inner-pad: 0.26;
+        --ring-size: min(660px, 52vmin, 54vh);
+        --ring-inner-pad: 0.03;
         position: relative;
         width: var(--ring-size) !important;
         height: var(--ring-size) !important;
-        min-width: 180px;
-        min-height: 180px;
+        min-width: 200px;
+        min-height: 200px;
         aspect-ratio: 1;
         max-width: 100%;
         max-height: 100%;
@@ -283,14 +442,30 @@
     .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__track {
         fill: none;
         stroke: var(--ring-track);
-        stroke-width: 4;
+        stroke-width: 5;
         stroke-linecap: butt;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-open-ended .countdown-ring__progress {
+        opacity: 0 !important;
+        transition: none !important;
+        stroke-dashoffset: 0 !important;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-open-ended .countdown-ring__track {
+        stroke: var(--ring-accent);
+        stroke-width: 6;
+        opacity: 1 !important;
+    }
+
+    .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring-wrap.is-open-ended.is-live .countdown-ring__timer {
+        color: #8B2318;
     }
 
     .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__progress {
         fill: none;
         stroke: var(--ring-accent);
-        stroke-width: 5;
+        stroke-width: 6;
         stroke-linecap: round;
         transition: stroke-dasharray 0.35s ease, stroke-dashoffset 0.35s ease, stroke 0.3s ease;
     }
@@ -307,7 +482,7 @@
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: calc(var(--ring-inner-pad, 0.26) * 100%);
+        padding: calc(var(--ring-inner-pad, 0.03) * 100%);
         pointer-events: none;
         overflow: hidden;
         box-sizing: border-box;
@@ -325,7 +500,7 @@
 
     .lane-tv-body .lane-card[data-tv-layout="v3"] .countdown-ring__timer {
         display: block;
-        font-size: 42px;
+        font-size: clamp(78px, 8.5vmin, 120px);
         font-weight: 900;
         font-variant-numeric: tabular-nums;
         line-height: 1;

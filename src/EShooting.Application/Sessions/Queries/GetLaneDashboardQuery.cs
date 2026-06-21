@@ -29,9 +29,10 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         var equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
         var athleteById = athletes.ToDictionary(
             x => x.Id,
-            x => new { x.FullName, x.FirstName, x.LastName, x.MembershipType });
+            x => new { x.FullName, x.FirstName, x.LastName, x.MembershipType, x.IsVip });
 
         var result = lanes
+            .Where(l => !GymLaneRules.IsGymLane(l.Number))
             .OrderBy(x => x.Number)
             .Select(lane =>
             {
@@ -85,6 +86,12 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     ? null
                     : DateTimeAssumedUtc.AsUtc(activeSession.EndTimeUtc);
 
+                var isOpenEndedSession = activeSession is not null
+                    && startTimeUtc is not null
+                    && endTimeUtc is not null
+                    && !HasValidTimeWindow(startTimeUtc.Value, endTimeUtc.Value);
+                var isAthleteVip = athlete?.IsVip ?? false;
+
                 DateTime? cooldownUntilUtc = null;
                 if (status == "Idle")
                 {
@@ -121,7 +128,9 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     IsEquipmentReturned = activeSession?.EquipmentReturnedAtUtc is not null,
                     HasPendingRentalEquipment = activeSession is not null
                         && SessionEquipmentRules.HasPendingRentalEquipment(activeSession, equipmentIssues),
-                    IsSessionOpen = activeSession?.Status != SessionStatus.Completed
+                    IsSessionOpen = activeSession?.Status != SessionStatus.Completed,
+                    IsOpenEndedSession = isOpenEndedSession,
+                    IsAthleteVip = isAthleteVip
                 };
             })
             .ToList();
@@ -135,7 +144,7 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
         if (!HasValidTimeWindow(start, end))
         {
-            return false;
+            return session.Status == SessionStatus.Active && nowUtc >= start;
         }
 
         return nowUtc >= end;

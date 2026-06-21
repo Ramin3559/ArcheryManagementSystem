@@ -28,7 +28,7 @@ public sealed class ScheduleSessionRequest
     /// <summary>
     /// Sessiyanin deqiqe ile muddeti.
     /// </summary>
-    public int DurationMinutes { get; set; } = 60;
+    public int DurationMinutes { get; set; } = 90;
 
     public bool IsEquipmentIssued { get; set; }
 

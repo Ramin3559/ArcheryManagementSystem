@@ -9,6 +9,8 @@ public static class ServicePackageDisplayHelper
         PackageBillingType.OneTime => "Birdefəlik",
         PackageBillingType.Monthly => "Aylıq",
         PackageBillingType.Yearly => "İllik",
+        PackageBillingType.Vip => "VIP",
+        PackageBillingType.Gym => "Zal",
         _ => value.ToString()
     };
 
