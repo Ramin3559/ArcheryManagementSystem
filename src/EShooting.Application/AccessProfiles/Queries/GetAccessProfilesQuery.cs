@@ -28,9 +28,18 @@ public sealed class GetAccessProfilesQueryHandler(ITrainingCenterRepository repo
         Name = x.Name,
         Description = x.Description,
         CanRegisterCustomers = x.CanRegisterCustomers,
+        CanViewCustomerDetails = x.CanViewCustomerDetails,
+        CanEditCustomerDetails = x.CanEditCustomerDetails,
         CanManageSubscriptions = x.CanManageSubscriptions,
+        CanRecordPayments = x.CanRecordPayments,
+        CanApplyDiscount = x.CanApplyDiscount,
+        CanGrantComplimentarySession = x.CanGrantComplimentarySession,
         CanManageSessions = x.CanManageSessions,
         CanManageEquipment = x.CanManageEquipment,
+        CanSellEquipment = x.CanSellEquipment,
+        CanReturnEquipment = x.CanReturnEquipment,
+        CanAccessPlanset = x.CanAccessPlanset,
+        CanIssueEquipmentRental = x.CanIssueEquipmentRental,
         CanViewHistory = x.CanViewHistory,
         IsActive = x.IsActive
     };

@@ -6,16 +6,21 @@ using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Web.Contracts.Subscriptions;
-using EShooting.Web;
+using EShooting.Application.Customers;
+using EShooting.Web.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static EShooting.Application.Common.DateTimeAssumedUtc;
 
 namespace EShooting.Web.Controllers;
 
 [ApiController]
 [Route("subscriptions")]
-public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterRepository repository) : ControllerBase
+public sealed class SubscriptionsController(
+    IMediator mediator,
+    ITrainingCenterRepository repository,
+    IRealtimeNotifier notifier) : ControllerBase
 {
     [HttpPost("schedules/analyze")]
     public async Task<IActionResult> AnalyzeSchedule(
@@ -58,7 +63,7 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
             : athletes.FirstOrDefault(x => string.Equals(x.FullName, request.AthleteFullName.Trim(), StringComparison.OrdinalIgnoreCase));
         if (athlete is null)
         {
-            return BadRequest(new { error = "İdmançı tapılmadı." });
+            return BadRequest(new { error = "Müştəri tapılmadı." });
         }
 
         var laneAllowed = athlete.Category == Domain.Enums.CustomerCategory.Amateur
@@ -704,7 +709,55 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
         schedule.ExcludedOccurrenceDatesJson = excluded.Count > 0 ? OccurrenceJson.SerializeExcluded(excluded) : null;
         schedule.OccurrenceOverridesJson = OccurrenceJson.SerializeOverrides(list);
         await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
+        await CancelSessionsOnLocalDateAsync(
+            schedule.AthleteId,
+            schedule.Id,
+            sourceDate,
+            cancellationToken);
         return Ok(new { message = "Seans yeni tarixə köçürüldü, köhnə abunə günü ləğv edildi." });
+    }
+
+    private async Task CancelSessionsOnLocalDateAsync(
+        Guid athleteId,
+        Guid subscriptionScheduleId,
+        DateTime dateLocal,
+        CancellationToken cancellationToken)
+    {
+        var dayStartLocal = dateLocal.Date;
+        var dayEndLocal = dayStartLocal.AddDays(1);
+        var startUtc = DateTime.SpecifyKind(dayStartLocal, DateTimeKind.Local).ToUniversalTime();
+        var endUtc = DateTime.SpecifyKind(dayEndLocal, DateTimeKind.Local).ToUniversalTime();
+
+        var sessions = await repository.GetSessionsAsync(cancellationToken);
+        var lanes = await repository.GetLanesAsync(cancellationToken);
+        var laneById = lanes.ToDictionary(x => x.Id, x => x.Number);
+
+        foreach (var session in sessions)
+        {
+            if (session.AthleteId != athleteId || session.Status == SessionStatus.Completed)
+            {
+                continue;
+            }
+
+            if (session.SubscriptionScheduleId is Guid linked && linked != subscriptionScheduleId)
+            {
+                continue;
+            }
+
+            var sessionStart = AsUtc(session.StartTimeUtc);
+            if (sessionStart < startUtc || sessionStart >= endUtc)
+            {
+                continue;
+            }
+
+            SessionHousekeeping.MarkCompleted(session, DateTime.UtcNow);
+            await repository.UpdateSessionAsync(session, cancellationToken);
+
+            if (laneById.TryGetValue(session.LaneId, out var laneNumber))
+            {
+                await notifier.PublishLaneUpdateAsync(laneNumber, cancellationToken);
+            }
+        }
     }
 
     private static string? ValidateOccurrenceDateInPeriod(SubscriptionSchedule schedule, DateTime date)
@@ -979,6 +1032,38 @@ public sealed class SubscriptionsController(IMediator mediator, ITrainingCenterR
                     request.PreferredLaneTypesByDayOfWeek,
                     request.IsFullPackage),
                 cancellationToken);
+
+            if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)
+            {
+                var athletes = await repository.GetAthletesAsync(cancellationToken);
+                var athlete = request.AthleteId is Guid aid && aid != Guid.Empty
+                    ? athletes.FirstOrDefault(x => x.Id == aid)
+                    : athletes.FirstOrDefault(x =>
+                        string.Equals(x.FullName, request.AthleteFullName.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (athlete is not null)
+                {
+                    var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+                    var latestSchedule = schedules
+                        .Where(s => s.AthleteId == athlete.Id)
+                        .OrderByDescending(s => s.CreatedAtUtc)
+                        .FirstOrDefault();
+                    await CustomerBillingService.RecordPackageAsync(
+                        repository,
+                        athlete.Id,
+                        pkgId,
+                        null,
+                        null,
+                        null,
+                        request.DiscountAmount,
+                        request.AmountPaidCash,
+                        request.AmountPaidCard,
+                        request.IsComplimentary,
+                        null,
+                        latestSchedule?.Id,
+                        User.GetStaffMemberId(),
+                        cancellationToken);
+                }
+            }
 
             return Ok(new
             {

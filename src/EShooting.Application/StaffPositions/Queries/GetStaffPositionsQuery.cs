@@ -27,6 +27,7 @@ public sealed class GetStaffPositionsQueryHandler(ITrainingCenterRepository repo
         Id = x.Id,
         Name = x.Name,
         Description = x.Description,
+        DefaultAccessProfileId = x.DefaultAccessProfileId,
         IsActive = x.IsActive
     };
 }

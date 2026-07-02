@@ -4,18 +4,24 @@
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     var isEdit = Model.Id is not null && Model.Id != Guid.Empty;
     ViewData["Title"] = isEdit ? "Avadanlığı dəyişdir" : "Yeni avadanlıq";
+    var totalQty = Model.RentalQuantity + Model.SaleQuantity;
 }
 
 <style>
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     @@media (max-width: 800px) { .form-grid { grid-template-columns: 1fr; } }
-    .field label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+    .field label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: none; letter-spacing: .02em; }
     .field input { width: 100%; min-width: 0; }
     .field--full { grid-column: 1 / -1; }
     .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
     .validation { color: #b91c1c; font-weight: 700; margin-bottom: 10px; }
-    .check-row { display: flex; align-items: center; gap: 8px; min-height: 42px; }
+    .total-readonly {
+        background: rgba(79, 70, 229, 0.06);
+        border-color: rgba(79, 70, 229, 0.18);
+        font-weight: 900;
+        color: #253060;
+    }
 </style>
 
 <div class="topbar">
@@ -24,7 +30,7 @@
 </div>
 
 <div class="card">
-    <form method="post" action="@(isEdit ? $"/admin/equipment/{Model.Id}/edit" : "/admin/equipment/new")">
+    <form method="post" action="@(isEdit ? $"/admin/equipment/{Model.Id}/edit" : "/admin/equipment/new")" id="equipmentForm">
         @Html.AntiForgeryToken()
         @if (isEdit)
         {
@@ -54,23 +60,33 @@
             </div>
 
             <div class="field">
-                <label for="Quantity">Say (stok)</label>
-                <input id="Quantity" name="Quantity" type="number" min="0" step="1" value="@Model.Quantity" required />
-                <div class="hint">Neçə ədəd mövcuddur.</div>
-            </div>
-
-            <div class="field">
-                <label for="Price">Qiymət (AZN)</label>
+                <label for="Price">Vahid qiymət (AZN)</label>
                 <input id="Price" name="Price" type="number" min="0" step="0.01" value="@(Model.Price?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")" placeholder="Boş = pulsuz" />
-                <div class="hint">Boş buraxsanız, qiymət olmadan icarə verilir.</div>
+                <div class="hint">Satışda 1 ədəd üçün. Boş buraxsanız, pulsuz icarə/satış mümkündür.</div>
             </div>
 
             <div class="field">
-                <label>&nbsp;</label>
-                <label class="check-row">
-                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") id="IsActive" />
-                    <span>Aktiv (resepsiyada görünsün)</span>
-                </label>
+                <label for="RentalQuantity">Zal (icarə üçün)</label>
+                <input id="RentalQuantity" name="RentalQuantity" type="number" min="0" step="1" value="@Model.RentalQuantity" required />
+                <div class="hint">Planşetdən pulsuz icarə üçün stok.</div>
+            </div>
+
+            <div class="field">
+                <label for="SaleQuantity">Satış üçün</label>
+                <input id="SaleQuantity" name="SaleQuantity" type="number" min="0" step="1" value="@Model.SaleQuantity" required />
+                <div class="hint">Resepsiyada satış üçün stok.</div>
+            </div>
+
+            <div class="field">
+                <label for="TotalQuantity">Cəmi</label>
+                <input id="TotalQuantity" type="number" class="total-readonly" value="@totalQty" readonly tabindex="-1" aria-readonly="true" />
+                <div class="hint">Zal + satış — avtomatik hesablanır.</div>
+            </div>
+
+            <div class="field">
+                <label for="DamagedQuantity">Xarab / sıradan çıxan</label>
+                <input id="DamagedQuantity" name="DamagedQuantity" type="number" min="0" step="1" value="@Model.DamagedQuantity" />
+                <div class="hint">Zaldan çıxan xarab ədəd — zal stokundan düşülür.</div>
             </div>
         </div>
 
@@ -79,3 +95,38 @@
         </div>
     </form>
 </div>
+
+<script>
+    (function () {
+        const rentalInput = document.getElementById("RentalQuantity");
+        const saleInput = document.getElementById("SaleQuantity");
+        const totalInput = document.getElementById("TotalQuantity");
+        const damagedInput = document.getElementById("DamagedQuantity");
+
+        function parseQty(input) {
+            if (!(input instanceof HTMLInputElement)) return 0;
+            const n = parseInt(String(input.value ?? "").trim(), 10);
+            return Number.isFinite(n) && n >= 0 ? n : 0;
+        }
+
+        function syncTotal() {
+            if (!(totalInput instanceof HTMLInputElement)) return;
+            totalInput.value = String(parseQty(rentalInput) + parseQty(saleInput));
+        }
+
+        function clampDamagedAgainstRental() {
+            if (!(damagedInput instanceof HTMLInputElement) || !(rentalInput instanceof HTMLInputElement)) return;
+            const rental = parseQty(rentalInput);
+            const damaged = parseQty(damagedInput);
+            if (damaged > rental + parseQty(damagedInput)) return;
+            if (damaged > rental && rental >= 0) {
+                damagedInput.value = String(rental);
+            }
+        }
+
+        rentalInput?.addEventListener("input", syncTotal);
+        saleInput?.addEventListener("input", syncTotal);
+        damagedInput?.addEventListener("input", clampDamagedAgainstRental);
+        syncTotal();
+    })();
+</script>

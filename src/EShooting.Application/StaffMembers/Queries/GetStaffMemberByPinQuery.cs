@@ -1,5 +1,6 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Common.Models;
+using EShooting.Application.StaffMembers;
 using EShooting.Domain.Entities;
 using MediatR;
 
@@ -32,21 +33,6 @@ public sealed class GetStaffMemberByPinQueryHandler(ITrainingCenterRepository re
             return null;
         }
 
-        return Map(member, profile);
+        return ReceptionStaffSessionMapper.Map(member, profile);
     }
-
-    internal static ReceptionStaffSessionItem Map(StaffMember member, AccessProfile profile) => new()
-    {
-        Id = member.Id,
-        FirstName = member.FirstName,
-        LastName = member.LastName,
-        FullName = $"{member.FirstName} {member.LastName}".Trim(),
-        PositionName = member.StaffPosition?.Name ?? "—",
-        AccessProfileName = profile.Name,
-        CanRegisterCustomers = profile.CanRegisterCustomers,
-        CanManageSubscriptions = profile.CanManageSubscriptions,
-        CanManageSessions = profile.CanManageSessions,
-        CanManageEquipment = profile.CanManageEquipment,
-        CanViewHistory = profile.CanViewHistory
-    };
 }

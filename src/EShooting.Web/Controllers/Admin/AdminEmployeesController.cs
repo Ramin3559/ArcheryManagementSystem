@@ -2,6 +2,7 @@ using EShooting.Application.AccessProfiles.Queries;
 using EShooting.Application.StaffMembers.Commands;
 using EShooting.Application.StaffMembers.Queries;
 using EShooting.Application.StaffPositions.Queries;
+using EShooting.Web.Auth;
 using EShooting.Web.Contracts.StaffMembers;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/employees")]
 public sealed class AdminEmployeesController(IMediator mediator) : Controller
 {
@@ -47,6 +49,7 @@ public sealed class AdminEmployeesController(IMediator mediator) : Controller
             StaffPositionId = item.StaffPositionId,
             AccessProfileId = item.AccessProfileId,
             PhoneNumber = item.PhoneNumber,
+            CurrentPin = item.CurrentPin,
             IsActive = item.IsActive
         }, cancellationToken);
 
@@ -82,14 +85,26 @@ public sealed class AdminEmployeesController(IMediator mediator) : Controller
         var item = await mediator.Send(new GetStaffMemberByIdQuery(id), cancellationToken);
         if (item is null) return NotFound();
 
-        await mediator.Send(new SetStaffMemberDeletedCommand(id, true), cancellationToken);
-        TempData["EmployeeNotice"] = "Silindi.";
+        await mediator.Send(new SetStaffMemberActiveCommand(id, false), cancellationToken);
+        TempData["EmployeeNotice"] = "İşçi deaktiv edildi. İstəsəniz siyahıdan bərpa edə bilərsiniz.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("{id:guid}/restore")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
+    {
+        var item = await mediator.Send(new GetStaffMemberByIdQuery(id), cancellationToken);
+        if (item is null) return NotFound();
+
+        await mediator.Send(new SetStaffMemberActiveCommand(id, true), cancellationToken);
+        TempData["EmployeeNotice"] = "İşçi bərpa edildi və aktivdir.";
         return RedirectToAction(nameof(Index));
     }
 
     private async Task<IActionResult> SaveAsync(StaffMemberFormModel model, CancellationToken cancellationToken)
     {
-        model.IsActive = Request.Form.ContainsKey("IsActive");
+        model.IsActive = true;
 
         try
         {
@@ -104,8 +119,8 @@ public sealed class AdminEmployeesController(IMediator mediator) : Controller
                 model.IsActive), cancellationToken);
 
             TempData["EmployeeNotice"] = model.Id is null
-                ? (model.IsActive ? "İşçi yaradıldı və aktiv edildi." : "İşçi yaradıldı.")
-                : (model.IsActive ? "İşçi yeniləndi və aktivdir." : "İşçi yeniləndi.");
+                ? "İşçi yaradıldı."
+                : "İşçi yeniləndi.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -122,6 +137,15 @@ public sealed class AdminEmployeesController(IMediator mediator) : Controller
 
         model.Positions = positions;
         model.Profiles = profiles;
+
+        if (model.Id is Guid id && id != Guid.Empty)
+        {
+            var item = await mediator.Send(new GetStaffMemberByIdQuery(id), cancellationToken);
+            if (item is not null)
+            {
+                model.CurrentPin = item.CurrentPin;
+            }
+        }
 
         if (model.StaffPositionId != Guid.Empty && positions.All(x => x.Id != model.StaffPositionId))
         {

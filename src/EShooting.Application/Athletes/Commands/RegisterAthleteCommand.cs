@@ -9,24 +9,30 @@ public sealed record RegisterAthleteCommand(
     string FirstName,
     string LastName,
     string PhoneNumber,
-    string? Email,
-    string? IdCardNumber,
+    string Email,
+    string IdCardNumber,
+    string ClubCardNumber,
     CustomerCategory Category,
     bool IsSubscriber,
     MembershipType MembershipType,
-    bool IsVip = false) : IRequest<Guid>;
+    bool IsVip = false,
+    Guid? RegisteredByStaffId = null) : IRequest<Guid>;
 
 public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repository)
     : IRequestHandler<RegisterAthleteCommand, Guid>
 {
     public async Task<Guid> Handle(RegisterAthleteCommand request, CancellationToken cancellationToken)
     {
-        var first = request.FirstName.Trim();
-        var last = request.LastName.Trim();
-        var phone = NormalizeDigits(request.PhoneNumber);
-        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(last) || string.IsNullOrWhiteSpace(phone))
+        var first = AthleteRegistrationRules.NormalizeText(request.FirstName);
+        var last = AthleteRegistrationRules.NormalizeText(request.LastName);
+        var phone = AthleteRegistrationRules.NormalizeDigits(request.PhoneNumber);
+        var email = AthleteRegistrationRules.NormalizeEmail(request.Email);
+        var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
+        var clubCard = AthleteRegistrationRules.NormalizeText(request.ClubCardNumber);
+
+        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, email, idCard, clubCard))
         {
-            throw new InvalidOperationException("FirstName, LastName and PhoneNumber are required.");
+            throw new InvalidOperationException(AthleteRegistrationRules.RequiredFieldsMessage);
         }
 
         var athlete = new Athlete
@@ -34,36 +40,20 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
             FirstName = first,
             LastName = last,
             PhoneNumber = phone,
-            Email = NormalizeOptionalEmail(request.Email),
-            IdCardNumber = NormalizeOptionalText(request.IdCardNumber),
+            Email = email,
+            IdCardNumber = idCard,
+            ClubCardNumber = clubCard,
             Category = request.Category,
             FullName = $"{first} {last}".Trim(),
             IsSubscriber = request.IsSubscriber,
             MembershipType = request.MembershipType,
-            IsVip = request.IsVip
+            IsVip = request.IsVip,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            RegisteredByStaffId = request.RegisteredByStaffId
         };
 
         var created = await repository.AddAthleteAsync(athlete, cancellationToken);
         return created.Id;
-    }
-
-    private static string NormalizeDigits(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "";
-        return new string(value.Where(char.IsDigit).ToArray());
-    }
-
-    private static string? NormalizeOptionalEmail(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        var v = value.Trim().ToLowerInvariant();
-        return string.IsNullOrWhiteSpace(v) ? null : v;
-    }
-
-    private static string? NormalizeOptionalText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        var v = value.Trim();
-        return string.IsNullOrWhiteSpace(v) ? null : v;
     }
 }

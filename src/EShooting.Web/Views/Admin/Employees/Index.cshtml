@@ -51,14 +51,17 @@
                         <td>
                             <div class="actions">
                                 <a class="btn btn-primary" href="/admin/employees/@e.Id/edit">Dəyişdir</a>
-                                <form method="post" action="/admin/employees/@e.Id/toggle-active" style="margin:0;">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn @(e.IsActive ? "btn-warning" : "btn-excel")">@(e.IsActive ? "Deaktiv et" : "Aktiv et")</button>
-                                </form>
-                                <form method="post" action="/admin/employees/@e.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-danger">Sil</button>
-                                </form>
+                                @if (e.IsActive) {
+                                    <form method="post" action="/admin/employees/@e.Id/delete" style="margin:0;" onsubmit="return confirm('İşçi deaktiv edilsin? (Sonra bərpa edə bilərsiniz)');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-warning">Deaktiv et</button>
+                                    </form>
+                                } else {
+                                    <form method="post" action="/admin/employees/@e.Id/restore" style="margin:0;">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-excel">Bərpa et</button>
+                                    </form>
+                                }
                             </div>
                         </td>
                     </tr>

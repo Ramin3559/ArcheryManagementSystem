@@ -1,0 +1,1070 @@
+@using EShooting.Web.Auth
+@using EShooting.Web.Extensions
+@{
+    Layout = null;
+    var staffName = User.GetStaffDisplayName();
+    var canApplyDiscount = User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount);
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Avadanlıq satışı — Resepsiya</title>
+    <style>
+        :root {
+            --bg-a: #fff3e8;
+            --bg-b: #f7f4ff;
+            --bg-c: #ecf8ff;
+            --panel: rgba(255, 255, 255, 0.88);
+            --text: #1d2440;
+            --text-muted: #657296;
+            --primary: #6c5cff;
+            --border: rgba(122, 138, 178, 0.28);
+            --ring: rgba(108, 92, 255, 0.28);
+            --shadow: 0 18px 45px rgba(65, 45, 120, 0.14);
+            --ok: #0d7a4d;
+            --warn: #9a5d00;
+            --danger: #b63852;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
+            background:
+                radial-gradient(circle at 0% 0%, #ffd7be 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, #dacdff 0%, transparent 36%),
+                linear-gradient(145deg, var(--bg-a), var(--bg-b) 46%, var(--bg-c));
+            min-height: 100vh;
+        }
+        .page { max-width: 1100px; margin: 0 auto; padding: 22px 20px 32px; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .header h1 { margin: 0; font-size: 26px; font-weight: 900; color: #1b2140; }
+        .header__sub { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; font-weight: 700; }
+        .header__actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.92);
+            color: #2a3260;
+            font: inherit;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(13, 24, 48, 0.06);
+            text-decoration: none;
+        }
+        .btn-primary { background: var(--primary); border-color: rgba(0,0,0,0); color: #fff; }
+        .btn-danger { background: rgba(182,56,82,0.12); border-color: rgba(182,56,82,0.35); color: var(--danger); }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+            margin-bottom: 14px;
+        }
+        .tabs { display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 12px; }
+        .tab {
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.9);
+            font-weight: 900;
+            cursor: pointer;
+        }
+        .tab.is-active { background: rgba(108,92,255,0.14); border-color: rgba(108,92,255,0.35); color: #2a4ab8; }
+        .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        label.field { display:flex; flex-direction:column; gap:6px; }
+        label.field span { color: var(--text-muted); font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+        input, select {
+            min-height: 42px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            font: inherit;
+            font-weight: 800;
+            background: rgba(255,255,255,0.95);
+        }
+        input:focus, select:focus { outline:none; border-color: #7668ff; box-shadow: 0 0 0 4px var(--ring); }
+        .notice { padding: 10px 12px; border-radius: 12px; font-weight: 800; border: 1px solid rgba(122, 138, 178, 0.18); background: rgba(255,255,255,0.75); }
+        .notice.ok { border-color: rgba(13,122,77,0.25); color: var(--ok); background: rgba(13,122,77,0.08); }
+        .notice.bad { border-color: rgba(182,56,82,0.30); color: var(--danger); background: rgba(182,56,82,0.08); }
+        .list { margin-top: 10px; display:flex; flex-direction:column; gap: 8px; }
+        .list--scroll {
+            max-height: min(52vh, 520px);
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .row {
+            display:grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 12px;
+            align-items: end;
+            padding: 10px 12px;
+            border: 1px solid rgba(41,55,89,0.16);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.96);
+        }
+        .row.row--sale-line { grid-template-columns: auto minmax(0, 1fr) 80px 108px; }
+        .row.row--sale-head {
+            border: none;
+            background: transparent;
+            padding: 0 12px 2px;
+            align-items: end;
+        }
+        .row.row--sale-head .field-mini span { font-size: 11px; }
+        .row--return {
+            grid-template-columns: minmax(0, 1fr) 80px 120px auto;
+        }
+        .field-mini { display:flex; flex-direction:column; gap:4px; min-width: 0; }
+        .field-mini span { color: var(--text-muted); font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+        .field-mini input { width: 100%; min-height: 38px; box-sizing: border-box; }
+        .row--return .field-mini { display:flex; flex-direction:column; gap:4px; min-width: 0; }
+        .amount-input { width: 100%; min-height: 38px; text-align: right; box-sizing: border-box; }
+        .refund-input { background: rgba(13,122,77,0.06); }
+        .discount-input { background: rgba(182,56,82,0.06); }
+        .return-price-paid { color: var(--ok); font-weight: 900; }
+        .line-payable { margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--ok); }
+        .return-summary { margin-top: 10px; }
+        .return-summary .notice { margin-bottom: 0; }
+        @@media (max-width: 700px) {
+            .row--return, .row.row--sale-line { grid-template-columns: 1fr; }
+        }
+        .row strong { font-weight: 900; }
+        .qty { width: 100%; min-height: 38px; box-sizing: border-box; }
+        .muted { color: var(--text-muted); font-weight: 800; font-size: 13px; }
+        .totals { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content: space-between; }
+        .totals .big { font-weight: 900; font-size: 16px; color: #1b2140; }
+        .customer-matches {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 6px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .customer-matches.is-open { display: flex; }
+        .customer-match-btn {
+            text-align: left;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.98);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 800;
+            color: #1d2440;
+        }
+        .customer-match-btn:hover { border-color: rgba(108,92,255,0.45); background: rgba(108,92,255,0.06); }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="header">
+        <div>
+            <h1>Avadanlıq satışı</h1>
+            <div class="header__sub">İşçi: @staffName</div>
+        </div>
+        <div class="header__actions">
+            <a class="btn" href="/qeydiyyat">← Qeydiyyat</a>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button type="button" class="tab is-active" id="tabSale">Satış</button>
+        <button type="button" class="tab" id="tabReturn">Geri qaytarma</button>
+    </div>
+
+    <section id="saleSection" class="card">
+        <div class="grid">
+            <label class="field">
+                <span>Ad</span>
+                <input id="saleFirstName" placeholder="Ad" autocomplete="off" required />
+            </label>
+            <label class="field">
+                <span>Soyad</span>
+                <input id="saleLastName" placeholder="Soyad" autocomplete="off" required />
+            </label>
+            <label class="field" style="grid-column: 1 / -1;">
+                <span>Telefon</span>
+                <input id="salePhone" placeholder="Telefon" inputmode="tel" autocomplete="off" required />
+            </label>
+        </div>
+        <div id="saleCustomerMatches" class="customer-matches" aria-live="polite"></div>
+
+        <label class="field" style="margin-top:12px;">
+            <span>Avadanlıq axtar</span>
+            <input id="saleEquipmentSearch" placeholder="Ad ilə axtar…" />
+        </label>
+
+        <div class="list list--scroll" id="saleEquipmentList"></div>
+
+        <div class="grid" style="margin-top:12px;">
+            <label class="field">
+                <span>Nağd (AZN)</span>
+                <input id="saleCash" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal" />
+            </label>
+            <label class="field">
+                <span>Kart (AZN)</span>
+                <input id="saleCard" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal" />
+            </label>
+        </div>
+
+        <div id="saleNotice" style="margin-top:12px; display:none;" class="notice"></div>
+
+        <div class="totals" style="margin-top:12px;">
+            <div class="big" id="saleTotalLabel">Cəm: 0.00 AZN</div>
+            <button type="button" class="btn btn-primary" id="saleSubmitBtn">Sat</button>
+        </div>
+    </section>
+
+    <section id="returnSection" class="card" style="display:none;">
+        <label class="field">
+            <span>Müştəri axtarışı</span>
+            <input id="returnCustomerSearch" placeholder="Ad, soyad və ya telefon…" autocomplete="off" />
+        </label>
+        <div id="returnCustomerMatches" class="customer-matches" aria-live="polite"></div>
+        <div id="returnPurchaseSummary" class="return-summary" style="display:none;"></div>
+
+        <div class="list list--scroll" id="returnItemsList" style="margin-top:12px;"></div>
+
+        <div id="returnNotice" style="margin-top:12px; display:none;" class="notice"></div>
+    </section>
+</div>
+
+<script src="/js/payment-split.js"></script>
+<script>
+    const canApplyLineDiscount = @(canApplyDiscount ? "true" : "false");
+    const tabSale = document.getElementById("tabSale");
+    const tabReturn = document.getElementById("tabReturn");
+    const saleSection = document.getElementById("saleSection");
+    const returnSection = document.getElementById("returnSection");
+
+    function setTab(mode) {
+        const isSale = mode === "sale";
+        tabSale?.classList.toggle("is-active", isSale);
+        tabReturn?.classList.toggle("is-active", !isSale);
+        if (saleSection instanceof HTMLElement) saleSection.style.display = isSale ? "" : "none";
+        if (returnSection instanceof HTMLElement) returnSection.style.display = !isSale ? "" : "none";
+    }
+    tabSale?.addEventListener("click", () => setTab("sale"));
+    tabReturn?.addEventListener("click", () => setTab("return"));
+
+    async function apiFetch(input, init = {}) {
+        const response = await fetch(input, { ...init, credentials: "same-origin" });
+        if (response.status === 401) {
+            window.location.assign("/Account/Login?returnUrl=" + encodeURIComponent(window.location.pathname + window.location.search));
+            throw new Error("İcazə yoxdur");
+        }
+        return response;
+    }
+
+    async function readErrorMessage(response) {
+        const raw = await response.text();
+        if (!raw) {
+            if (response.status === 401) return "Giriş tələb olunur. Səhifəni yeniləyib yenidən daxil olun.";
+            if (response.status === 403) return "Bu əməliyyat üçün icazəniz yoxdur.";
+            return "Naməlum xəta";
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed?.error ?? parsed?.title ?? parsed?.detail ?? raw;
+        } catch { return raw; }
+    }
+
+    function parseQtyValue(raw, maxStock) {
+        const text = String(raw ?? "").trim();
+        if (!text) return null;
+        const n = parseInt(text, 10);
+        if (!Number.isFinite(n) || n < 1) return null;
+        if (maxStock > 0) return Math.min(n, maxStock);
+        return n;
+    }
+
+    function upsertSaleDraft(itemId, quantity, discountAmount) {
+        saleDraft = saleDraft.filter(x => String(x.equipmentItemId) !== String(itemId));
+        saleDraft.push({
+            equipmentItemId: itemId,
+            quantity,
+            discountAmount: Math.max(0, Number(discountAmount) || 0)
+        });
+    }
+
+    function getLineListTotal(itemId, quantity) {
+        const item = findCatalogItem(itemId);
+        const unit = Number(item?.unitPrice ?? item?.price) || 0;
+        return unit * Math.max(1, Number(quantity) || 1);
+    }
+
+    // --- SALE ---
+    const saleFirstName = document.getElementById("saleFirstName");
+    const saleLastName = document.getElementById("saleLastName");
+    const salePhone = document.getElementById("salePhone");
+    const saleCustomerMatches = document.getElementById("saleCustomerMatches");
+    const saleEquipmentList = document.getElementById("saleEquipmentList");
+    const saleEquipmentSearch = document.getElementById("saleEquipmentSearch");
+    const saleCash = document.getElementById("saleCash");
+    const saleCard = document.getElementById("saleCard");
+    const saleTotalLabel = document.getElementById("saleTotalLabel");
+    const saleSubmitBtn = document.getElementById("saleSubmitBtn");
+    const saleNotice = document.getElementById("saleNotice");
+
+    let catalog = [];
+    let saleDraft = []; // {equipmentItemId, quantity, discountAmount}
+    let saleEquipmentFilter = "";
+    let selectedSaleAthleteId = "";
+    let saleCustomerSearchTimer = null;
+    let fillingSaleCustomerFields = false;
+
+    function clearSaleCustomerMatches() {
+        if (!(saleCustomerMatches instanceof HTMLElement)) return;
+        saleCustomerMatches.innerHTML = "";
+        saleCustomerMatches.classList.remove("is-open");
+    }
+
+    function applySaleCustomerPick(athlete) {
+        if (!athlete) return;
+        fillingSaleCustomerFields = true;
+        selectedSaleAthleteId = String(athlete.id || "");
+        if (saleFirstName instanceof HTMLInputElement) saleFirstName.value = athlete.firstName || "";
+        if (saleLastName instanceof HTMLInputElement) saleLastName.value = athlete.lastName || "";
+        if (salePhone instanceof HTMLInputElement) salePhone.value = athlete.phoneNumber || "";
+        fillingSaleCustomerFields = false;
+        clearSaleCustomerMatches();
+    }
+
+    function renderSaleCustomerMatches(list) {
+        if (!(saleCustomerMatches instanceof HTMLElement)) return;
+        const rows = Array.isArray(list) ? list : [];
+        if (!rows.length) {
+            clearSaleCustomerMatches();
+            return;
+        }
+        saleCustomerMatches.innerHTML = rows.map(function (x) {
+            const label = `${x.fullName || "—"}${x.phoneNumber ? " · " + x.phoneNumber : ""}`;
+            return `<button type="button" class="customer-match-btn" data-athlete-id="${x.id}">${label}</button>`;
+        }).join("");
+        saleCustomerMatches.classList.add("is-open");
+        saleCustomerMatches.querySelectorAll(".customer-match-btn").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                const id = btn.getAttribute("data-athlete-id");
+                const hit = rows.find(function (x) { return String(x.id) === String(id); });
+                if (hit) applySaleCustomerPick(hit);
+            });
+        });
+    }
+
+    async function searchSaleCustomers(query) {
+        const q = String(query || "").trim();
+        if (q.length < 2) {
+            clearSaleCustomerMatches();
+            return;
+        }
+        const res = await apiFetch("/athletes/search?q=" + encodeURIComponent(q) + "&limit=10", { cache: "no-store" });
+        if (!res.ok) {
+            clearSaleCustomerMatches();
+            return;
+        }
+        const list = await res.json().catch(() => []);
+        renderSaleCustomerMatches(Array.isArray(list) ? list : []);
+    }
+
+    function scheduleSaleCustomerSearch(query) {
+        if (saleCustomerSearchTimer) clearTimeout(saleCustomerSearchTimer);
+        saleCustomerSearchTimer = setTimeout(function () {
+            void searchSaleCustomers(query);
+        }, 250);
+    }
+
+    function onSaleCustomerFieldInput(query) {
+        if (fillingSaleCustomerFields) return;
+        selectedSaleAthleteId = "";
+        scheduleSaleCustomerSearch(query);
+    }
+
+    function normalizeDigits(s) { return String(s || "").replaceAll(/[^\d]/g, ""); }
+
+    function matchesEquipmentFilter(item) {
+        const q = String(saleEquipmentFilter || "").trim().toLocaleLowerCase("az");
+        if (!q) return true;
+        const name = String(item?.name || "").toLocaleLowerCase("az");
+        const category = String(item?.category || "").toLocaleLowerCase("az");
+        return name.includes(q) || category.includes(q);
+    }
+
+    async function loadSaleCatalog() {
+        const res = await apiFetch("/equipment/active", { cache: "no-store" });
+        if (!res.ok) return;
+        const list = await res.json().catch(() => []);
+        catalog = Array.isArray(list) ? list : [];
+    }
+
+    function findCatalogItem(itemId) {
+        return catalog.find(x => String(x.id) === String(itemId));
+    }
+
+    function syncSaleDraftFromDom() {
+        if (!(saleEquipmentList instanceof HTMLElement)) {
+            saleDraft = [];
+            return;
+        }
+
+        const next = [];
+        for (const row of saleEquipmentList.querySelectorAll(".row")) {
+            const cb = row.querySelector('input[type="checkbox"]');
+            if (!(cb instanceof HTMLInputElement) || !cb.checked) continue;
+            const itemId = cb.dataset.equipmentId;
+            if (!itemId) continue;
+            const item = findCatalogItem(itemId);
+            const stock = Number(item?.saleQuantity ?? item?.quantity ?? 0);
+            const qtyInput = row.querySelector("input.qty");
+            const discountInput = row.querySelector("input.line-discount");
+            const quantity = parseQtyValue(qtyInput instanceof HTMLInputElement ? qtyInput.value : "", stock) ?? 1;
+            const lineDiscount = canApplyLineDiscount && discountInput instanceof HTMLInputElement
+                ? Math.min(PaymentSplit.parseAmount(discountInput), getLineListTotal(itemId, quantity))
+                : 0;
+            next.push({ equipmentItemId: itemId, quantity, discountAmount: lineDiscount });
+        }
+        saleDraft = next;
+    }
+
+    function renderSaleList() {
+        syncSaleDraftFromDom();
+        if (!(saleEquipmentList instanceof HTMLElement)) return;
+        saleEquipmentList.innerHTML = "";
+        const items = catalog.filter(x => {
+            const saleStock = Number(x?.saleQuantity ?? x?.quantity ?? 0);
+            return saleStock > 0 && matchesEquipmentFilter(x);
+        });
+        if (!items.length) {
+            saleEquipmentList.innerHTML = '<div class="notice">Avadanlıq tapılmadı.</div>';
+            syncSaleTotal();
+            return;
+        }
+        if (canApplyLineDiscount) {
+            const head = document.createElement("div");
+            head.className = "row row--sale-line row--sale-head";
+            head.innerHTML = '<div></div><div></div><label class="field-mini"><span>Say</span></label><label class="field-mini"><span>Endirim (AZN)</span></label>';
+            saleEquipmentList.appendChild(head);
+        }
+        for (const item of items) {
+            const stock = Number(item.saleQuantity ?? item.quantity ?? 0);
+            const outOfStock = stock <= 0;
+            const draft = saleDraft.find(x => String(x.equipmentItemId) === String(item.id));
+            const checked = Boolean(draft);
+            const qty = draft ? Math.max(1, Number(draft.quantity) || 1) : 1;
+
+            const row = document.createElement("div");
+            row.className = canApplyLineDiscount ? "row row--sale-line" : "row";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = checked;
+            cb.disabled = outOfStock;
+            cb.dataset.equipmentId = String(item.id);
+
+            const body = document.createElement("div");
+            const title = document.createElement("div");
+            const unitPrice = Number(item.unitPrice ?? item.price) || 0;
+            title.innerHTML = `<strong>${item.name}</strong> <span class="muted">${item.category ? "(" + item.category + ")" : ""} · stok: ${stock} · vahid: ${unitPrice.toFixed(2)} AZN</span>`;
+            body.appendChild(title);
+            const linePayableEl = document.createElement("div");
+            linePayableEl.className = "line-payable";
+            linePayableEl.style.display = "none";
+            body.appendChild(linePayableEl);
+
+            const qtyWrap = document.createElement("label");
+            qtyWrap.className = "field-mini";
+            if (!canApplyLineDiscount) {
+                qtyWrap.innerHTML = "<span>Say</span>";
+            }
+            const qtyInput = document.createElement("input");
+            qtyInput.className = "qty";
+            qtyInput.type = "number";
+            qtyInput.min = "1";
+            qtyInput.step = "1";
+            qtyInput.inputMode = "numeric";
+            if (stock > 0) qtyInput.max = String(stock);
+            qtyInput.placeholder = "1";
+            qtyInput.value = checked ? String(qty) : "";
+            qtyInput.disabled = !checked || outOfStock;
+            qtyWrap.appendChild(qtyInput);
+
+            let discountWrap = null;
+            let discountInput = null;
+            if (canApplyLineDiscount) {
+                discountWrap = document.createElement("label");
+                discountWrap.className = "field-mini";
+                discountInput = document.createElement("input");
+                discountInput.className = "qty line-discount discount-input";
+                discountInput.type = "number";
+                discountInput.min = "0";
+                discountInput.step = "0.01";
+                discountInput.inputMode = "decimal";
+                discountInput.placeholder = "0.00";
+                discountInput.title = "Bu sətir üzrə endirim (AZN) — seçilmiş sayın cəmi qiymətindən çıxılır";
+                discountInput.value = checked && draft ? String(Number(draft.discountAmount || 0).toFixed(2)) : "";
+                discountInput.disabled = !checked || outOfStock;
+                discountWrap.appendChild(discountInput);
+            }
+
+            function updateLinePayableDisplay(q, discount) {
+                if (!cb.checked) {
+                    linePayableEl.style.display = "none";
+                    linePayableEl.textContent = "";
+                    return;
+                }
+                const lineList = unitPrice * Math.max(1, q);
+                const net = Math.max(0, lineList - Math.max(0, discount));
+                linePayableEl.style.display = "";
+                linePayableEl.textContent = `Ödəniləcək: ${net.toFixed(2)} AZN${discount > 0.009 ? ` (əsas ${lineList.toFixed(2)} − endirim ${discount.toFixed(2)})` : ""}`;
+            }
+
+            function syncDraftFromRow() {
+                if (!cb.checked) return;
+                const q = parseQtyValue(qtyInput.value, stock) ?? 1;
+                qtyInput.value = String(q);
+                const lineList = getLineListTotal(item.id, q);
+                const discount = discountInput instanceof HTMLInputElement
+                    ? Math.min(PaymentSplit.parseAmount(discountInput), lineList)
+                    : 0;
+                if (discountInput instanceof HTMLInputElement && discount !== PaymentSplit.parseAmount(discountInput)) {
+                    discountInput.value = discount > 0 ? discount.toFixed(2) : "";
+                }
+                updateLinePayableDisplay(q, discount);
+                upsertSaleDraft(item.id, q, discount);
+                syncSaleTotal();
+            }
+
+            cb.addEventListener("change", () => {
+                qtyInput.disabled = !cb.checked || outOfStock;
+                if (discountInput instanceof HTMLInputElement) {
+                    discountInput.disabled = !cb.checked || outOfStock;
+                }
+                saleDraft = saleDraft.filter(x => String(x.equipmentItemId) !== String(item.id));
+                if (cb.checked) {
+                    const q = parseQtyValue(qtyInput.value, stock) ?? 1;
+                    qtyInput.value = String(q);
+                    const disc = discountInput instanceof HTMLInputElement ? PaymentSplit.parseAmount(discountInput) : 0;
+                    upsertSaleDraft(item.id, q, disc);
+                    updateLinePayableDisplay(q, disc);
+                } else {
+                    qtyInput.value = "";
+                    if (discountInput instanceof HTMLInputElement) discountInput.value = "";
+                    updateLinePayableDisplay(0, 0);
+                }
+                syncSaleTotal();
+            });
+            qtyInput.addEventListener("input", () => {
+                if (!cb.checked) return;
+                const text = String(qtyInput.value ?? "").trim();
+                if (!text) {
+                    saleDraft = saleDraft.filter(x => String(x.equipmentItemId) !== String(item.id));
+                    syncSaleTotal();
+                    return;
+                }
+                syncDraftFromRow();
+            });
+            qtyInput.addEventListener("blur", () => {
+                if (!cb.checked) return;
+                const q = parseQtyValue(qtyInput.value, stock);
+                if (q === null) {
+                    cb.checked = false;
+                    qtyInput.disabled = true;
+                    qtyInput.value = "";
+                    if (discountInput instanceof HTMLInputElement) {
+                        discountInput.disabled = true;
+                        discountInput.value = "";
+                    }
+                    saleDraft = saleDraft.filter(x => String(x.equipmentItemId) !== String(item.id));
+                    syncSaleTotal();
+                    return;
+                }
+                syncDraftFromRow();
+            });
+            discountInput?.addEventListener("input", () => syncDraftFromRow());
+            discountInput?.addEventListener("blur", () => syncDraftFromRow());
+
+            row.appendChild(cb);
+            row.appendChild(body);
+            if (canApplyLineDiscount) {
+                row.appendChild(qtyWrap);
+                if (discountWrap instanceof HTMLElement) row.appendChild(discountWrap);
+            } else {
+                row.appendChild(qtyWrap);
+            }
+            saleEquipmentList.appendChild(row);
+            if (checked) {
+                updateLinePayableDisplay(qty, draft ? Number(draft.discountAmount) || 0 : 0);
+            }
+        }
+        syncSaleTotal();
+    }
+
+    function getSaleListTotal() {
+        syncSaleDraftFromDom();
+        let sum = 0;
+        for (const d of saleDraft) {
+            const item = findCatalogItem(d.equipmentItemId);
+            const unit = Number(item?.unitPrice ?? item?.price) || 0;
+            sum += unit * Math.max(1, Number(d.quantity) || 1);
+        }
+        return sum;
+    }
+
+    function getSaleLineDiscountTotal() {
+        syncSaleDraftFromDom();
+        return saleDraft.reduce((sum, d) => sum + Math.max(0, Number(d.discountAmount) || 0), 0);
+    }
+
+    function updateSaleTotalsDisplay() {
+        const listTotal = getSaleListTotal();
+        const discount = getSaleLineDiscountTotal();
+        const payable = PaymentSplit.computePayable(listTotal, discount);
+        if (saleTotalLabel instanceof HTMLElement) {
+            const selectedCount = saleDraft.length;
+            let text = `Seçilib: ${selectedCount} · Əsas: ${listTotal.toFixed(2)} AZN`;
+            if (discount > PaymentSplit.Tolerance) text += ` · Endirim: ${discount.toFixed(2)} AZN`;
+            text += ` · Ödəniləcək: ${payable.toFixed(2)} AZN`;
+            saleTotalLabel.textContent = text;
+        }
+        return { listTotal, discount, payable };
+    }
+
+    function syncSaleTotal() {
+        const totals = updateSaleTotalsDisplay();
+        const payable = totals.payable;
+        if (payable <= PaymentSplit.Tolerance) {
+            if (saleCash instanceof HTMLInputElement) saleCash.value = "";
+            if (saleCard instanceof HTMLInputElement) saleCard.value = "";
+        } else {
+            let cash = PaymentSplit.parseAmount(saleCash);
+            if (cash > payable) cash = payable;
+            const card = PaymentSplit.roundMoney(Math.max(0, payable - cash));
+            if (saleCash instanceof HTMLInputElement && cash > 0) {
+                saleCash.value = cash.toFixed(2);
+            } else if (saleCash instanceof HTMLInputElement && PaymentSplit.parseAmount(saleCard) <= 0) {
+                saleCash.value = payable.toFixed(2);
+            }
+            if (saleCard instanceof HTMLInputElement) {
+                saleCard.value = card > 0 ? card.toFixed(2) : "";
+            }
+        }
+        updateSaleTotalsDisplay();
+        return totals.listTotal;
+    }
+
+    let salePaymentBinder = PaymentSplit.bindPair(
+        saleCash,
+        saleCard,
+        () => ({
+            listPrice: getSaleListTotal(),
+            discount: getSaleLineDiscountTotal()
+        }),
+        () => { updateSaleTotalsDisplay(); });
+
+    saleEquipmentSearch?.addEventListener("input", () => {
+        saleEquipmentFilter = saleEquipmentSearch?.value || "";
+        renderSaleList();
+    });
+
+    saleFirstName?.addEventListener("input", function () {
+        onSaleCustomerFieldInput(saleFirstName.value);
+    });
+    saleLastName?.addEventListener("input", function () {
+        onSaleCustomerFieldInput(saleLastName.value);
+    });
+    salePhone?.addEventListener("input", function () {
+        onSaleCustomerFieldInput(salePhone.value);
+    });
+
+    function setSaleNotice(text, kind) {
+        if (!(saleNotice instanceof HTMLElement)) return;
+        saleNotice.style.display = text ? "" : "none";
+        saleNotice.textContent = text || "";
+        saleNotice.classList.toggle("ok", kind === "ok");
+        saleNotice.classList.toggle("bad", kind === "bad");
+        if (text) {
+            saleNotice.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+    }
+
+    function showSaleError(text) {
+        setSaleNotice(text, "bad");
+        if (text) window.alert(text);
+    }
+
+    function redirectAfterSaleSuccess(data, fallbackName, payable) {
+        const customerName = String(data?.customerName || fallbackName || "").trim() || "Müştəri";
+        const amount = Number(data?.totalAmount ?? payable) || 0;
+        const amountText = amount.toFixed(2);
+        const msg = `Avadanlıq satışı uğurla qeydə alındı.\n${customerName} · ${amountText} AZN`;
+        window.alert(msg);
+        try {
+            sessionStorage.setItem("es-sale-success", JSON.stringify({
+                customer: customerName,
+                amount: amountText
+            }));
+        } catch { /* ignore */ }
+        window.location.assign("/qeydiyyat");
+    }
+
+    saleSubmitBtn?.addEventListener("click", async () => {
+        setSaleNotice("", "");
+        syncSaleDraftFromDom();
+        if (!saleDraft.length) {
+            showSaleError("Avadanlıq seçin.");
+            return;
+        }
+
+        const athleteId = selectedSaleAthleteId || "";
+        const first = String(saleFirstName?.value || "").trim();
+        const last = String(saleLastName?.value || "").trim();
+        const phone = String(salePhone?.value || "").trim();
+        if (!athleteId && (!first || !last || !phone)) {
+            showSaleError("Ad, Soyad və Telefon daxil edin.");
+            return;
+        }
+
+        const { listTotal, discount, payable } = updateSaleTotalsDisplay();
+        const cash = PaymentSplit.parseAmount(saleCash);
+        const card = PaymentSplit.parseAmount(saleCard);
+        const paid = PaymentSplit.roundMoney(cash + card);
+        if (discount > PaymentSplit.Tolerance && !@(canApplyDiscount ? "true" : "false")) {
+            showSaleError("Endirim tətbiq etmək üçün icazəniz yoxdur.");
+            return;
+        }
+        if (payable > PaymentSplit.Tolerance && Math.abs(paid - payable) > PaymentSplit.Tolerance) {
+            const cashEmpty = !(saleCash instanceof HTMLInputElement) || saleCash.value.trim() === "";
+            const cardEmpty = !(saleCard instanceof HTMLInputElement) || saleCard.value.trim() === "";
+            if (paid <= PaymentSplit.Tolerance || (cashEmpty && cardEmpty)) {
+                showSaleError("Ödəniş daxil etmədiniz. Zəhmət olmasa ödəniş daxil edin.");
+            } else {
+                showSaleError(`Ödəniş cəmi ${payable.toFixed(2)} AZN olmalıdır (nağd + kart).`);
+            }
+            return;
+        }
+
+        const payload = {
+            athleteId: athleteId || null,
+            firstName: first,
+            lastName: last,
+            phoneNumber: phone,
+            discountAmount: 0,
+            amountPaidCash: cash,
+            amountPaidCard: card,
+            lines: saleDraft.map(x => ({
+                equipmentItemId: x.equipmentItemId,
+                quantity: Math.max(1, Number(x.quantity) || 1),
+                discountAmount: Math.max(0, Number(x.discountAmount) || 0)
+            }))
+        };
+
+        if (saleSubmitBtn instanceof HTMLButtonElement) {
+            saleSubmitBtn.disabled = true;
+            saleSubmitBtn.textContent = "Gözləyin...";
+        }
+        try {
+            const res = await apiFetch("/equipment-sales/sale", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                showSaleError(await readErrorMessage(res) || "Satış qeydə alınmadı.");
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            redirectAfterSaleSuccess(data, `${first} ${last}`.trim(), payable);
+        } catch (err) {
+            const msg = err instanceof Error && err.message ? err.message : "Satış qeydə alınmadı.";
+            showSaleError(msg);
+        } finally {
+            if (saleSubmitBtn instanceof HTMLButtonElement) {
+                saleSubmitBtn.disabled = false;
+                saleSubmitBtn.textContent = "Sat";
+            }
+        }
+    });
+
+    // --- RETURN ---
+    const returnCustomerSearch = document.getElementById("returnCustomerSearch");
+    const returnCustomerMatches = document.getElementById("returnCustomerMatches");
+    const returnPurchaseSummary = document.getElementById("returnPurchaseSummary");
+    const returnItemsList = document.getElementById("returnItemsList");
+    const returnNotice = document.getElementById("returnNotice");
+
+    let returnAthleteId = "";
+    let returnCustomerSearchTimer = null;
+
+    function clearReturnPurchaseSummary() {
+        if (!(returnPurchaseSummary instanceof HTMLElement)) return;
+        returnPurchaseSummary.style.display = "none";
+        returnPurchaseSummary.innerHTML = "";
+    }
+
+    function renderReturnPurchaseSummary(data) {
+        if (!(returnPurchaseSummary instanceof HTMLElement)) return;
+        const latest = String(data?.latestPurchaseDateLocal || "").trim();
+        if (!latest) {
+            clearReturnPurchaseSummary();
+            return;
+        }
+        returnPurchaseSummary.innerHTML = `<div class="notice">Son alış tarixi: <strong>${latest}</strong></div>`;
+        returnPurchaseSummary.style.display = "";
+    }
+
+    function syncReturnRowRefund(qtyInput, refundInput, refundUnit, maxQty) {
+        let qty = Math.max(1, Math.min(Number(qtyInput.value) || 1, maxQty));
+        qtyInput.value = String(qty);
+        const refundTotal = Math.round(Math.max(0, refundUnit) * qty * 100) / 100;
+        if (refundInput instanceof HTMLInputElement) {
+            refundInput.value = refundTotal.toFixed(2);
+        }
+        return refundTotal;
+    }
+
+    function clearReturnCustomerMatches() {
+        if (!(returnCustomerMatches instanceof HTMLElement)) return;
+        returnCustomerMatches.innerHTML = "";
+        returnCustomerMatches.classList.remove("is-open");
+    }
+
+    function formatReturnPriceLabel(item) {
+        const refund = Number(item?.refundUnitPrice ?? item?.unitPrice) || 0;
+        if (refund <= 0) {
+            return "ödəniş məlumatı yoxdur";
+        }
+        const list = Number(item?.unitListPrice) || 0;
+        const perUnitDiscount = Number(item?.unitDiscountAmount) || 0;
+        const listLabel = list > 0 ? list : refund + perUnitDiscount;
+        const hasDiscount = perUnitDiscount > 0.009 || (listLabel > refund + 0.009);
+        if (hasDiscount && listLabel > refund + 0.009) {
+            return `${listLabel.toFixed(2)} AZN/ədəd · endirimli <span class="return-price-paid">${refund.toFixed(2)} AZN/ədəd</span>`;
+        }
+        return `${refund.toFixed(2)} AZN/ədəd`;
+    }
+
+    function renderReturnCustomerMatches(list) {
+        if (!(returnCustomerMatches instanceof HTMLElement)) return;
+        const rows = Array.isArray(list) ? list : [];
+        if (!rows.length) {
+            clearReturnCustomerMatches();
+            return;
+        }
+        returnCustomerMatches.innerHTML = rows.map(function (x) {
+            const label = `${x.fullName || "—"}${x.phoneNumber ? " · " + x.phoneNumber : ""}`;
+            return `<button type="button" class="customer-match-btn" data-athlete-id="${x.id}">${label}</button>`;
+        }).join("");
+        returnCustomerMatches.classList.add("is-open");
+        returnCustomerMatches.querySelectorAll(".customer-match-btn").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                const id = btn.getAttribute("data-athlete-id");
+                const hit = rows.find(function (x) { return String(x.id) === String(id); });
+                if (!hit) return;
+                returnAthleteId = String(hit.id || "");
+                if (returnCustomerSearch instanceof HTMLInputElement) {
+                    returnCustomerSearch.value = `${hit.fullName || ""}${hit.phoneNumber ? " · " + hit.phoneNumber : ""}`.trim();
+                }
+                clearReturnCustomerMatches();
+                void loadCustomerReturnableItems(returnAthleteId);
+            });
+        });
+    }
+
+    async function searchReturnCustomers(query) {
+        const q = String(query || "").trim();
+        if (q.length < 2) {
+            clearReturnCustomerMatches();
+            return;
+        }
+        const res = await apiFetch("/athletes/search?q=" + encodeURIComponent(q) + "&limit=10", { cache: "no-store" });
+        if (!res.ok) {
+            clearReturnCustomerMatches();
+            return;
+        }
+        const list = await res.json().catch(() => []);
+        renderReturnCustomerMatches(Array.isArray(list) ? list : []);
+    }
+
+    function scheduleReturnCustomerSearch(query) {
+        if (returnCustomerSearchTimer) clearTimeout(returnCustomerSearchTimer);
+        returnCustomerSearchTimer = setTimeout(function () {
+            void searchReturnCustomers(query);
+        }, 250);
+    }
+
+    function setReturnNotice(text, kind) {
+        if (!(returnNotice instanceof HTMLElement)) return;
+        returnNotice.style.display = text ? "" : "none";
+        returnNotice.textContent = text || "";
+        returnNotice.classList.toggle("ok", kind === "ok");
+        returnNotice.classList.toggle("bad", kind === "bad");
+    }
+
+    async function loadCustomerReturnableItems(athleteId) {
+        returnAthleteId = athleteId || "";
+        if (!(returnItemsList instanceof HTMLElement)) return;
+        returnItemsList.innerHTML = "";
+        clearReturnPurchaseSummary();
+        setReturnNotice("", "");
+        if (!returnAthleteId) {
+            return;
+        }
+
+        const res = await apiFetch("/equipment-sales/customers/" + encodeURIComponent(returnAthleteId) + "/returnable", { cache: "no-store" });
+        if (!res.ok) {
+            setReturnNotice(await readErrorMessage(res) || "Alışlar yüklənmədi.", "bad");
+            return;
+        }
+        const data = await res.json().catch(() => ({}));
+        renderReturnPurchaseSummary(data);
+        const items = Array.isArray(data?.items) ? data.items : [];
+        if (!items.length) {
+            returnItemsList.innerHTML = '<div class="notice">Bu müştərinin qaytarıla bilən alışı yoxdur.</div>';
+            return;
+        }
+
+        const returnHead = document.createElement("div");
+        returnHead.className = "row row--return row--sale-head";
+        returnHead.innerHTML = '<div></div><label class="field-mini"><span>Say</span></label><label class="field-mini"><span>Geri ödəniş (AZN)</span></label><div></div>';
+        returnItemsList.appendChild(returnHead);
+
+        for (const item of items) {
+            const maxQty = Math.max(0, Number(item.returnableQuantity) || 0);
+            const purchasedQty = Math.max(maxQty, Number(item.purchasedQuantity) || maxQty);
+            if (maxQty <= 0) continue;
+            const refundUnit = Number(item.refundUnitPrice ?? item.unitPrice) || 0;
+
+            const row = document.createElement("div");
+            row.className = "row row--return";
+
+            const body = document.createElement("div");
+            body.innerHTML = `<strong>${item.equipmentName}</strong> <span class="muted">· alınıb: ${purchasedQty} · qaytarıla bilər: ${maxQty} · ödəniş: ${formatReturnPriceLabel(item)}</span>`;
+
+            const qtyWrap = document.createElement("label");
+            qtyWrap.className = "field-mini";
+            qtyWrap.innerHTML = "<span>Say</span>";
+            const qtyInput = document.createElement("input");
+            qtyInput.className = "qty";
+            qtyInput.type = "number";
+            qtyInput.min = "1";
+            qtyInput.step = "1";
+            qtyInput.max = String(maxQty);
+            qtyInput.value = "1";
+            qtyWrap.appendChild(qtyInput);
+
+            const refundWrap = document.createElement("label");
+            refundWrap.className = "field-mini";
+            refundWrap.innerHTML = "<span>Geri ödəniş (AZN)</span>";
+            const refundInput = document.createElement("input");
+            refundInput.className = "amount-input refund-input";
+            refundInput.type = "text";
+            refundInput.readOnly = true;
+            refundInput.value = refundUnit.toFixed(2);
+            refundWrap.appendChild(refundInput);
+
+            function syncRow() {
+                syncReturnRowRefund(qtyInput, refundInput, refundUnit, maxQty);
+            }
+
+            qtyInput.addEventListener("input", syncRow);
+            qtyInput.addEventListener("change", syncRow);
+            syncRow();
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-danger";
+            btn.textContent = "Qaytar";
+            btn.style.alignSelf = "end";
+            btn.addEventListener("click", async () => {
+                const qty = Math.max(1, Math.min(Number(qtyInput.value) || 1, maxQty));
+                const expectedRefund = syncReturnRowRefund(qtyInput, refundInput, refundUnit, maxQty);
+                await submitCustomerReturn(item.equipmentItemId, qty, expectedRefund, btn);
+            });
+
+            row.appendChild(body);
+            row.appendChild(qtyWrap);
+            row.appendChild(refundWrap);
+            row.appendChild(btn);
+            returnItemsList.appendChild(row);
+        }
+    }
+
+    async function submitCustomerReturn(equipmentItemId, quantity, expectedRefund, btn) {
+        if (!returnAthleteId) {
+            setReturnNotice("Müştəri seçin.", "bad");
+            return;
+        }
+        if (btn instanceof HTMLButtonElement) {
+            btn.disabled = true;
+            btn.textContent = "Gözləyin...";
+        }
+        setReturnNotice("", "");
+        try {
+            const res = await apiFetch("/equipment-sales/return", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    athleteId: returnAthleteId,
+                    lines: [{ equipmentItemId, quantity }]
+                })
+            });
+            if (!res.ok) {
+                setReturnNotice(await readErrorMessage(res) || "Qaytarma qeydə alınmadı.", "bad");
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            const refund = Number(data?.refundAmount) || expectedRefund || 0;
+            setReturnNotice(`Qaytarıldı. Geri ödəniş: ${refund.toFixed(2)} AZN (hesabatda satışdan çıxılır, stok yenilənir).`, "ok");
+            await loadCustomerReturnableItems(returnAthleteId);
+            try {
+                await loadSaleCatalog();
+                renderSaleList();
+            } catch { /* ignore */ }
+        } finally {
+            if (btn instanceof HTMLButtonElement) {
+                btn.disabled = false;
+                btn.textContent = "Qaytar";
+            }
+        }
+    }
+
+    returnCustomerSearch?.addEventListener("input", function () {
+        returnAthleteId = "";
+        if (returnItemsList instanceof HTMLElement) returnItemsList.innerHTML = "";
+        clearReturnPurchaseSummary();
+        scheduleReturnCustomerSearch(returnCustomerSearch?.value || "");
+    });
+
+    returnCustomerSearch?.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape") clearReturnCustomerMatches();
+    });
+
+    // init
+    (async () => {
+        try {
+            await loadSaleCatalog();
+            renderSaleList();
+        } catch { /* ignore */ }
+    })();
+</script>
+</body>
+</html>
+

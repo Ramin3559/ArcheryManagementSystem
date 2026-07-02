@@ -58,7 +58,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             }
             if (request.PreferredLaneType == PreferredLaneType.Long)
             {
-                throw new InvalidOperationException("Amateur can only select Short lane type.");
+                throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
             }
         }
 

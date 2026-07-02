@@ -1,3 +1,4 @@
+using EShooting.Web.Auth;
 using EShooting.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,7 @@ public sealed class DashboardPartialController(CachedLaneDashboardService laneDa
 
     /// <summary>Planşet monitoru — Stop düyməsi və digər əməliyyatlar olmadan.</summary>
     [HttpGet("lanes/partial/grid-readonly")]
+    [Authorize(Policy = PlansetAuthDefaults.Policy)]
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> LaneGridReadOnly(CancellationToken cancellationToken)
     {

@@ -319,7 +319,7 @@
                 </select>
             </div>
             <div class="field">
-                <div class="label">İdmançı (aktiv)</div>
+                <div class="label">Müştəri (aktiv)</div>
                 <input id="tabletAthleteName" readonly value="Yüklənir..." />
             </div>
         </div>
@@ -349,6 +349,8 @@
         <div class="actions">
             <button class="btn btn-add" id="addBtn" disabled>Əlavə et</button>
             <button class="btn btn-undo" id="subBtn" disabled>Ləğv et</button>
+            <button class="btn" id="tabletEquipBtn" disabled style="background:rgba(79,124,255,0.12); border:1px solid rgba(79,124,255,0.35); color:#2a4ab8; font-weight:900;">İcarə avadanlıq</button>
+            <button class="btn" id="tabletEquipReturnBtn" disabled style="background:rgba(27,191,122,0.12); border:1px solid rgba(27,191,122,0.35); color:#0f7a54; font-weight:900;">Təhvil alındı</button>
         </div>
             <div class="bottom-note">Ləğv et: yığılmış rəqəmi cəmidən çıxır (0-dan aşağı düşmür).</div>
     </section>
@@ -357,6 +359,20 @@
     <input id="roundNumber" type="hidden" value="1" />
 </main>
 <div class="toast" id="toast">—</div>
+
+<div id="tabletEquipModal" style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.45); backdrop-filter: blur(5px); z-index:10002; padding:16px;">
+    <div style="max-width:720px; margin:8vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:16px; padding:16px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#1a2650; font-size:18px;">İcarə avadanlıq (zal)</div>
+            <button id="tabletEquipCloseBtn" type="button" class="btn" style="min-height:38px;">Bağla</button>
+        </div>
+        <div id="tabletEquipList" style="margin-top:12px; max-height:55vh; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
+            <button id="tabletEquipClearBtn" type="button" class="btn" style="min-height:38px;">Təmizlə</button>
+            <button id="tabletEquipSaveBtn" type="button" class="btn" style="min-height:38px; background:var(--primary); color:white; border:1px solid rgba(0,0,0,0.0); font-weight:900;">Təsdiqlə</button>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
 <script>
@@ -373,6 +389,13 @@
     const scoreDisplayToggle = document.getElementById("scoreDisplayToggle");
     const keypadRoot = document.getElementById("keypad");
     const toastEl = document.getElementById("toast");
+    const tabletEquipBtn = document.getElementById("tabletEquipBtn");
+    const tabletEquipReturnBtn = document.getElementById("tabletEquipReturnBtn");
+    const tabletEquipModal = document.getElementById("tabletEquipModal");
+    const tabletEquipList = document.getElementById("tabletEquipList");
+    const tabletEquipCloseBtn = document.getElementById("tabletEquipCloseBtn");
+    const tabletEquipClearBtn = document.getElementById("tabletEquipClearBtn");
+    const tabletEquipSaveBtn = document.getElementById("tabletEquipSaveBtn");
 
     let latestLanes = [];
     let isSubmitting = false;
@@ -380,6 +403,8 @@
     let scoreDisplayToggleBusy = false;
     let toastTimerId = null;
     let activeLaneCache = null;
+    let equipmentCatalogCache = [];
+    let tabletEquipDraft = [];
 
     async function apiFetch(input, init = {}) {
         const response = await fetch(input, { ...init, credentials: "same-origin" });
@@ -430,6 +455,8 @@
             lanePill.className = "pill bad";
             subBtn.disabled = true;
             if (addBtn instanceof HTMLButtonElement) addBtn.disabled = true;
+            if (tabletEquipBtn instanceof HTMLButtonElement) tabletEquipBtn.disabled = true;
+            if (tabletEquipReturnBtn instanceof HTMLButtonElement) tabletEquipReturnBtn.disabled = true;
             setKeypadEnabled(false);
             return;
         }
@@ -444,7 +471,140 @@
         lanePill.className = "pill ok";
         subBtn.disabled = false;
         if (addBtn instanceof HTMLButtonElement) addBtn.disabled = false;
+        if (tabletEquipBtn instanceof HTMLButtonElement) tabletEquipBtn.disabled = false;
+        if (tabletEquipReturnBtn instanceof HTMLButtonElement) tabletEquipReturnBtn.disabled = false;
         setKeypadEnabled(true);
+    }
+
+    async function loadEquipmentCatalog() {
+        try {
+            const res = await apiFetch("/equipment/active", { timeoutMs: 30000 });
+            if (!res.ok) return;
+            const list = await res.json().catch(() => []);
+            equipmentCatalogCache = Array.isArray(list) ? list : [];
+        } catch { /* ignore */ }
+    }
+
+    function renderTabletEquipList() {
+        if (!(tabletEquipList instanceof HTMLElement)) return;
+        tabletEquipList.innerHTML = "";
+        const rentals = equipmentCatalogCache.filter(x => {
+            const mode = Number(x?.usageMode ?? 2);
+            return mode === 1 || mode === 2; // Rental or Both
+        });
+        if (!rentals.length) {
+            tabletEquipList.innerHTML = '<div class="pill bad" style="border-radius:14px; padding:10px 12px;">Aktiv icarə avadanlığı tapılmadı.</div>';
+            return;
+        }
+
+        for (const item of rentals) {
+            const stock = Number(item.quantity ?? 0);
+            const outOfStock = stock <= 0;
+            const draft = tabletEquipDraft.find(x => String(x.equipmentItemId) === String(item.id));
+            const checked = Boolean(draft);
+            const qty = Math.max(1, Number(draft?.quantity) || 1);
+
+            const row = document.createElement("div");
+            row.style.display = "grid";
+            row.style.gridTemplateColumns = "auto 1fr auto";
+            row.style.gap = "10px";
+            row.style.alignItems = "center";
+            row.style.padding = "10px 12px";
+            row.style.border = "1px solid rgba(41,55,89,0.16)";
+            row.style.borderRadius = "12px";
+            row.style.background = "rgba(255,255,255,0.95)";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = checked;
+            cb.disabled = outOfStock;
+
+            const body = document.createElement("div");
+            const title = document.createElement("div");
+            title.style.fontWeight = "900";
+            const category = item.category ? ` (${item.category})` : "";
+            const stockLabel = outOfStock ? " · stok bitib" : ` · stok: ${stock}`;
+            title.textContent = `${item.name}${category}${stockLabel}`;
+            body.appendChild(title);
+
+            const qtyInput = document.createElement("input");
+            qtyInput.type = "number";
+            qtyInput.min = "1";
+            qtyInput.step = "1";
+            qtyInput.value = String(qty);
+            qtyInput.style.minHeight = "38px";
+            qtyInput.style.width = "76px";
+            qtyInput.disabled = !checked || outOfStock;
+
+            cb.addEventListener("change", () => {
+                const on = cb.checked;
+                qtyInput.disabled = !on || outOfStock;
+                tabletEquipDraft = tabletEquipDraft.filter(x => String(x.equipmentItemId) !== String(item.id));
+                if (on) tabletEquipDraft.push({ equipmentItemId: item.id, quantity: Math.max(1, Number(qtyInput.value) || 1) });
+            });
+            qtyInput.addEventListener("input", () => {
+                const q = Math.max(1, Number(qtyInput.value) || 1);
+                qtyInput.value = String(q);
+                if (!cb.checked) return;
+                tabletEquipDraft = tabletEquipDraft.filter(x => String(x.equipmentItemId) !== String(item.id));
+                tabletEquipDraft.push({ equipmentItemId: item.id, quantity: q });
+            });
+
+            row.appendChild(cb);
+            row.appendChild(body);
+            row.appendChild(qtyInput);
+            tabletEquipList.appendChild(row);
+        }
+    }
+
+    function openTabletEquipModal() {
+        tabletEquipDraft = [];
+        renderTabletEquipList();
+        if (tabletEquipModal instanceof HTMLElement) tabletEquipModal.style.display = "block";
+    }
+
+    function closeTabletEquipModal() {
+        if (tabletEquipModal instanceof HTMLElement) tabletEquipModal.style.display = "none";
+    }
+
+    async function issueRentalFromTablet() {
+        const sessionId = tabletSessionIdInput instanceof HTMLInputElement ? tabletSessionIdInput.value.trim() : "";
+        if (!sessionId) {
+            showToast("Sessiya yoxdur", "bad");
+            return;
+        }
+        if (!tabletEquipDraft.length) {
+            showToast("Avadanlıq seçilməyib", "bad");
+            return;
+        }
+        const response = await apiFetch(`/sessions/${encodeURIComponent(sessionId)}/equipment/issue-rental`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(tabletEquipDraft.map(x => ({ equipmentItemId: x.equipmentItemId, quantity: x.quantity, issueType: 1 })))
+        });
+        if (!response.ok) {
+            showToast(await readErrorMessage(response) || "Verilmədi", "bad");
+            return;
+        }
+        showToast("İcarə avadanlıq verildi", "ok");
+        closeTabletEquipModal();
+        await loadDashboard();
+    }
+
+    async function returnRentalForSession() {
+        const sessionId = tabletSessionIdInput instanceof HTMLInputElement ? tabletSessionIdInput.value.trim() : "";
+        if (!sessionId) return;
+        const response = await apiFetch(`/sessions/equipment/return-bulk`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionIds: [sessionId] })
+        });
+        if (!response.ok) {
+            showToast(await readErrorMessage(response) || "Təhvil alınmadı", "bad");
+            return;
+        }
+        showToast("Təhvil alındı", "ok");
+        await loadDashboard();
     }
 
     function setKeypadEnabled(enabled) {
@@ -754,6 +914,11 @@
     }
 
     tabletLaneNumberInput?.addEventListener("change", syncTabletContext);
+    tabletEquipBtn?.addEventListener("click", async () => { await loadEquipmentCatalog(); openTabletEquipModal(); });
+    tabletEquipCloseBtn?.addEventListener("click", closeTabletEquipModal);
+    tabletEquipClearBtn?.addEventListener("click", () => { tabletEquipDraft = []; renderTabletEquipList(); });
+    tabletEquipSaveBtn?.addEventListener("click", () => { void issueRentalFromTablet(); });
+    tabletEquipReturnBtn?.addEventListener("click", () => { void returnRentalForSession(); });
     scoreValueInput?.addEventListener("input", () => {
         if (scoreValueInput instanceof HTMLInputElement) {
             scoreValueInput.value = normalizeScoreDraft(scoreValueInput.value);

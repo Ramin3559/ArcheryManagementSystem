@@ -1,4 +1,5 @@
 using EShooting.Domain.Enums;
+using EShooting.Application.Common.Models;
 
 namespace EShooting.Web.Helpers;
 
@@ -128,6 +129,69 @@ public static class LaneDisplayHelper
 
     public static string ToIsoOffset(DateTime? utc) => AppTimeZone.ToIsoOffset(utc);
 
+    public static bool IsOpenEndedLaneSession(LaneDashboardItem model) =>
+        model.IsOpenEndedSession;
+
+    public static string ResolveEffectiveLaneStatus(
+        string? storedStatus,
+        DateTime? startTimeUtc,
+        DateTime? endTimeUtc,
+        bool isOpenEnded)
+    {
+        var st = storedStatus ?? "Idle";
+        if (startTimeUtc is null || endTimeUtc is null)
+        {
+            return st;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var startUtc = startTimeUtc.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(startTimeUtc.Value, DateTimeKind.Utc)
+            : startTimeUtc.Value.ToUniversalTime();
+        var endUtc = endTimeUtc.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(endTimeUtc.Value, DateTimeKind.Utc)
+            : endTimeUtc.Value.ToUniversalTime();
+
+        if (isOpenEnded || endUtc <= startUtc)
+        {
+            if (nowUtc < startUtc) return "Scheduled";
+            if (st == "Completed") return "Completed";
+            return "Active";
+        }
+
+        if (nowUtc < startUtc) return "Scheduled";
+        if (nowUtc >= endUtc) return "Completed";
+        return "Active";
+    }
+
+    public static string FormatSessionEndDisplay(
+        DateTime? startTimeUtc,
+        DateTime? endTimeUtc,
+        string effectiveStatus,
+        bool isOpenEnded)
+    {
+        if (isOpenEnded && !string.Equals(effectiveStatus, "Completed", StringComparison.Ordinal))
+        {
+            return "Davam edir";
+        }
+
+        return FormatTimeLocal(endTimeUtc);
+    }
+
+    public static string FormatSessionEndScheduleDisplay(
+        DateTime? startTimeUtc,
+        DateTime? endTimeUtc,
+        string effectiveStatus,
+        bool isOpenEnded)
+    {
+        if (isOpenEnded && !string.Equals(effectiveStatus, "Completed", StringComparison.Ordinal))
+        {
+            return "Davam edir";
+        }
+
+        return FormatScheduleTimeLocal(endTimeUtc);
+    }
+
     /// <summary>
     /// Köhnə "Qrup:" / "Atıcı:" prefikslərini silir (DB-də qalmış qeydlər üçün).
     /// </summary>
@@ -139,6 +203,11 @@ public static class LaneDisplayHelper
         }
 
         var s = name.Trim();
+        if (s.StartsWith("Müştəri:", StringComparison.OrdinalIgnoreCase))
+        {
+            return s[8..].TrimStart();
+        }
+
         if (s.StartsWith("Qrup:", StringComparison.OrdinalIgnoreCase))
         {
             return s[5..].TrimStart();
@@ -152,11 +221,11 @@ public static class LaneDisplayHelper
         return s;
     }
 
-    /// <summary>TV və zolaq kartlarında: "Atıcı: Ad Soyad" (tək və ya qrup).</summary>
+    /// <summary>TV və zolaq kartlarında: "Müştəri: Ad Soyad" (tək və ya qrup).</summary>
     public static string FormatAthleteLabel(string? name)
     {
         var core = StripAthleteLabelPrefix(name);
-        return string.IsNullOrEmpty(core) ? "Atıcı: —" : $"Atıcı: {core}";
+        return string.IsNullOrEmpty(core) ? "Müştəri: —" : $"Müştəri: {core}";
     }
 
     /// <summary>TV ekranı üçün Ad və Soyadı ayırır (DB sahələri və ya FullName-dən).</summary>

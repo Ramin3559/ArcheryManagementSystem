@@ -6,4 +6,5 @@ public sealed class SessionEquipmentIssueRequest
 {
     public Guid EquipmentItemId { get; init; }
     public EquipmentIssueType IssueType { get; init; }
+    public int Quantity { get; init; } = 1;
 }

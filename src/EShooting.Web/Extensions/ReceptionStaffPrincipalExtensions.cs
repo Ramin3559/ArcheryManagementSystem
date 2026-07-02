@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using EShooting.Web.Auth;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Extensions;
 
@@ -10,6 +12,9 @@ public static class ReceptionStaffPrincipalExtensions
 
     public static bool HasReceptionPermission(this ClaimsPrincipal user, string claimType) =>
         user.HasClaim(claimType, "1");
+
+    public static bool HasAnyReceptionPermission(this ClaimsPrincipal user, params string[] claimTypes) =>
+        claimTypes.Any(user.HasReceptionPermission);
 
     public static Guid? GetStaffMemberId(this ClaimsPrincipal user)
     {

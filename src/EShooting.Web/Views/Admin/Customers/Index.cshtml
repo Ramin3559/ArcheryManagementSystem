@@ -1,0 +1,244 @@
+@using EShooting.Application.Common
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Müştərilər";
+    var today = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
+}
+
+<style>
+    .customers-hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; align-items: end; }
+    .filter-grid label.field { display: flex; flex-direction: column; gap: 6px; }
+    .filter-grid .field span { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .filter-grid input:not([type="checkbox"]), .filter-grid select { width: 100%; min-width: 0; }
+    .filter-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .card.loading { opacity: 0.65; pointer-events: none; }
+</style>
+
+<div class="topbar">
+    <h1>Müştərilər</h1>
+    <a class="btn btn-excel" id="customersExportBtn" href="/admin/customers/export.xlsx">Excel-ə çıxart</a>
+</div>
+
+<p class="customers-hint">Tarix filtri <strong>qeydiyyata alınma</strong> tarixinə görədir (zolağa yazılma deyil). İlk açılışda bugün qeydiyyata alınanlar göstərilir. Redaktə yalnız <strong>resepsiya</strong> pəncərəsindən edilir.</p>
+
+<div class="card" style="margin-bottom:12px;">
+    <form id="customersFilterForm" autocomplete="off">
+        <div class="filter-grid">
+            <label class="field">
+                <span>Axtarış</span>
+                <input name="search" placeholder="Ad, telefon, qeydiyyata alan…" />
+            </label>
+            <label class="field">
+                <span>VIP</span>
+                <select name="vip">
+                    <option value="">Hamısı</option>
+                    <option value="yes">VIP</option>
+                    <option value="no">VIP deyil</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Paket növü</span>
+                <select name="packageType">
+                    <option value="">Hamısı</option>
+                    <option value="birdefelik">Birdefəlik</option>
+                    <option value="abune">Abunə</option>
+                    <option value="vip">VIP abunə</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Müştəri tipi</span>
+                <select name="customerType">
+                    <option value="">Hamısı</option>
+                    <option value="zolaq">Müştəri</option>
+                    <option value="alici">Alıcı</option>
+                    <option value="her-ikisi">Alıcı müştəri</option>
+                    <option value="hec-biri">Heç bir əməliyyat yoxdur</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Oyun icarəsi</span>
+                <select name="sessionRental">
+                    <option value="">Hamısı</option>
+                    <option value="any">Oyun icarəsi olub</option>
+                    <option value="pending">Qaytarılmamış icarə</option>
+                    <option value="none">Oyun icarəsi olmayıb</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Status</span>
+                <select name="active">
+                    <option value="">Hamısı</option>
+                    <option value="active">Aktiv</option>
+                    <option value="inactive">Deaktiv</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Kateqoriya</span>
+                <select name="category">
+                    <option value="">Hamısı</option>
+                    <option value="0">Həvəskar</option>
+                    <option value="1">Peşəkar</option>
+                    <option value="2">Məşqçi</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Qeydiyyata alınma (başlanğıc)</span>
+                <input type="date" name="registeredFrom" value="@today" />
+            </label>
+            <label class="field">
+                <span>Qeydiyyata alınma (son)</span>
+                <input type="date" name="registeredTo" value="@today" />
+            </label>
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" type="submit">Filtrlə</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" id="customersTableCard">
+    <div class="tableWrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Ad Soyad</th>
+                <th>Telefon</th>
+                <th>VIP</th>
+                <th>Paket</th>
+                <th>Abunə müddəti</th>
+                <th>Qeydiyyata alınma</th>
+                <th>Qeydiyyata alan</th>
+                <th>Son zolağa yazılma</th>
+                <th>Tip</th>
+                <th>Oyun icarəsi</th>
+            </tr>
+            </thead>
+            <tbody id="customersTableBody">
+            <tr><td colspan="10" style="color:var(--muted);">Yüklənir…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="statLabel" style="margin-top:10px;" id="customersCountLabel">Cəmi: — müştəri</p>
+</div>
+
+<script>
+    (function () {
+        var STORAGE_KEY = "customers";
+        var form = document.getElementById("customersFilterForm");
+        var exportBtn = document.getElementById("customersExportBtn");
+        var tbody = document.getElementById("customersTableBody");
+        var countLabel = document.getElementById("customersCountLabel");
+        var tableCard = document.getElementById("customersTableCard");
+        var debounceTimer = null;
+        var AFS = window.AdminFilterState;
+
+        function qsFromForm() {
+            return new URLSearchParams(new FormData(form));
+        }
+
+        function syncExportUrl() {
+            if (!exportBtn) return;
+            exportBtn.href = "/admin/customers/export.xlsx?" + qsFromForm().toString();
+        }
+
+        function sessionRentalLabel(x) {
+            if (x.hasPendingSessionRental) return "Qaytarılmamış icarə";
+            if (x.hasSessionEquipmentRental) return "Bəli";
+            return "—";
+        }
+
+        function renderRows(items) {
+            if (!tbody) return;
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = items.map(function (x) {
+                var sub = x.subscriptionFromLocal ? (AFS.escapeHtml(x.subscriptionFromLocal) + " — " + AFS.escapeHtml(x.subscriptionToLocal)) : "—";
+                var lastLane = x.lastLaneVisitLocal
+                    ? AFS.escapeHtml(x.lastLaneVisitLocal + (x.lastLaneNumber ? " · Zolaq " + x.lastLaneNumber : ""))
+                    : "—";
+                var name = AFS.escapeHtml(x.fullName) + (x.isVip ? " · VIP" : "");
+                return "<tr>"
+                    + "<td>" + name + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.phoneNumber) + "</td>"
+                    + "<td>" + (x.isVip ? "Bəli" : "—") + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.packageTypeLabel) + "</td>"
+                    + "<td>" + sub + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.registeredAtLocal) + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.registeredByStaffName) + "</td>"
+                    + "<td>" + lastLane + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.customerTypeLabel || "—") + "</td>"
+                    + "<td>" + AFS.escapeHtml(sessionRentalLabel(x)) + "</td>"
+                    + "</tr>";
+            }).join("");
+        }
+
+        async function loadList() {
+            if (!form) return;
+            AFS.save(STORAGE_KEY, form);
+            syncExportUrl();
+            if (tableCard) tableCard.classList.add("loading");
+            try {
+                var res = await fetch("/admin/customers/data?" + qsFromForm().toString(), { credentials: "same-origin" });
+                if (!res.ok) throw new Error("load failed");
+                var data = await res.json();
+                var items = Array.isArray(data?.items) ? data.items : [];
+                renderRows(items);
+                if (countLabel) countLabel.textContent = "Cəmi: " + items.length + " müştəri";
+            } catch (e) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
+            } finally {
+                if (tableCard) tableCard.classList.remove("loading");
+            }
+        }
+
+        function scheduleLoad(delayMs) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(loadList, delayMs);
+        }
+
+        if (form && AFS) {
+            AFS.initForm(STORAGE_KEY, form, {
+                applyDefaults: function (f) {
+                    var today = AFS.todayIso();
+                    var from = f.elements.namedItem("registeredFrom");
+                    var to = f.elements.namedItem("registeredTo");
+                    if (from && "value" in from && !from.value) from.value = today;
+                    if (to && "value" in to && !to.value) to.value = today;
+                }
+            });
+
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
+                void loadList();
+            });
+
+            syncExportUrl();
+
+            var searchInput = form.querySelector('input[name="search"]');
+            if (searchInput) {
+                searchInput.addEventListener("input", function () {
+                    syncExportUrl();
+                    scheduleLoad(300);
+                });
+            }
+
+            for (var i = 0; i < form.elements.length; i++) {
+                var el = form.elements[i];
+                if (!el.name || el === searchInput) continue;
+                if (el.tagName === "SELECT" || el.type === "date") {
+                    el.addEventListener("change", function () {
+                        syncExportUrl();
+                        scheduleLoad(0);
+                    });
+                }
+            }
+
+            void loadList();
+        } else if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Səhifə skripti yüklənmədi.</td></tr>';
+        }
+    })();
+</script>

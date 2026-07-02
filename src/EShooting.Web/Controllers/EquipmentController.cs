@@ -17,8 +17,13 @@ public sealed class EquipmentController(IMediator mediator) : ControllerBase
             x.Id,
             x.Name,
             x.Category,
+            usageMode = (int)x.UsageMode,
+            rentalQuantity = x.RentalQuantity,
+            saleQuantity = x.SaleQuantity,
             x.Quantity,
-            x.Price
+            damagedQuantity = x.DamagedQuantity,
+            unitPrice = x.UnitPrice ?? x.Price,
+            price = x.UnitPrice ?? x.Price
         });
 
         return Ok(result);

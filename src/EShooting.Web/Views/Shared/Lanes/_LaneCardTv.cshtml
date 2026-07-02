@@ -2,38 +2,13 @@
 @model EShooting.Application.Common.Models.LaneDashboardItem
 @{
     var st = Model.Status ?? "Idle";
-    var nowUtc = DateTime.UtcNow;
-    var startUtc = Model.StartTimeUtc is null
-        ? (DateTime?)null
-        : (Model.StartTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.StartTimeUtc.Value, DateTimeKind.Utc) : Model.StartTimeUtc.Value.ToUniversalTime());
-    var endUtc = Model.EndTimeUtc is null
-        ? (DateTime?)null
-        : (Model.EndTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.EndTimeUtc.Value, DateTimeKind.Utc) : Model.EndTimeUtc.Value.ToUniversalTime());
-
-    var trainingBuffer = TimeSpan.Zero;
-    var effectiveStatus = st;
-    var isVipTvMode = Model.IsAthleteVip || Model.IsOpenEndedSession;
-    if (startUtc is not null && endUtc is not null)
-    {
-        var isOpenEnded = endUtc.Value <= startUtc.Value;
-        if (isOpenEnded || isVipTvMode)
-        {
-            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
-            else if (st == "Completed") effectiveStatus = "Completed";
-            else effectiveStatus = "Active";
-        }
-        else
-        {
-            var trainingEndUtc = endUtc.Value - trainingBuffer;
-            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
-            else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
-            else effectiveStatus = "Active";
-        }
-    }
+    var isOpenEnded = LaneDisplayHelper.IsOpenEndedLaneSession(Model);
+    var isVipTvMode = isOpenEnded;
+    var effectiveStatus = LaneDisplayHelper.ResolveEffectiveLaneStatus(st, Model.StartTimeUtc, Model.EndTimeUtc, isOpenEnded);
 
     var hasSession = Model.IsSessionOpen && Model.SessionId is not null;
     var startText = LaneDisplayHelper.FormatScheduleTimeLocal(Model.StartTimeUtc);
-    var endText = LaneDisplayHelper.FormatScheduleTimeLocal(Model.EndTimeUtc);
+    var endText = LaneDisplayHelper.FormatSessionEndScheduleDisplay(Model.StartTimeUtc, Model.EndTimeUtc, effectiveStatus, isOpenEnded);
     var wallClockNow = LaneDisplayHelper.FormatTimeLocal(DateTime.UtcNow);
     var athleteLines = LaneDisplayHelper.ParseGroupAthleteDisplayLines(
         Model.AthleteName,
@@ -88,7 +63,7 @@
                         }
                         @if (Model.HasPendingRentalEquipment)
                         {
-                            <span class="lane-tv-equip" aria-hidden="true">🏹</span>
+                            <span class="lane-tv-equip lane-tv-equip--hidden" aria-hidden="true">🏹</span>
                         }
                     </div>
                 </div>
@@ -100,12 +75,9 @@
                                 <div class="lane-tv-schedule__row">
                                     <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
                                 </div>
-                                @if (!isVipTvMode)
-                                {
-                                    <div class="lane-tv-schedule__row lane-tv-schedule__row--end">
-                                        <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
-                                    </div>
-                                }
+                                <div class="lane-tv-schedule__row lane-tv-schedule__row--end">
+                                    <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -142,22 +114,15 @@
                         {
                             <span class="lane-tv-last-name">@person.Last</span>
                         }
-                        @if (Model.HasPendingRentalEquipment)
-                        {
-                            <span class="lane-tv-equip" aria-hidden="true">🏹</span>
-                        }
                     </div>
 
-                    @if (!isVipTvMode)
-                    {
-                        <div class="lane-tv-panel lane-tv-panel--session-end">
-                            <div class="lane-tv-center-col">
-                                <div class="lane-tv-center-inner">
-                                    <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
-                                </div>
+                    <div class="lane-tv-panel lane-tv-panel--session-end">
+                        <div class="lane-tv-center-col">
+                            <div class="lane-tv-center-inner">
+                                <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
                             </div>
                         </div>
-                    }
+                    </div>
                 </div>
             }
         }

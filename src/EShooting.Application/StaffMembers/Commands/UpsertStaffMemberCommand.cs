@@ -69,6 +69,7 @@ public sealed class UpsertStaffMemberCommandHandler(ITrainingCenterRepository re
                 AccessProfileId = request.AccessProfileId,
                 PhoneNumber = phone,
                 PinHash = StaffPinHasher.Hash(pin),
+                PinPlain = pin,
                 IsActive = request.IsActive,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
@@ -88,7 +89,9 @@ public sealed class UpsertStaffMemberCommandHandler(ITrainingCenterRepository re
         existing.IsActive = request.IsActive;
         if (!string.IsNullOrWhiteSpace(request.Pin))
         {
-            existing.PinHash = StaffPinHasher.Hash(request.Pin.Trim());
+            var pin = request.Pin.Trim();
+            existing.PinHash = StaffPinHasher.Hash(pin);
+            existing.PinPlain = pin;
         }
 
         existing.UpdatedAtUtc = DateTime.UtcNow;

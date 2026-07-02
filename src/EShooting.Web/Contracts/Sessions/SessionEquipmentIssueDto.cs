@@ -6,4 +6,5 @@ public sealed class SessionEquipmentIssueDto
 {
     public Guid EquipmentItemId { get; set; }
     public EquipmentIssueType IssueType { get; set; }
+    public int Quantity { get; set; } = 1;
 }

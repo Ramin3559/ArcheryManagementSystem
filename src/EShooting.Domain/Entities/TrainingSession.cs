@@ -10,6 +10,7 @@ public sealed class TrainingSession
     public Guid? SubscriptionScheduleId { get; set; }
     public DateTime StartTimeUtc { get; set; }
     public DateTime EndTimeUtc { get; set; }
+    public DateTime? ActivatedAtUtc { get; set; }
     public SessionStatus Status { get; set; } = SessionStatus.Scheduled;
     public List<ScoreEntry> Scores { get; set; } = [];
 

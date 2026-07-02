@@ -1,0 +1,444 @@
+@using EShooting.Application.Common
+@using EShooting.Web.Extensions
+@{
+    Layout = null;
+    var staffName = User.GetStaffDisplayName();
+    var today = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Müştərilər — Resepsiya</title>
+    <style>
+        :root {
+            --bg-a: #fff3e8;
+            --bg-b: #f7f4ff;
+            --bg-c: #ecf8ff;
+            --panel: rgba(255, 255, 255, 0.88);
+            --text: #1d2440;
+            --text-muted: #657296;
+            --primary: #6c5cff;
+            --primary-strong: #5543f3;
+            --border: rgba(122, 138, 178, 0.28);
+            --ring: rgba(108, 92, 255, 0.28);
+            --shadow: 0 18px 45px rgba(65, 45, 120, 0.14);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
+            background:
+                radial-gradient(circle at 0% 0%, #ffd7be 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, #dacdff 0%, transparent 36%),
+                linear-gradient(145deg, var(--bg-a), var(--bg-b) 46%, var(--bg-c));
+            min-height: 100vh;
+        }
+        .page { max-width: 1320px; margin: 0 auto; padding: 22px 20px 32px; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 800; color: #1b2140; }
+        .header__sub { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
+        .header__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+            margin-bottom: 14px;
+        }
+        .card--table { padding: 0; overflow: hidden; }
+        .section-title { margin: 0 0 4px; font-size: 17px; font-weight: 800; color: #253060; }
+        .section-hint { margin: 0 0 14px; font-size: 13px; color: var(--text-muted); }
+        .filter-grid {
+            display: grid;
+            grid-template-columns: 2fr repeat(5, minmax(120px, 1fr)) repeat(2, minmax(140px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+        @@media (max-width: 1100px) {
+            .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @@media (max-width: 700px) {
+            .filter-grid { grid-template-columns: 1fr 1fr; }
+        }
+        .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .field__label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+        }
+        .field input,
+        .field select {
+            width: 100%;
+            min-height: 42px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            background: #fff;
+            color: var(--text);
+            font: inherit;
+        }
+        .field input:focus,
+        .field select:focus {
+            outline: none;
+            border-color: #7668ff;
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+        .filter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(122, 138, 178, 0.18);
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 42px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            background: rgba(255,255,255,.85);
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary {
+            border: none;
+            color: #fff;
+            background: linear-gradient(120deg, var(--primary), #8a57ff);
+            box-shadow: 0 8px 20px rgba(108, 92, 255, 0.28);
+        }
+        .btn-ghost { color: #37426e; }
+        .btn-excel {
+            border: none;
+            color: #fff;
+            background: linear-gradient(120deg, #16a34a, #0f9d77);
+            box-shadow: 0 8px 18px rgba(15, 157, 119, 0.25);
+        }
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(122, 138, 178, 0.18);
+            background: rgba(255,255,255,.55);
+        }
+        .table-wrap { overflow: auto; max-height: calc(100vh - 340px); min-height: 200px; }
+        table.data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+        }
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #f3f5fc;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            text-align: left;
+        }
+        .data-table tbody td {
+            padding: 11px 14px;
+            border-bottom: 1px solid rgba(122, 138, 178, 0.14);
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .data-table tbody tr { cursor: pointer; transition: background .12s ease; }
+        .data-table tbody tr:hover { background: rgba(108, 92, 255, 0.07); }
+        .data-table tbody tr:nth-child(even) { background: rgba(255,255,255,.45); }
+        .data-table tbody tr:nth-child(even):hover { background: rgba(108, 92, 255, 0.07); }
+        .name-cell { font-weight: 700; color: #253060; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+        .money { font-variant-numeric: tabular-nums; text-align: right; }
+        .badge-vip {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            background: rgba(214, 138, 0, 0.15);
+            color: #9a5d00;
+        }
+        .empty-row td {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 28px;
+            cursor: default;
+        }
+        .loading { opacity: .55; pointer-events: none; }
+        #countLabel { margin: 0; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="header">
+        <div>
+            <h1>Müştərilər</h1>
+            <p class="header__sub">@staffName</p>
+        </div>
+        <div class="header__actions">
+            <a href="/qeydiyyat" class="btn btn-ghost">Geri qayıt</a>
+            <button type="button" class="btn btn-excel" id="exportBtn">Excel</button>
+        </div>
+    </header>
+
+    <section class="card">
+        <h2 class="section-title">Filtr</h2>
+        <p class="section-hint">Tarix filtri <strong>qeydiyyata alınma</strong> tarixinə görədir (zolağa yazılma deyil). İlk açılışda bugün qeydiyyata alınanlar göstərilir.</p>
+        <form id="filterForm">
+            <div class="filter-grid">
+                <label class="field">
+                    <span class="field__label">Axtarış</span>
+                    <input name="search" id="search" type="search" placeholder="Ad, telefon, qeydiyyata alan…" autocomplete="off" />
+                </label>
+                <label class="field">
+                    <span class="field__label">VIP</span>
+                    <select name="vip" id="vip">
+                        <option value="">Hamısı</option>
+                        <option value="yes">VIP</option>
+                        <option value="no">VIP deyil</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Paket</span>
+                    <select name="packageType" id="packageType">
+                        <option value="">Hamısı</option>
+                        <option value="birdefelik">Birdefəlik</option>
+                        <option value="abune">Abunə</option>
+                        <option value="vip">VIP abunə</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Müştəri tipi</span>
+                    <select name="customerType" id="customerType">
+                        <option value="">Hamısı</option>
+                        <option value="zolaq">Müştəri</option>
+                        <option value="alici">Alıcı</option>
+                        <option value="her-ikisi">Alıcı müştəri</option>
+                        <option value="hec-biri">Heç bir əməliyyat yoxdur</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Oyun icarəsi</span>
+                    <select name="sessionRental" id="sessionRental">
+                        <option value="">Hamısı</option>
+                        <option value="any">Oyun icarəsi olub</option>
+                        <option value="pending">Qaytarılmamış icarə</option>
+                        <option value="none">Oyun icarəsi olmayıb</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Status</span>
+                    <select name="active" id="active">
+                        <option value="">Hamısı</option>
+                        <option value="active">Aktiv</option>
+                        <option value="inactive">Deaktiv</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Qeydiyyata alınma (başlanğıc)</span>
+                    <input type="date" name="registeredFrom" id="registeredFrom" value="@today" />
+                </label>
+                <label class="field">
+                    <span class="field__label">Qeydiyyata alınma (son)</span>
+                    <input type="date" name="registeredTo" id="registeredTo" value="@today" />
+                </label>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary">Filtrlə</button>
+                <button type="button" class="btn btn-ghost" id="resetTodayBtn">Bugün</button>
+                <button type="button" class="btn btn-ghost" id="clearDatesBtn">Bütün tarixlər</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="card card--table" id="tableCard">
+        <div class="table-toolbar">
+            <p id="countLabel">Yüklənir…</p>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>Ad Soyad</th>
+                    <th>Telefon</th>
+                    <th>VIP</th>
+                    <th>Paket</th>
+                    <th>Abunə müddəti</th>
+                    <th>Qeydiyyata alınma</th>
+                    <th>Qeydiyyata alan</th>
+                    <th>Son zolağa yazılma</th>
+                    <th>Tip</th>
+                    <th>Oyun icarəsi</th>
+                </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+<script src="/js/admin-filter-state.js"></script>
+<script>
+    const STORAGE_KEY = "reception-customers";
+    const AFS = window.AdminFilterState;
+    const todayIso = "@today";
+
+    function qsFromForm() {
+        const form = document.getElementById("filterForm");
+        const qs = new URLSearchParams();
+        for (const el of form.elements) {
+            if (!el.name) continue;
+            if (el.type === "checkbox" && !el.checked) continue;
+            qs.append(el.name, el.value ?? "");
+        }
+        return qs;
+    }
+
+    function setTodayDates() {
+        document.getElementById("registeredFrom").value = todayIso;
+        document.getElementById("registeredTo").value = todayIso;
+    }
+
+    function clearDateFilters() {
+        document.getElementById("registeredFrom").value = "";
+        document.getElementById("registeredTo").value = "";
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    function formatMoney(n) {
+        return Number(n || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " AZN";
+    }
+
+    async function loadList() {
+        const card = document.getElementById("tableCard");
+        card.classList.add("loading");
+        const form = document.getElementById("filterForm");
+        if (form && AFS) AFS.save(STORAGE_KEY, form);
+        const qs = qsFromForm();
+        try {
+            const res = await fetch("/athletes/list?" + qs.toString(), { credentials: "same-origin" });
+            if (!res.ok) { alert("Siyahı yüklənmədi"); return; }
+            const data = await res.json();
+            const items = Array.isArray(data?.items) ? data.items : [];
+            const tbody = document.getElementById("tbody");
+            tbody.innerHTML = "";
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+            } else {
+                for (const x of items) {
+                    const tr = document.createElement("tr");
+                    tr.dataset.id = x.id;
+                    const sub = x.subscriptionFromLocal ? `${x.subscriptionFromLocal} — ${x.subscriptionToLocal}` : "—";
+                    const sessionRental = x.hasPendingSessionRental
+                        ? "Qaytarılmamış icarə"
+                        : x.hasSessionEquipmentRental ? "Bəli" : "—";
+                    const vip = x.isVip ? '<span class="badge-vip">VIP</span>' : "—";
+                    const lastLane = x.lastLaneVisitLocal
+                        ? `${x.lastLaneVisitLocal}${x.lastLaneNumber ? ` · Zolaq ${x.lastLaneNumber}` : ""}`
+                        : "—";
+                    tr.innerHTML = `
+                        <td class="name-cell">${escapeHtml(x.fullName)}</td>
+                        <td>${escapeHtml(x.phoneNumber)}</td>
+                        <td>${vip}</td>
+                        <td>${escapeHtml(x.packageTypeLabel)}</td>
+                        <td>${escapeHtml(sub)}</td>
+                        <td>${escapeHtml(x.registeredAtLocal)}</td>
+                        <td>${escapeHtml(x.registeredByStaffName)}</td>
+                        <td>${escapeHtml(lastLane)}</td>
+                        <td>${escapeHtml(x.customerTypeLabel || "—")}</td>
+                        <td>${escapeHtml(sessionRental)}</td>`;
+                    tr.addEventListener("click", () => {
+                        try {
+                            sessionStorage.setItem("es-manage-athlete-id", x.id);
+                            sessionStorage.setItem("es-manage-return-url", "/qeydiyyat/musteriler");
+                        } catch { /* ignore */ }
+                        window.location.href = "/qeydiyyat";
+                    });
+                    tbody.appendChild(tr);
+                }
+            }
+            document.getElementById("countLabel").textContent = "Cəmi: " + items.length + " müştəri";
+        } finally {
+            card.classList.remove("loading");
+        }
+    }
+
+    document.getElementById("filterForm").addEventListener("submit", e => { e.preventDefault(); void loadList(); });
+    document.getElementById("exportBtn").addEventListener("click", () => {
+        window.location.href = "/athletes/list/export.xlsx?" + qsFromForm().toString();
+    });
+    document.getElementById("resetTodayBtn").addEventListener("click", () => {
+        setTodayDates();
+        void loadList();
+    });
+    document.getElementById("clearDatesBtn").addEventListener("click", () => {
+        clearDateFilters();
+        void loadList();
+    });
+
+    let filterDebounceTimer = null;
+    function scheduleFilterLoad(delayMs) {
+        clearTimeout(filterDebounceTimer);
+        filterDebounceTimer = setTimeout(() => void loadList(), delayMs);
+    }
+
+    const filterForm = document.getElementById("filterForm");
+    if (filterForm && AFS) {
+        AFS.initForm(STORAGE_KEY, filterForm, {
+            applyDefaults: function () { setTodayDates(); }
+        });
+    } else {
+        setTodayDates();
+    }
+
+    const searchInput = document.getElementById("search");
+    if (searchInput) {
+        searchInput.addEventListener("input", () => scheduleFilterLoad(300));
+    }
+    if (filterForm) {
+        for (const el of filterForm.elements) {
+            if (!el.name || el === searchInput) continue;
+            if (el.tagName === "SELECT" || el.type === "date") {
+                el.addEventListener("change", () => scheduleFilterLoad(0));
+            }
+        }
+    }
+
+    void loadList();
+</script>
+</body>
+</html>

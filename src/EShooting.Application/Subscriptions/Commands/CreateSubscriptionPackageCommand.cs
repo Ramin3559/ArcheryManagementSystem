@@ -133,7 +133,7 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
 
             if (athlete.Category == CustomerCategory.Amateur && preferred == PreferredLaneType.Long)
             {
-                throw new InvalidOperationException("Amateur can only select Short lane type.");
+                throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
             }
 
             var slotOccupancy = existingSchedules

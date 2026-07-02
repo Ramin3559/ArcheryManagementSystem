@@ -1,5 +1,6 @@
 using EShooting.Application.StaffPositions.Commands;
 using EShooting.Application.StaffPositions.Queries;
+using EShooting.Web.Auth;
 using EShooting.Web.Contracts.StaffPositions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/positions")]
 public sealed class AdminPositionsController(IMediator mediator) : Controller
 {
@@ -77,12 +79,16 @@ public sealed class AdminPositionsController(IMediator mediator) : Controller
 
     private async Task<IActionResult> SaveAsync(StaffPositionFormModel model, CancellationToken cancellationToken)
     {
-        model.IsActive = Request.Form.ContainsKey("IsActive");
+        model.IsActive = true;
 
         try
         {
             await mediator.Send(new UpsertStaffPositionCommand(
-                model.Id, model.Name, model.Description, model.IsActive), cancellationToken);
+                model.Id,
+                model.Name,
+                model.Description,
+                DefaultAccessProfileId: null,
+                model.IsActive), cancellationToken);
 
             TempData["PositionNotice"] = model.Id is null ? "Vəzifə yaradıldı." : "Vəzifə yeniləndi.";
             return RedirectToAction(nameof(Index));

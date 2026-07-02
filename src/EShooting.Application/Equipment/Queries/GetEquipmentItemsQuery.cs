@@ -27,8 +27,13 @@ public sealed class GetEquipmentItemsQueryHandler(ITrainingCenterRepository repo
         Id = x.Id,
         Name = x.Name,
         Category = x.Category,
+        UsageMode = x.UsageMode,
+        RentalQuantity = x.RentalQuantity,
+        SaleQuantity = x.SaleQuantity,
         Quantity = x.Quantity,
+        DamagedQuantity = x.DamagedQuantity,
         Price = x.Price,
+        UnitPrice = x.Price,
         IsActive = x.IsActive
     };
 }

@@ -30,6 +30,17 @@ public sealed class ScheduleSessionRequest
     /// </summary>
     public int DurationMinutes { get; set; } = 90;
 
+    /// <summary>
+    /// VIP / limitsiz sessiya — bitmə vaxtı yoxdur (resepsiya stop edənə qədər).
+    /// </summary>
+    public bool ForceOpenEnded { get; set; }
+
+    public Guid? ServicePackageId { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal AmountPaidCash { get; set; }
+    public decimal AmountPaidCard { get; set; }
+    public bool IsComplimentary { get; set; }
+
     public bool IsEquipmentIssued { get; set; }
 
     public List<SessionEquipmentIssueDto> EquipmentIssues { get; set; } = [];

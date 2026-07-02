@@ -1,12 +1,15 @@
 using System.Globalization;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Web.Auth;
+using EShooting.Web.Helpers;
 using EShooting.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[AllowAnonymous]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin")]
 public sealed class AdminController(ITrainingCenterRepository repository) : Controller
 {
@@ -145,15 +148,23 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
     }
 
     [HttpGet("history")]
-    public async Task<IActionResult> History([FromQuery] HistoryFilter filter, CancellationToken cancellationToken)
+    public IActionResult History()
+    {
+        ViewData["Title"] = "Tarixçə";
+        return View("~/Views/Admin/History.cshtml");
+    }
+
+    [HttpGet("history/data")]
+    public async Task<IActionResult> HistoryData([FromQuery] HistoryFilter filter, CancellationToken cancellationToken)
     {
         filter = NormalizeHistoryFilter(filter);
         var outcome = await QueryHistoryRowsAsync(filter, cancellationToken);
-        ViewData["Rows"] = outcome.Rows;
-        ViewData["Filter"] = filter;
-        ViewData["IdentitySearchNoMatch"] = outcome.IdentityCriteriaNoAthleteMatch;
-        ViewData["HistoryRangeLabel"] = BuildHistoryRangeLabel(filter);
-        return View("~/Views/Admin/History.cshtml");
+        return Ok(new
+        {
+            rows = outcome.Rows,
+            identitySearchNoMatch = outcome.IdentityCriteriaNoAthleteMatch,
+            rangeLabel = BuildHistoryRangeLabel(filter)
+        });
     }
 
     [HttpGet("export.xlsx")]
@@ -255,7 +266,7 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
                     DateLocal = startLocal.ToString("yyyy-MM-dd"),
                     AthleteName = a?.FullName ?? "—",
                     Phone = a?.PhoneNumber ?? "—",
-                    Category = a?.Category.ToString() ?? CustomerCategory.Amateur.ToString(),
+                    Category = a is null ? CustomerDisplayHelper.FormatCategory(CustomerCategory.Amateur) : CustomerDisplayHelper.FormatCategory(a.Category),
                     LaneNumber = laneNo,
                     StartTimeLocal = startLocal.ToString("HH:mm"),
                     EndTimeLocal = endLocal.ToString("HH:mm"),

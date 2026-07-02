@@ -2,6 +2,7 @@ using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Enums;
 using MediatR;
 using static EShooting.Application.Sessions.SessionEquipmentRules;
+using static EShooting.Application.Common.DateTimeAssumedUtc;
 
 namespace EShooting.Application.Sessions.Commands;
 
@@ -25,6 +26,13 @@ public sealed class CompleteSessionCommandHandler(
         if (HasPendingRentalEquipment(session, equipmentIssues))
         {
             throw new InvalidOperationException("İcarə avadanlığı təhvil alınmalıdır.");
+        }
+
+        var startUtc = AsUtc(session.StartTimeUtc);
+        var endUtc = AsUtc(session.EndTimeUtc);
+        if (endUtc <= startUtc)
+        {
+            session.EndTimeUtc = DateTime.UtcNow;
         }
 
         session.Status = SessionStatus.Completed;

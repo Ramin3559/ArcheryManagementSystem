@@ -2,7 +2,12 @@ using EShooting.Web.Contracts.Athletes;
 using EShooting.Application.Common;
 using EShooting.Application.Athletes;
 using EShooting.Application.Athletes.Commands;
+using EShooting.Application.Athletes.Queries;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.Customers;
+using EShooting.Domain.Enums;
+using EShooting.Web.Auth;
+using EShooting.Web.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,40 +20,43 @@ namespace EShooting.Web.Controllers;
 public sealed class AthletesController(IMediator mediator, ITrainingCenterRepository repository) : ControllerBase
 {
     /// <summary>
-    /// Yeni idmancini qeydiyyatdan kecirir ve yaradilan identifikatoru qaytarir.
+    /// Yeni müştərini qeydiyyatdan keçirir və yaradılan identifikatoru qaytarır.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Register([FromBody] RegisterAthleteRequest request, CancellationToken cancellationToken)
     {
-        // Prevent duplicate inserts (phone/email/idCard). If exists, return 409 with existing id.
+        if (ReceptionPermissionGate.DenyUnless(this,ReceptionStaffClaims.CanRegisterCustomers) is { } denied)
+        {
+            return denied;
+        }
+
+        // Prevent duplicate inserts (phone/email/idCard/clubCard). If exists, return 409 with existing id.
         var phoneQ = NormalizeDigits(request.PhoneNumber);
         var emailQ = NormalizeText(request.Email);
         var idQ = NormalizeText(request.IdCardNumber);
-        if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ))
+        var clubCardQ = NormalizeText(request.ClubCardNumber);
+        if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ) || !string.IsNullOrWhiteSpace(clubCardQ))
         {
-            var existing = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
+            var existing = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken, includeInactive: true);
 
             if (existing is not null)
             {
+                if (!existing.IsActive)
+                {
+                    return Conflict(new
+                    {
+                        error = "Bu şəxs əvvəl bazada qeydiyyatda idi, indi deaktiv edilib.",
+                        isInactive = true,
+                        existingId = existing.Id,
+                        existing = MapExistingAthlete(existing)
+                    });
+                }
+
                 return Conflict(new
                 {
                     error = "Bu şəxs artıq sistemdə qeydiyyatdadır.",
                     existingId = existing.Id,
-                    existing = new
-                    {
-                        existing.Id,
-                        existing.FullName,
-                        existing.FirstName,
-                        existing.LastName,
-                        existing.PhoneNumber,
-                        existing.Email,
-                        existing.IdCardNumber,
-                        existing.Category,
-                        existing.MembershipType,
-                        existing.IsSubscriber,
-                        existing.IsFullPackage,
-                        existing.IsVip
-                    }
+                    existing = MapExistingAthlete(existing)
                 });
             }
         }
@@ -62,42 +70,63 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                     request.PhoneNumber,
                     request.Email,
                     request.IdCardNumber,
+                    request.ClubCardNumber,
                     request.Category,
                     request.IsSubscriber,
                     request.MembershipType,
-                    request.IsVip),
+                    request.IsVip,
+                    User.GetStaffMemberId()),
                 cancellationToken);
 
             return Ok(new { id });
         }
         catch (DbUpdateException)
         {
-            var existingAfterError = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
+            var existingAfterError = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken, includeInactive: true);
             if (existingAfterError is not null)
             {
                 return Conflict(new
                 {
-                    error = "Bu şəxs artıq sistemdə qeydiyyatdadır.",
+                    error = existingAfterError.IsActive
+                        ? "Bu şəxs artıq sistemdə qeydiyyatdadır."
+                        : "Bu şəxs əvvəl bazada qeydiyyatda idi, indi deaktiv edilib.",
+                    isInactive = !existingAfterError.IsActive,
                     existingId = existingAfterError.Id,
-                    existing = new
-                    {
-                        existingAfterError.Id,
-                        existingAfterError.FullName,
-                        existingAfterError.FirstName,
-                        existingAfterError.LastName,
-                        existingAfterError.PhoneNumber,
-                        existingAfterError.Email,
-                        existingAfterError.IdCardNumber,
-                        existingAfterError.Category,
-                        existingAfterError.MembershipType,
-                        existingAfterError.IsSubscriber,
-                        existingAfterError.IsFullPackage,
-                        existingAfterError.IsVip
-                    }
+                    existing = MapExistingAthlete(existingAfterError)
                 });
             }
 
             return Conflict(new { error = "Bu məlumatlarla artıq qeydiyyat mövcuddur." });
+        }
+    }
+
+    /// <summary>
+    /// Sürətli qeydiyyat (yalnız satış üçün): ad + soyad + telefon.
+    /// </summary>
+    [HttpPost("quick-register")]
+    public async Task<IActionResult> QuickRegister([FromBody] QuickRegisterAthleteRequest request, CancellationToken cancellationToken)
+    {
+        if (!User.HasAnyReceptionPermission(
+                ReceptionStaffClaims.CanRegisterCustomers,
+                ReceptionStaffClaims.CanSellEquipment))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
+        }
+
+        try
+        {
+            var result = await mediator.Send(
+                new QuickRegisterAthleteCommand(
+                    request.FirstName,
+                    request.LastName,
+                    request.PhoneNumber,
+                    User.GetStaffMemberId()),
+                cancellationToken);
+            return Ok(new { id = result.AthleteId, isNewCustomer = result.IsNewCustomer });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
         }
     }
 
@@ -117,6 +146,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.PhoneNumber,
                 x.Email,
                 x.IdCardNumber,
+                x.ClubCardNumber,
                 x.IsSubscriber,
                 x.MembershipType,
                 x.Category,
@@ -127,15 +157,176 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         return Ok(result);
     }
 
+    [HttpGet("list")]
+    public async Task<IActionResult> GetList(
+        [FromQuery] string? search,
+        [FromQuery] string? vip,
+        [FromQuery] string? packageType,
+        [FromQuery] string? customerType,
+        [FromQuery] string? sessionRental,
+        [FromQuery] string? equipment,
+        [FromQuery] string? active,
+        [FromQuery] int? category,
+        [FromQuery] DateTime? registeredFrom,
+        [FromQuery] DateTime? registeredTo,
+        [FromQuery] bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyDefaultRegistrationDates(ref registeredFrom, ref registeredTo);
+        CustomerCategory? cat = category is >= 0 and <= 2 ? (CustomerCategory)category.Value : null;
+        var rentalFilter = string.IsNullOrWhiteSpace(sessionRental) ? equipment : sessionRental;
+        var result = await mediator.Send(
+            new GetCustomersListQuery(
+                search,
+                vip,
+                packageType,
+                customerType,
+                rentalFilter,
+                active,
+                cat,
+                registeredFrom,
+                registeredTo,
+                includeInactive),
+            cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("list/export.xlsx")]
+    public async Task<IActionResult> ExportList(
+        [FromQuery] string? search,
+        [FromQuery] string? vip,
+        [FromQuery] string? packageType,
+        [FromQuery] string? customerType,
+        [FromQuery] string? sessionRental,
+        [FromQuery] string? equipment,
+        [FromQuery] string? active,
+        [FromQuery] int? category,
+        [FromQuery] DateTime? registeredFrom,
+        [FromQuery] DateTime? registeredTo,
+        [FromQuery] bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyDefaultRegistrationDates(ref registeredFrom, ref registeredTo);
+        CustomerCategory? cat = category is >= 0 and <= 2 ? (CustomerCategory)category.Value : null;
+        var rentalFilter = string.IsNullOrWhiteSpace(sessionRental) ? equipment : sessionRental;
+        var result = await mediator.Send(
+            new GetCustomersListQuery(search, vip, packageType, customerType, rentalFilter, active, cat, registeredFrom, registeredTo, includeInactive),
+            cancellationToken);
+        var bytes = Admin.AdminCustomersExcelExporter.Export(result.Items);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"musteriler-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
+    }
+
+    [HttpPost("{id:guid}/package-billing")]
+    public async Task<IActionResult> RecordPackageBilling(
+        [FromRoute] Guid id,
+        [FromBody] RecordPackageBillingRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (ReceptionPermissionGate.DenyUnless(this,ReceptionStaffClaims.CanManageSubscriptions) is { } denied)
+        {
+            return denied;
+        }
+
+        var athlete = await repository.GetAthleteByIdAsync(id, cancellationToken);
+        if (athlete is null || !AthleteSearchRules.IsSearchable(athlete))
+        {
+            return NotFound(new { error = "Müştəri tapılmadı." });
+        }
+
+        if (request.IsComplimentary)
+        {
+            if (ReceptionPermissionGate.DenyUnless(this,ReceptionStaffClaims.CanGrantComplimentarySession) is { } compDenied)
+            {
+                return compDenied;
+            }
+
+            if (request.AmountPaidCash > 0m || request.AmountPaidCard > 0m || request.DiscountAmount > 0m)
+            {
+                return BadRequest(new { error = "Ödənişsiz seçildikdə məbləğ və endirim daxil edilə bilməz." });
+            }
+        }
+        else
+        {
+            try
+            {
+                PaymentSettlementRules.EnsureDiscountAllowed(
+                    request.DiscountAmount,
+                    User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        var pkgId = request.ServicePackageId is Guid pid && pid != Guid.Empty ? pid : (Guid?)null;
+        if (pkgId is null)
+        {
+            return BadRequest(new { error = "Paket seçilməyib." });
+        }
+
+        try
+        {
+            await CustomerBillingService.RecordPackageAsync(
+                repository,
+                id,
+                pkgId,
+                null,
+                null,
+                null,
+                request.DiscountAmount,
+                request.AmountPaidCash,
+                request.AmountPaidCard,
+                request.IsComplimentary,
+                request.SessionId,
+                request.SubscriptionScheduleId,
+                User.GetStaffMemberId(),
+                cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        return Ok(new { recorded = true });
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        if (!User.HasAnyReceptionPermission(
+                ReceptionStaffClaims.CanViewCustomerDetails,
+                ReceptionStaffClaims.CanRegisterCustomers))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
+        }
+
+        var athlete = await repository.GetAthleteByIdAsync(id, cancellationToken);
+        if (athlete is null || !AthleteSearchRules.IsSearchable(athlete))
+        {
+            return NotFound();
+        }
+
+        return Ok(MapExistingAthlete(athlete));
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateAthleteRequest request, CancellationToken cancellationToken)
     {
+        if (ReceptionPermissionGate.DenyUnless(this,ReceptionStaffClaims.CanEditCustomerDetails) is { } denied)
+        {
+            return denied;
+        }
+
         var first = (request.FirstName ?? "").Trim();
         var last = (request.LastName ?? "").Trim();
         var phone = NormalizeDigits(request.PhoneNumber);
-        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(last) || string.IsNullOrWhiteSpace(phone))
+        var email = NormalizeText(request.Email);
+        var idCard = NormalizeText(request.IdCardNumber);
+        var clubCard = NormalizeText(request.ClubCardNumber);
+        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, email, idCard, clubCard))
         {
-            return BadRequest(new { error = "Ad, Soyad və Telefon mütləqdir." });
+            return BadRequest(new { error = AthleteRegistrationRules.RequiredFieldsMessage });
         }
 
         try
@@ -144,7 +335,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             var existing = athletes.FirstOrDefault(x => x.Id == id);
             if (existing is null)
             {
-                return NotFound(new { error = "İdmançı tapılmadı." });
+                return NotFound(new { error = "Müştəri tapılmadı." });
             }
 
             await repository.UpdateAthleteAsync(new Domain.Entities.Athlete
@@ -154,13 +345,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 LastName = last,
                 FullName = $"{first} {last}".Trim(),
                 PhoneNumber = phone,
-                Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(),
-                IdCardNumber = string.IsNullOrWhiteSpace(request.IdCardNumber) ? null : request.IdCardNumber.Trim(),
+                Email = email,
+                IdCardNumber = idCard,
+                ClubCardNumber = clubCard,
                 Category = request.Category,
                 IsSubscriber = request.IsSubscriber,
                 MembershipType = request.MembershipType,
                 IsFullPackage = existing.IsFullPackage,
-                IsVip = request.IsVip
+                IsVip = request.IsVip,
+                IsActive = existing.IsActive
             }, cancellationToken);
 
             return Ok(new { message = "Məlumatlar uğurla yeniləndi." });
@@ -171,7 +364,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
         catch (DbUpdateException)
         {
-            return Conflict(new { error = "Bu telefon/email/FİN artıq başqa bir şəxsə aiddir." });
+            return Conflict(new { error = "Bu telefon/email/FİN/kart nömrəsi artıq başqa bir şəxsə aiddir." });
         }
     }
 
@@ -250,6 +443,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.Athlete.PhoneNumber,
                 x.Athlete.Email,
                 x.Athlete.IdCardNumber,
+                x.Athlete.ClubCardNumber,
                 x.Athlete.Category,
                 x.Athlete.MembershipType,
                 x.Athlete.IsSubscriber,
@@ -285,7 +479,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
 
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-        var activeWalkIn = WalkInSubscriptionRules.GetActiveWalkInSchedule(schedules, best.Id, DateTime.Now);
+        var activeVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, best.Id, DateTime.Now);
 
         return Ok(new
         {
@@ -296,16 +490,80 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.PhoneNumber,
             best.Email,
             best.IdCardNumber,
+            best.ClubCardNumber,
             best.Category,
             best.MembershipType,
             best.IsSubscriber,
             best.IsFullPackage,
             best.IsVip,
-            hasActiveWalkIn = activeWalkIn is not null,
-            walkInExpiresLocal = activeWalkIn?.ActiveToDateLocal.ToString("yyyy-MM-dd"),
-            walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 90
+            hasActiveWalkIn = activeVip is not null,
+            walkInExpiresLocal = activeVip?.ActiveToDateLocal.ToString("yyyy-MM-dd"),
+            walkInSessionDurationMinutes = 0
         });
     }
+
+    [HttpPost("{id:guid}/deactivate")]
+    public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(new SetAthleteActiveCommand(id, false), cancellationToken);
+            return Ok(new { message = "Müştəri deaktiv edildi — siyahıdan çıxarıldı." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/reactivate")]
+    public async Task<IActionResult> Reactivate(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(new SetAthleteActiveCommand(id, true), cancellationToken);
+            return Ok(new { message = "Müştəri yenidən aktiv edildi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Deaktiv müştərinin telefon/email/FİN-ini azad edir — eyni nömrə başqa şəxsə keçəndə yeni qeydiyyat üçün.
+    /// </summary>
+    [HttpPost("{id:guid}/release-identifiers")]
+    public async Task<IActionResult> ReleaseIdentifiers(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(new ReleaseInactiveAthleteIdentifiersCommand(id), cancellationToken);
+            return Ok(new { message = "Köhnə qeydiyyatın telefonu azad edildi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static object MapExistingAthlete(Domain.Entities.Athlete existing) => new
+    {
+        existing.Id,
+        existing.FullName,
+        existing.FirstName,
+        existing.LastName,
+        existing.PhoneNumber,
+        existing.Email,
+        existing.IdCardNumber,
+        existing.ClubCardNumber,
+        existing.Category,
+        existing.MembershipType,
+        existing.IsSubscriber,
+        existing.IsFullPackage,
+        existing.IsVip,
+        existing.IsActive
+    };
 
     private static string NormalizeDigits(string? value)
     {
@@ -334,5 +592,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         if (!string.IsNullOrWhiteSpace(emailQ) && !string.IsNullOrWhiteSpace(email) && email.Contains(emailQ)) score += Math.Min(25, emailQ.Length);
 
         return score;
+    }
+
+    private void ApplyDefaultRegistrationDates(ref DateTime? registeredFrom, ref DateTime? registeredTo)
+    {
+        if (!Request.Query.ContainsKey("registeredFrom") && !Request.Query.ContainsKey("registeredTo"))
+        {
+            var today = AzerbaijanTime.TodayLocal;
+            registeredFrom = today;
+            registeredTo = today;
+        }
     }
 }

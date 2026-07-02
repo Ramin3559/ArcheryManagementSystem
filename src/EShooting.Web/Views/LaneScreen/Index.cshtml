@@ -132,20 +132,16 @@
     </div>
 
     <script src="/lib/signalr/signalr.min.js"></script>
+    <script src="/js/baku-time.js"></script>
     <script>
         const laneNumber = @laneNumber;
-        const TV_TZ_OFFSET_MIN = 240; // Asia/Baku UTC+4
 
         function pad2(n) {
-            n = n | 0;
-            return n < 10 ? "0" + n : String(n);
+            return BakuTime.pad2(n);
         }
 
         function formatWallClockText() {
-            var now = new Date();
-            var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-            var baku = new Date(utcMs + TV_TZ_OFFSET_MIN * 60000);
-            return pad2(baku.getUTCHours()) + ":" + pad2(baku.getUTCMinutes()) + ":" + pad2(baku.getUTCSeconds());
+            return BakuTime.formatWallClock();
         }
 
         function updateWallClock() {
@@ -174,20 +170,11 @@
         }
 
         function parseApiDate(value) {
-            if (!value) return new Date(0);
-            const needsUtcSuffix = typeof value === "string" && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value);
-            return new Date(needsUtcSuffix ? value + "Z" : value);
+            return BakuTime.parseApiDate(value);
         }
 
         function formatLocalTimeFromApi(iso) {
-            if (!iso) return "—";
-            var d = parseApiDate(iso);
-            if (Number.isNaN(d.getTime())) return "—";
-            return d.toLocaleTimeString("az-AZ", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false
-            });
+            return BakuTime.formatTimeFromApi(iso, false);
         }
 
         function updateLaneMetaTimes() {
@@ -196,18 +183,18 @@
             var start = ring.dataset.start || "";
             var end = ring.dataset.end || "";
             var vipMode = ring.dataset.vipMode === "1";
+            var openEnded = isOpenEndedRing(ring);
             var startItem = document.querySelector("[data-role=\"schedule-start\"]");
             var endItem = document.querySelector("[data-role=\"schedule-end\"]");
             if (start && startItem) startItem.textContent = "Başlama: " + formatLocalTimeFromApi(start);
             if (endItem instanceof HTMLElement) {
                 var endRow = endItem.closest(".lane-tv-schedule__row");
                 var endPanel = endItem.closest(".lane-tv-panel--session-end");
-                if (vipMode) {
-                    if (endPanel instanceof HTMLElement) endPanel.style.display = "none";
-                    else if (endRow instanceof HTMLElement) endRow.style.display = "none";
+                if (endPanel instanceof HTMLElement) endPanel.style.display = "";
+                else if (endRow instanceof HTMLElement) endRow.style.display = "";
+                if (openEnded) {
+                    endItem.textContent = "Bitmə: Davam edir";
                 } else if (end) {
-                    if (endPanel instanceof HTMLElement) endPanel.style.display = "";
-                    else if (endRow instanceof HTMLElement) endRow.style.display = "";
                     endItem.textContent = "Bitmə: " + formatLocalTimeFromApi(end);
                 }
             }
@@ -215,6 +202,17 @@
 
         function isVipModeRing(ringEl) {
             return ringEl instanceof HTMLElement && ringEl.dataset.vipMode === "1";
+        }
+
+        function isOpenEndedRing(ringEl) {
+            if (!(ringEl instanceof HTMLElement)) return false;
+            if (isVipModeRing(ringEl)) return true;
+            var start = ringEl.dataset.start || "";
+            var end = ringEl.dataset.end || "";
+            if (!start || !end) return false;
+            var startMs = parseApiDate(start).getTime();
+            var endMs = parseApiDate(end).getTime();
+            return !isNaN(startMs) && !isNaN(endMs) && endMs <= startMs;
         }
 
         function formatSeconds(milliseconds) {
@@ -265,6 +263,13 @@
             var status = ringEl.dataset.status || "";
             var start = ringEl.dataset.start || "";
             var end = ringEl.dataset.end || "";
+            if (isOpenEndedRing(ringEl)) {
+                if (!start || status === "Completed" || status === "Idle") return false;
+                if (ringEl.classList.contains("is-live")) return true;
+                var openStartMs = parseApiDate(start).getTime();
+                if (isNaN(openStartMs)) return false;
+                return Date.now() >= openStartMs && status === "Active";
+            }
             if (isVipModeRing(ringEl)) {
                 if (!start || status === "Completed" || status === "Idle") return false;
                 if (ringEl.classList.contains("is-live")) return true;
@@ -356,13 +361,12 @@
                 if (!Number.isNaN(gapVar) && gapVar > 0) gapPx = gapVar;
             }
 
+            var detailGrid = panel.closest(".lane-tv-detail-grid");
             var scheduleEl = null;
             if (panel.classList.contains("lane-tv-panel--name-first")) {
-                var detail = panel.closest(".lane-tv-detail-grid");
-                scheduleEl = detail ? detail.querySelector(".lane-tv-panel--session-start") : null;
+                scheduleEl = detailGrid ? detailGrid.querySelector(".lane-tv-panel--session-start") : null;
             } else if (panel.classList.contains("lane-tv-panel--name-last")) {
-                var detailLast = panel.closest(".lane-tv-detail-grid");
-                scheduleEl = detailLast ? detailLast.querySelector(".lane-tv-panel--session-end") : null;
+                scheduleEl = detailGrid ? detailGrid.querySelector(".lane-tv-panel--session-end") : null;
             } else {
                 scheduleEl = document.querySelector(".lane-tv-panel--session-start, .lane-tv-panel--session-times");
             }
@@ -375,10 +379,15 @@
                 }
             }
 
-            var detailGrid = panel.closest(".lane-tv-detail-grid");
-            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0) {
+            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0
+                && (panel.classList.contains("lane-tv-panel--name-first") || panel.classList.contains("lane-tv-panel--name-last"))) {
                 var colGap = parseFloat(window.getComputedStyle(detailGrid).columnGap) || 0;
-                return Math.max(48, Math.floor((detailGrid.clientWidth - colGap * 2) / 3) - Math.ceil(gapPx / 2));
+                return Math.max(120, Math.floor((detailGrid.clientWidth - colGap * 2) / 3) - Math.ceil(gapPx / 2));
+            }
+
+            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0) {
+                var gridColGap = parseFloat(window.getComputedStyle(detailGrid).columnGap) || 0;
+                return Math.max(48, Math.floor((detailGrid.clientWidth - gridColGap * 2) / 3) - Math.ceil(gapPx / 2));
             }
 
             return Math.max(48, panel.clientWidth);
@@ -396,8 +405,8 @@
                     line.style.removeProperty("letter-spacing");
 
                     var computed = window.getComputedStyle(line);
-                    var fs = parseFloat(computed.fontSize) || 48;
-                    var minFs = 8;
+                    var fs = parseFloat(computed.fontSize) || 64;
+                    var minFs = Math.max(38, Math.round(fs * 0.72));
                     while (line.scrollWidth > maxW && fs > minFs) {
                         fs -= 1;
                         line.style.setProperty("font-size", fs + "px", "important");
@@ -541,13 +550,22 @@
 
                 el.classList.remove("is-live", "is-pending", "is-warn", "is-critical", "is-done", "is-idle", "is-open-ended");
 
-                const vipMode = isVipModeRing(el);
+                const vipMode = isOpenEndedRing(el);
 
                 if (vipMode && start) {
                     const startMs = parseApiDate(start).getTime();
                     const nowMs = Date.now();
 
                     if (status === "Completed") {
+                        if (!isNaN(startMs) && nowMs < startMs) {
+                            el.classList.add("is-pending", "is-open-ended");
+                            timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+                            if (captionEl) captionEl.textContent = "";
+                            setBottomHint("", "");
+                            setCleanupMode(false);
+                            applyRingRemaining(el, 1);
+                            return;
+                        }
                         el.classList.add("is-done");
                         applyLaneEndedDisplay(timerEl, captionEl);
                         if (!setEquipmentReturnHint()) setBottomHint("", "");
@@ -570,8 +588,7 @@
 
                     if (nowMs < startMs) {
                         el.classList.add("is-pending", "is-open-ended");
-                        const startLocal = new Date(startMs);
-                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
                         if (captionEl) captionEl.textContent = "";
                         setBottomHint("", "");
                         setCleanupMode(false);
@@ -580,7 +597,7 @@
                     }
 
                     el.classList.add("is-live", "is-open-ended");
-                    const elapsedMs = nowMs - startMs;
+                    const elapsedMs = Math.max(0, nowMs - startMs);
                     timerEl.textContent = formatSeconds(elapsedMs);
                     if (captionEl) captionEl.textContent = "";
                     setBottomHint("", "");
@@ -603,9 +620,59 @@
                 const startMs = parseApiDate(start).getTime();
                 const endMs = parseApiDate(end).getTime();
                 const nowMs = Date.now();
-                const totalMs = endMs - startMs;
+                const openEndedWindow = !isNaN(startMs) && !isNaN(endMs) && endMs <= startMs;
+                const totalMs = openEndedWindow ? 0 : endMs - startMs;
+
+                if (openEndedWindow) {
+                    if (status === "Completed") {
+                        if (!isNaN(startMs) && nowMs < startMs) {
+                            el.classList.add("is-pending", "is-open-ended");
+                            timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+                            if (captionEl) captionEl.textContent = "";
+                            setBottomHint("", "");
+                            setCleanupMode(false);
+                            applyRingRemaining(el, 1);
+                            return;
+                        }
+                        el.classList.add("is-done");
+                        applyLaneEndedDisplay(timerEl, captionEl);
+                        if (!setEquipmentReturnHint()) setBottomHint("", "");
+                        setCleanupMode(true);
+                        applyRingRemaining(el, 0);
+                        resetRingCompactSize(el);
+                        return;
+                    }
+
+                    if (nowMs < startMs) {
+                        el.classList.add("is-pending", "is-open-ended");
+                        timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 1);
+                        return;
+                    }
+
+                    el.classList.add("is-live", "is-open-ended");
+                    const elapsedOpenMs = Math.max(0, nowMs - startMs);
+                    timerEl.textContent = formatSeconds(elapsedOpenMs);
+                    if (captionEl) captionEl.textContent = "";
+                    setBottomHint("", "");
+                    setCleanupMode(false);
+                    applyRingRemaining(el, 1);
+                    return;
+                }
 
                 if (status === "Completed") {
+                    if (!isNaN(startMs) && nowMs < startMs) {
+                        el.classList.add("is-pending");
+                        timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 1);
+                        return;
+                    }
                     el.classList.add("is-done");
                     applyLaneEndedDisplay(timerEl, captionEl);
                     if (!setEquipmentReturnHint()) {
@@ -621,18 +688,17 @@
                     el.classList.add("is-pending");
                     const untilMs = startMs - nowMs;
                     const untilSec = Math.floor(untilMs / 1000);
-                    const startLocal = new Date(startMs);
 
                     // Never show absurd long countdowns.
                     if (untilSec > 24 * 3600) {
-                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
                         if (captionEl) captionEl.textContent = "";
                         setBottomHint("", "");
                         applyRingRemaining(el, 1);
                         return;
                     }
 
-                    timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                    timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
                     if (captionEl) captionEl.textContent = "";
                     if (untilSec <= COUNTDOWN_WARN_SEC) {
                         const minLeft = Math.max(0, Math.ceil(untilSec / 60));
@@ -727,7 +793,7 @@
 
         function ringUsesCompactSize(ring) {
             if (!(ring instanceof HTMLElement)) return true;
-            if (isVipModeRing(ring) && ring.classList.contains("is-live")) return false;
+            if (isOpenEndedRing(ring) && ring.classList.contains("is-live")) return false;
             var start = ring.getAttribute("data-start") || "";
             var end = ring.getAttribute("data-end") || "";
             if (!start || !end) return true;

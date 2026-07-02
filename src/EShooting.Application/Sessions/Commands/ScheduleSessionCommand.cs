@@ -1,6 +1,7 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Common.Models;
+using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using MediatR;
@@ -14,7 +15,9 @@ public sealed record ScheduleSessionCommand(
     int DurationMinutes,
     bool IsEquipmentIssued,
     PreferredLaneType PreferredLaneType,
-    IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null) : IRequest<Guid>;
+    IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null,
+    Guid? IssuedByStaffId = null,
+    bool ForceOpenEnded = false) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -27,20 +30,34 @@ public sealed class ScheduleSessionCommandHandler(
             throw new InvalidOperationException("Müddət mənfi ola bilməz.");
         }
 
-        var startTimeUtc = LaneReservationRules.NormalizeToUtc(request.StartTimeUtc);
-        var isOpenEnded = request.DurationMinutes == 0;
+        var startTimeUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(request.StartTimeUtc);
         var nowUtc = DateTime.UtcNow;
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var athlete = athletes.FirstOrDefault(x => x.Id == request.AthleteId)
-            ?? throw new InvalidOperationException("İdmançı tapılmadı.");
+            ?? throw new InvalidOperationException("Müştəri tapılmadı.");
 
+        var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
+        var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+
+        var athleteActiveSession = allSessions
+            .FirstOrDefault(s => s.AthleteId == request.AthleteId
+                && SessionHousekeeping.IsAthleteSessionCurrentlyActive(s, nowUtc));
+        if (athleteActiveSession is not null)
+        {
+            var activeLaneNumber = lanes.FirstOrDefault(l => l.Id == athleteActiveSession.LaneId)?.Number ?? 0;
+            throw new InvalidOperationException(activeLaneNumber > 0
+                ? $"Bu şəxs hazırda Zolaq {activeLaneNumber}-də aktivdir. Aktivlik dayandırıldıqdan sonra yeni xətdə yazıla bilər."
+                : "Bu şəxs hazırda başqa bir zolaqda aktivdir. Aktivlik dayandırıldıqdan sonra yeni xətdə yazıla bilər.");
+        }
+
+        var isOpenEnded = request.ForceOpenEnded
+            || request.DurationMinutes == 0
+            || WalkInSubscriptionRules.HasActiveWalkIn(subscriptionSchedules, athlete.Id, DateTime.Now);
         var requestedEndTimeUtc = isOpenEnded
             ? startTimeUtc
             : startTimeUtc.AddMinutes(request.DurationMinutes);
-        var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
-        var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
 
         static bool IsShortLane(int number) => number is >= 1 and <= 8;
         static bool IsLongLane(int number) => number is >= 9 and <= 11;
@@ -134,6 +151,17 @@ public sealed class ScheduleSessionCommandHandler(
 
         if (!isGymLane)
         {
+            foreach (var stale in allSessions.Where(x => x.LaneId == lane.Id).ToList())
+            {
+                if (!SessionHousekeeping.ShouldAutoComplete(stale, nowUtc))
+                {
+                    continue;
+                }
+
+                SessionHousekeeping.MarkCompleted(stale, nowUtc);
+                await repository.UpdateSessionAsync(stale, cancellationToken);
+            }
+
             var existingLaneSessions = allSessions
                 .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
 
@@ -199,17 +227,29 @@ public sealed class ScheduleSessionCommandHandler(
 
         if (equipmentIssues.Count > 0)
         {
-            var catalog = await repository.GetEquipmentItemsAsync(activeOnly: true, cancellationToken);
             var issueRows = new List<SessionEquipmentIssue>();
             foreach (var issue in equipmentIssues)
             {
-                var catalogItem = catalog.FirstOrDefault(x => x.Id == issue.EquipmentItemId)
-                    ?? throw new InvalidOperationException("Seçilmiş avadanlıq tapılmadı və ya deaktivdir.");
+                var catalogItem = await repository.GetEquipmentItemByIdAsync(issue.EquipmentItemId, cancellationToken)
+                    ?? throw new InvalidOperationException("Seçilmiş avadanlıq tapılmadı.");
+                if (!catalogItem.IsActive || catalogItem.IsDeleted)
+                {
+                    throw new InvalidOperationException($"«{catalogItem.Name}» deaktivdir və verilə bilməz.");
+                }
+
+                EquipmentIssuanceRules.ValidateIssueType(catalogItem, issue.IssueType);
+                var quantity = issue.Quantity > 0 ? issue.Quantity : 1;
+                EquipmentIssuanceRules.ApplyStockOnIssue(catalogItem, issue.IssueType, quantity);
+                await repository.UpdateEquipmentItemAsync(catalogItem, cancellationToken);
+
                 issueRows.Add(new SessionEquipmentIssue
                 {
                     SessionId = created.Id,
                     EquipmentItemId = catalogItem.Id,
                     IssueType = issue.IssueType,
+                    Quantity = quantity,
+                    UnitPrice = EquipmentIssuanceRules.ResolveUnitPrice(catalogItem, issue.IssueType),
+                    IssuedByStaffId = request.IssuedByStaffId,
                     ReturnedAtUtc = null
                 });
             }

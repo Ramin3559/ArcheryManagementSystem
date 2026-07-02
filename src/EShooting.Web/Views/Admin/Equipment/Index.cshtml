@@ -9,25 +9,18 @@
 }
 
 <style>
-    .badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 11px;
-        font-weight: 800;
-    }
-    .badge--ok { background: rgba(22,163,74,0.15); color: #166534; }
-    .badge--off { background: rgba(107,114,128,0.18); color: #374151; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .notice { padding: 10px 12px; border-radius: 12px; margin-bottom: 12px; font-weight: 700; }
     .notice--ok { background: #ecfdf5; color: #166534; border: 1px solid rgba(22,163,74,0.25); }
     .notice--err { background: #fef2f2; color: #991b1b; border: 1px solid rgba(220,38,38,0.25); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 </style>
 
 <div class="topbar">
     <h1>Avadanlıqlar</h1>
     <div style="display:flex; align-items:center; gap:10px;">
         <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə">Yenilə</button>
+        <a class="btn btn-excel" href="/admin/equipment/export.xlsx">Excel-ə çıxart</a>
+        <a class="btn" href="/admin/equipment/history">Jurnal / hesabat</a>
         <a class="btn btn-primary" href="/admin/equipment/new">+ Yeni avadanlıq</a>
     </div>
 </div>
@@ -48,45 +41,34 @@
             <tr>
                 <th>Ad</th>
                 <th>Kateqoriya</th>
-                <th>Say</th>
+                <th>Zalda</th>
+                <th>Satış</th>
+                <th>Cəmi</th>
+                <th>Xarab</th>
                 <th>Qiymət</th>
-                <th>Status</th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
             @if (Model.Count == 0)
             {
-                <tr><td colspan="6">Hələ avadanlıq yoxdur.</td></tr>
+                <tr><td colspan="8">Hələ avadanlıq yoxdur.</td></tr>
             }
             else
             {
                 foreach (var item in Model)
                 {
-                    <tr style="@(item.IsActive ? "" : "opacity:0.65;")">
+                    <tr>
                         <td><strong>@item.Name</strong></td>
                         <td>@EquipmentDisplayHelper.FormatCategory(item.Category)</td>
-                        <td>@item.Quantity ədəd</td>
-                        <td>@EquipmentDisplayHelper.FormatPrice(item.Price)</td>
-                        <td>
-                            @if (item.IsActive)
-                            {
-                                <span class="badge badge--ok">Aktiv</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge--off">Deaktiv</span>
-                            }
-                        </td>
+                        <td>@item.RentalQuantity ədəd</td>
+                        <td>@item.SaleQuantity ədəd</td>
+                        <td><strong>@item.Quantity ədəd</strong></td>
+                        <td>@(item.DamagedQuantity > 0 ? $"{item.DamagedQuantity} ədəd" : "—")</td>
+                        <td>@EquipmentDisplayHelper.FormatUnitPrice(item)</td>
                         <td>
                             <div class="actions">
                                 <a class="btn btn-primary" href="/admin/equipment/@item.Id/edit">Dəyişdir</a>
-                                <form method="post" action="/admin/equipment/@item.Id/toggle-active" style="margin:0;">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn @(item.IsActive ? "btn-warning" : "btn-excel")" title="@(item.IsActive ? "Deaktiv et" : "Aktiv et")">
-                                        @(item.IsActive ? "Deaktiv et" : "Aktiv et")
-                                    </button>
-                                </form>
                                 <form method="post" action="/admin/equipment/@item.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-danger">Sil</button>

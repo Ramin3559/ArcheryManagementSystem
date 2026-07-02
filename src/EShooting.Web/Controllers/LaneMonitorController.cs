@@ -1,3 +1,5 @@
+using EShooting.Web.Auth;
+using EShooting.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCaching;
@@ -5,10 +7,10 @@ using Microsoft.AspNetCore.ResponseCaching;
 namespace EShooting.Web.Controllers;
 
 /// <summary>
-/// Planşet üçün yalnız baxış rejimində zolaq monitoru (heç bir əməliyyat yoxdur).
+/// Nəzarətçi planşeti — zolaq monitoru + icarə avadanlığı vermə / təhvil alma.
 /// Məs: /planset/zolaqlar
 /// </summary>
-[AllowAnonymous]
+[Authorize(Policy = PlansetAuthDefaults.Policy)]
 public sealed class LaneMonitorController : Controller
 {
     [HttpGet("/planset/zolaqlar")]

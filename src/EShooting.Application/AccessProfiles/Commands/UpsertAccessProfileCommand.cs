@@ -1,3 +1,4 @@
+using EShooting.Application.AccessProfiles;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
 using MediatR;
@@ -9,9 +10,18 @@ public sealed record UpsertAccessProfileCommand(
     string Name,
     string? Description,
     bool CanRegisterCustomers,
+    bool CanViewCustomerDetails,
+    bool CanEditCustomerDetails,
     bool CanManageSubscriptions,
+    bool CanRecordPayments,
+    bool CanApplyDiscount,
+    bool CanGrantComplimentarySession,
     bool CanManageSessions,
     bool CanManageEquipment,
+    bool CanSellEquipment,
+    bool CanReturnEquipment,
+    bool CanAccessPlanset,
+    bool CanIssueEquipmentRental,
     bool CanViewHistory,
     bool IsActive) : IRequest<Guid>;
 
@@ -25,11 +35,21 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
             throw new InvalidOperationException("Profil adı mütləqdir.");
         }
 
-        if (!request.CanRegisterCustomers
-            && !request.CanManageSubscriptions
-            && !request.CanManageSessions
-            && !request.CanManageEquipment
-            && !request.CanViewHistory)
+        if (!ReceptionPermissionRules.HasAny(
+                request.CanRegisterCustomers,
+                request.CanViewCustomerDetails,
+                request.CanEditCustomerDetails,
+                request.CanManageSubscriptions,
+                request.CanRecordPayments,
+                request.CanApplyDiscount,
+                request.CanGrantComplimentarySession,
+                request.CanManageSessions,
+                request.CanManageEquipment,
+                request.CanSellEquipment,
+                request.CanReturnEquipment,
+                request.CanAccessPlanset,
+                request.CanIssueEquipmentRental,
+                request.CanViewHistory))
         {
             throw new InvalidOperationException("Ən az bir icazə seçilməlidir.");
         }
@@ -39,21 +59,33 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
 
         if (request.Id is null || request.Id == Guid.Empty)
         {
-            var created = await repository.AddAccessProfileAsync(new AccessProfile
+            var created = new AccessProfile
             {
                 Name = name,
                 Description = description,
-                CanRegisterCustomers = request.CanRegisterCustomers,
-                CanManageSubscriptions = request.CanManageSubscriptions,
-                CanManageSessions = request.CanManageSessions,
-                CanManageEquipment = request.CanManageEquipment,
-                CanViewHistory = request.CanViewHistory,
                 IsActive = request.IsActive,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
-            }, cancellationToken);
+            };
+            ReceptionPermissionRules.ApplyPermissions(
+                created,
+                request.CanRegisterCustomers,
+                request.CanViewCustomerDetails,
+                request.CanEditCustomerDetails,
+                request.CanManageSubscriptions,
+                request.CanRecordPayments,
+                request.CanApplyDiscount,
+                request.CanGrantComplimentarySession,
+                request.CanManageSessions,
+                request.CanManageEquipment,
+                request.CanSellEquipment,
+                request.CanReturnEquipment,
+                request.CanAccessPlanset,
+                request.CanIssueEquipmentRental,
+                request.CanViewHistory);
 
-            return created.Id;
+            var added = await repository.AddAccessProfileAsync(created, cancellationToken);
+            return added.Id;
         }
 
         var existing = await repository.GetAccessProfileByIdAsync(request.Id.Value, cancellationToken)
@@ -61,13 +93,24 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
 
         existing.Name = name;
         existing.Description = description;
-        existing.CanRegisterCustomers = request.CanRegisterCustomers;
-        existing.CanManageSubscriptions = request.CanManageSubscriptions;
-        existing.CanManageSessions = request.CanManageSessions;
-        existing.CanManageEquipment = request.CanManageEquipment;
-        existing.CanViewHistory = request.CanViewHistory;
         existing.IsActive = request.IsActive;
         existing.UpdatedAtUtc = DateTime.UtcNow;
+        ReceptionPermissionRules.ApplyPermissions(
+            existing,
+            request.CanRegisterCustomers,
+            request.CanViewCustomerDetails,
+            request.CanEditCustomerDetails,
+            request.CanManageSubscriptions,
+            request.CanRecordPayments,
+            request.CanApplyDiscount,
+            request.CanGrantComplimentarySession,
+            request.CanManageSessions,
+            request.CanManageEquipment,
+            request.CanSellEquipment,
+            request.CanReturnEquipment,
+            request.CanAccessPlanset,
+            request.CanIssueEquipmentRental,
+            request.CanViewHistory);
 
         await repository.UpdateAccessProfileAsync(existing, cancellationToken);
         return existing.Id;

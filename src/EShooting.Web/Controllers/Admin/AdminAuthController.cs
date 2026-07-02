@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EShooting.Web.Auth;
+using EShooting.Web.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -15,14 +16,9 @@ public sealed class AdminAuthController(IAdminCredentialStore adminCredentials) 
     [AllowAnonymous]
     public async Task<IActionResult> Login(string? returnUrl = null)
     {
-        if (User.Identity?.IsAuthenticated == true && User.IsInRole("Admin"))
+        if (await HttpContext.IsAdminAuthenticatedAsync())
         {
             return RedirectToLocal(returnUrl);
-        }
-
-        if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
-        {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }
 
         ViewData["ReturnUrl"] = returnUrl;
@@ -41,15 +37,13 @@ public sealed class AdminAuthController(IAdminCredentialStore adminCredentials) 
                 new(ClaimTypes.Name, userName),
                 new(ClaimTypes.Role, "Admin")
             };
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var identity = new ClaimsIdentity(
+                claims,
+                AdminAuthDefaults.Scheme,
+                ClaimTypes.Name,
+                ClaimTypes.Role);
             var principal = new ClaimsPrincipal(identity);
-            await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                principal,
-                new AuthenticationProperties
-                {
-                    IsPersistent = true
-                });
+            await HttpContext.SignInAdminAsync(principal);
 
             return RedirectToLocal(returnUrl);
         }
@@ -60,12 +54,12 @@ public sealed class AdminAuthController(IAdminCredentialStore adminCredentials) 
     }
 
     [HttpPost("logout")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = AdminAuthDefaults.Policy)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return RedirectToAction(nameof(Login));
+        await HttpContext.SignOutAdminAsync();
+        return Redirect($"/Account/Login?returnUrl={Uri.EscapeDataString("/admin")}");
     }
 
     private IActionResult RedirectToLocal(string? returnUrl)

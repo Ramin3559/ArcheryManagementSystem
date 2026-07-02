@@ -8,6 +8,7 @@ public sealed record UpsertStaffPositionCommand(
     Guid? Id,
     string Name,
     string? Description,
+    Guid? DefaultAccessProfileId,
     bool IsActive) : IRequest<Guid>;
 
 public sealed class UpsertStaffPositionCommandHandler(ITrainingCenterRepository repository)
@@ -20,8 +21,18 @@ public sealed class UpsertStaffPositionCommandHandler(ITrainingCenterRepository 
             throw new InvalidOperationException("Vəzifə adı mütləqdir.");
         }
 
+        if (request.DefaultAccessProfileId is Guid profileId && profileId != Guid.Empty)
+        {
+            var profile = await repository.GetAccessProfileByIdAsync(profileId, cancellationToken);
+            if (profile is null || profile.IsDeleted || !profile.IsActive)
+            {
+                throw new InvalidOperationException("Standart icazə profili tapılmadı və ya deaktivdir.");
+            }
+        }
+
         var name = request.Name.Trim();
         var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        var defaultProfileId = request.DefaultAccessProfileId is Guid id && id != Guid.Empty ? id : (Guid?)null;
 
         if (request.Id is null || request.Id == Guid.Empty)
         {
@@ -29,6 +40,7 @@ public sealed class UpsertStaffPositionCommandHandler(ITrainingCenterRepository 
             {
                 Name = name,
                 Description = description,
+                DefaultAccessProfileId = defaultProfileId,
                 IsActive = request.IsActive,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
@@ -42,6 +54,7 @@ public sealed class UpsertStaffPositionCommandHandler(ITrainingCenterRepository 
 
         existing.Name = name;
         existing.Description = description;
+        existing.DefaultAccessProfileId = defaultProfileId;
         existing.IsActive = request.IsActive;
         existing.UpdatedAtUtc = DateTime.UtcNow;
 

@@ -1,5 +1,9 @@
+using EShooting.Application.Common;
 using EShooting.Application.Equipment.Commands;
 using EShooting.Application.Equipment.Queries;
+using EShooting.Application.StaffMembers.Queries;
+using EShooting.Domain.Enums;
+using EShooting.Web.Auth;
 using EShooting.Web.Contracts.Equipment;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/equipment")]
 public sealed class AdminEquipmentController(IMediator mediator) : Controller
 {
@@ -16,6 +21,44 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
     {
         var items = await mediator.Send(new GetEquipmentItemsQuery(ActiveOnly: false), cancellationToken);
         return View("~/Views/Admin/Equipment/Index.cshtml", items);
+    }
+
+    [HttpGet("history")]
+    public async Task<IActionResult> History(CancellationToken cancellationToken)
+    {
+        var staff = await mediator.Send(new GetStaffMembersQuery(ActiveOnly: false), cancellationToken);
+        var equipmentItems = await mediator.Send(new GetEquipmentItemsQuery(ActiveOnly: false), cancellationToken);
+        ViewData["StaffMembers"] = staff.OrderBy(x => x.FullName).ToList();
+        ViewData["EquipmentItems"] = equipmentItems.OrderBy(x => x.Name).ToList();
+        ViewData["Title"] = "Avadanlıq jurnalı";
+        return View("~/Views/Admin/Equipment/History.cshtml");
+    }
+
+    [HttpGet("history/data")]
+    public async Task<IActionResult> HistoryData([FromQuery] EquipmentHistoryFilter filter, CancellationToken cancellationToken)
+    {
+        ApplyDefaultTodayFilter(filter);
+        var result = await LoadHistoryAsync(filter, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("export.xlsx")]
+    public async Task<IActionResult> ExportCatalog(CancellationToken cancellationToken)
+    {
+        var items = await mediator.Send(new GetEquipmentItemsQuery(ActiveOnly: false), cancellationToken);
+        var bytes = AdminEquipmentCatalogExcelExporter.Export(items);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"avadanliqlar-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
+    }
+
+    [HttpGet("history/export.xlsx")]
+    public async Task<IActionResult> ExportHistory([FromQuery] EquipmentHistoryFilter filter, CancellationToken cancellationToken)
+    {
+        ApplyDefaultTodayFilter(filter);
+        var result = await LoadHistoryAsync(filter, cancellationToken);
+        var bytes = AdminEquipmentHistoryExcelExporter.Export(result);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"avadanliq-jurnal-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
     }
 
     [HttpGet("new")]
@@ -45,9 +88,10 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
             Id = item.Id,
             Name = item.Name,
             Category = item.Category,
-            Quantity = item.Quantity,
-            Price = item.Price,
-            IsActive = item.IsActive
+            RentalQuantity = item.RentalQuantity,
+            SaleQuantity = item.SaleQuantity,
+            DamagedQuantity = item.DamagedQuantity,
+            Price = item.Price
         });
     }
 
@@ -103,7 +147,6 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
             ModelState.AddModelError(nameof(model.Name), "Avadanlıq adı mütləqdir.");
         }
 
-        model.IsActive = Request.Form.ContainsKey("IsActive");
         var price = model.Price is > 0 ? model.Price : null;
 
         try
@@ -112,19 +155,48 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
                 model.Id,
                 model.Name,
                 model.Category,
-                model.Quantity,
-                price,
-                model.IsActive), cancellationToken);
+                model.RentalQuantity,
+                model.SaleQuantity,
+                model.DamagedQuantity,
+                price), cancellationToken);
 
-            TempData["EquipmentNotice"] = model.Id is null
-                ? (model.IsActive ? "Avadanlıq yaradıldı və aktiv edildi." : "Avadanlıq yaradıldı.")
-                : (model.IsActive ? "Avadanlıq yeniləndi və aktivdir." : "Avadanlıq yeniləndi.");
+            TempData["EquipmentNotice"] = model.Id is null ? "Avadanlıq yaradıldı." : "Avadanlıq yeniləndi.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
             return View("~/Views/Admin/Equipment/Form.cshtml", model);
+        }
+    }
+
+    private async Task<Application.Common.Models.EquipmentIssueHistoryResult> LoadHistoryAsync(
+        EquipmentHistoryFilter filter,
+        CancellationToken cancellationToken)
+    {
+        var from = filter.FromLocal ?? AzerbaijanTime.TodayLocal;
+        var to = filter.ToLocal ?? from;
+        return await mediator.Send(
+            new GetEquipmentIssueHistoryQuery(
+                from,
+                to,
+                filter.EquipmentItemId,
+                filter.IssueType,
+                filter.IssuedByStaffId),
+            cancellationToken);
+    }
+
+    private static void ApplyDefaultTodayFilter(EquipmentHistoryFilter filter)
+    {
+        if (filter.FromLocal is null && filter.ToLocal is null)
+        {
+            filter.FromLocal = AzerbaijanTime.TodayLocal;
+            filter.ToLocal = AzerbaijanTime.TodayLocal;
+        }
+        else
+        {
+            filter.FromLocal ??= filter.ToLocal;
+            filter.ToLocal ??= filter.FromLocal;
         }
     }
 }

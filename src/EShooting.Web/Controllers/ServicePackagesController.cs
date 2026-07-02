@@ -1,3 +1,4 @@
+using EShooting.Application.Common;
 using EShooting.Application.Packages.Queries;
 using EShooting.Domain.Enums;
 using MediatR;
@@ -18,7 +19,9 @@ public sealed class ServicePackagesController(IMediator mediator) : ControllerBa
             p.Id,
             p.Name,
             billingType = p.BillingType.ToString(),
-            billingTypeLabel = p.BillingType switch
+            billingTypeLabel = ServicePackageRules.IsVipPackage(p.BillingType, p.Scope, p.SchedulingMode, p.SessionDurationMinutes)
+                ? "VIP"
+                : p.BillingType switch
             {
                 PackageBillingType.OneTime => "Birdefəlik",
                 PackageBillingType.Monthly => "Aylıq",

@@ -1,30 +1,21 @@
 @using EShooting.Web.Helpers
 @model EShooting.Application.Common.Models.LaneDashboardItem
-<article class="lane-card lane-card--readonly">
+<article class="lane-card lane-card--readonly @(Model.HasPendingRentalEquipment ? "lane-card--pending-equip" : "")">
     @{
         var st = Model.Status ?? "Idle";
-        var nowUtc = DateTime.UtcNow;
-        var startUtc = Model.StartTimeUtc is null
-            ? (DateTime?)null
-            : (Model.StartTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.StartTimeUtc.Value, DateTimeKind.Utc) : Model.StartTimeUtc.Value.ToUniversalTime());
-        var endUtc = Model.EndTimeUtc is null
-            ? (DateTime?)null
-            : (Model.EndTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.EndTimeUtc.Value, DateTimeKind.Utc) : Model.EndTimeUtc.Value.ToUniversalTime());
-
-        var trainingBuffer = TimeSpan.Zero;
-        var effectiveStatus = st;
-        if (startUtc is not null && endUtc is not null)
-        {
-            var trainingEndUtc = endUtc.Value - trainingBuffer;
-            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
-            else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
-            else effectiveStatus = "Active";
-        }
-
+        var isOpenEnded = LaneDisplayHelper.IsOpenEndedLaneSession(Model);
+        var effectiveStatus = LaneDisplayHelper.ResolveEffectiveLaneStatus(st, Model.StartTimeUtc, Model.EndTimeUtc, isOpenEnded);
         var laneTypeText = LaneDisplayHelper.TranslateLaneType(Model.LaneType);
         var athleteCore = LaneDisplayHelper.StripAthleteLabelPrefix(Model.AthleteName);
-        var athleteLabel = string.IsNullOrEmpty(athleteCore) ? "Atıcı: —" : $"Atıcı: {athleteCore}";
-        var showSession = Model.IsSessionOpen && Model.SessionId is not null;
+        var athleteLabel = string.IsNullOrEmpty(athleteCore) ? "—" : athleteCore;
+        var endDisplay = LaneDisplayHelper.FormatSessionEndDisplay(Model.StartTimeUtc, Model.EndTimeUtc, effectiveStatus, isOpenEnded);
+        var hasSession = Model.SessionId is not null;
+        var equipSessionId = Model.SessionId ?? Model.PendingRentalSessionId;
+        var pendingAthlete = LaneDisplayHelper.StripAthleteLabelPrefix(Model.PendingRentalAthleteName);
+        var showPendingOnly = Model.HasPendingRentalEquipment && !hasSession;
+        var displayAthlete = hasSession
+            ? athleteLabel
+            : (showPendingOnly ? (string.IsNullOrEmpty(pendingAthlete) ? "—" : pendingAthlete) : athleteLabel);
     }
     <div class="lane-head">
         <h3 class="lane-title">Zolaq @Model.LaneNumber</h3>
@@ -33,37 +24,68 @@
 
     <div class="lane-type">@(
         effectiveStatus == "Active"
-            ? $"Aktiv atıcı ({laneTypeText})"
+            ? $"Aktiv müştəri ({laneTypeText})"
             : effectiveStatus == "Scheduled"
-                ? $"Atıcı ({laneTypeText})"
+                ? $"Müştəri ({laneTypeText})"
                 : laneTypeText
         )</div>
-    @if (showSession)
+
+    <div class="lane-meta lane-meta--names">Müştəri: @displayAthlete</div>
+    @if (hasSession && Model.StartTimeUtc is not null)
     {
-        <div class="lane-meta lane-meta--names">@athleteLabel
-            @if (Model.HasPendingRentalEquipment)
-            {
-                <span aria-hidden="true" style="margin-left:6px;">🏹</span>
-            }
-        </div>
-        <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc)</div>
+        <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @endDisplay</div>
+    }
+    else if (showPendingOnly)
+    {
+        <div class="lane-meta lane-meta--compact lane-meta--pending-equip">Vaxt bitib · icarə təhvil gözlənir</div>
     }
 
-    <div class="countdown-ring-wrap"
-         data-countdown-ring
-         data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
-         data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
-         data-status="@effectiveStatus"
-         data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
-        <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
-            <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
-            <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
-        </svg>
-        <div class="countdown-ring__center">
-            <div class="countdown-ring__timer" data-role="timer">—</div>
-            <div class="countdown-ring__caption" data-role="caption">Gözləyir</div>
+    @if (showPendingOnly)
+    {
+        <div class="lane-pending-equip-banner" data-pending-rental-equipment="1">
+            <div class="lane-pending-equip-banner__title">Avadanlıq təhvil alınmalıdır</div>
+            @if (!string.IsNullOrWhiteSpace(Model.PendingRentalEquipmentSummary))
+            {
+                <div class="lane-pending-equip-banner__items">@Model.PendingRentalEquipmentSummary</div>
+            }
         </div>
-    </div>
+    }
+    else
+    {
+        <div class="countdown-ring-wrap"
+             data-countdown-ring
+             data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
+             data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
+             data-status="@effectiveStatus"
+             data-vip-mode="@(isOpenEnded ? "1" : "0")"
+             data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
+            <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="countdown-ring__track" cx="50" cy="50" r="42" />
+                <circle class="countdown-ring__progress" cx="50" cy="50" r="42" />
+            </svg>
+            <div class="countdown-ring__center">
+                <div class="countdown-ring__timer" data-role="timer">—</div>
+                <div class="countdown-ring__caption" data-role="caption">Gözləyir</div>
+            </div>
+        </div>
+    }
 
     <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
+
+    @if (equipSessionId is Guid sid)
+    {
+        <div class="lane-equip-actions"
+             data-session-id="@sid"
+             data-lane-number="@Model.LaneNumber"
+             data-pending-rental="@(Model.HasPendingRentalEquipment ? "1" : "0")">
+            @if (effectiveStatus == "Active" && hasSession)
+            {
+                <button type="button" class="lane-equip-btn lane-equip-btn--issue" data-action="issue-equipment">İcarə ver</button>
+            }
+            @if (Model.HasPendingRentalEquipment)
+            {
+                <button type="button" class="lane-equip-btn lane-equip-btn--return" data-action="return-equipment">Təhvil al</button>
+            }
+        </div>
+    }
 </article>

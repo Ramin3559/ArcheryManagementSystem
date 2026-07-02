@@ -11,5 +11,6 @@ public sealed class StaffMemberItem
     public Guid AccessProfileId { get; init; }
     public string AccessProfileName { get; init; } = string.Empty;
     public string? PhoneNumber { get; init; }
+    public string? CurrentPin { get; init; }
     public bool IsActive { get; init; }
 }

@@ -19,14 +19,14 @@ public sealed class ReceptionController(IMediator mediator) : Controller
   [AllowAnonymous]
   public async Task<IActionResult> Giris()
   {
-    if (User.IsReceptionStaff() || User.IsInRole("Admin"))
+    if (User.IsReceptionStaff())
     {
       return Redirect("/qeydiyyat");
     }
 
     if (User.Identity?.IsAuthenticated == true)
     {
-      await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+      await HttpContext.SignOutReceptionAsync();
     }
 
     return View();
@@ -49,11 +49,11 @@ public sealed class ReceptionController(IMediator mediator) : Controller
   }
 
   [HttpPost("cixis")]
-  [Authorize(Roles = $"{ReceptionStaffClaims.Role},Admin")]
+  [Authorize(Policy = "ReceptionPanel")]
   [ValidateAntiForgeryToken]
   public async Task<IActionResult> Cixis()
   {
-    await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    await HttpContext.SignOutReceptionAsync();
     return RedirectToAction(nameof(Giris));
   }
 }

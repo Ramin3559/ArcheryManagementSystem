@@ -1,22 +1,17 @@
-namespace EShooting.Web.Contracts.Athletes;
 using EShooting.Domain.Enums;
 
-/// <summary>
-/// Yeni idmancinin qeydiyyati ucun request modeli.
-/// </summary>
+namespace EShooting.Api.Contracts.Athletes;
+
 public sealed class RegisterAthleteRequest
 {
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
-    public string? Email { get; set; }
-    public string? IdCardNumber { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string IdCardNumber { get; set; } = string.Empty;
+    public string ClubCardNumber { get; set; } = string.Empty;
     public CustomerCategory Category { get; set; } = CustomerCategory.Amateur;
-
-    /// <summary>
-    /// Idmancinin abonent olub-olmadigini gosterir.
-    /// </summary>
     public bool IsSubscriber { get; set; }
-
     public MembershipType MembershipType { get; set; } = MembershipType.FullCombo;
+    public bool IsVip { get; set; }
 }

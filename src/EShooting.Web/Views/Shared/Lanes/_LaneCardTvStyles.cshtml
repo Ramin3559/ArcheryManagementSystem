@@ -1,4 +1,4 @@
-<style id="lane-tv-styles-v3-24">
+<style id="lane-tv-styles-v3-26">
     /* TV zolaq kartı — layout v3 (MiBox / Android TV overscan nəzərə alınır) */
     .lane-tv-body .lane-card.is-cleanup .lane-tv-athlete {
         display: none !important;
@@ -25,7 +25,8 @@
         color: var(--text, #8B2318);
         box-sizing: border-box;
         --tv-row-font: clamp(46px, 5.4vmin, 66px);
-        --tv-center-nudge: clamp(28px, 4vw, 56px);
+        --tv-name-font: clamp(64px, 8vmin, 94px);
+        --tv-center-nudge: clamp(0px, 1.2vw, 16px);
         --tv-schedule-block-width: clamp(260px, 24vw, 380px);
         --tv-name-schedule-gap: clamp(4px, 0.5vw, 8px);
     }
@@ -63,7 +64,7 @@
         grid-template-rows: auto auto;
         grid-template-areas:
             "fname start ."
-            "lname .     .";
+            "lname end   .";
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-detail-grid {
@@ -76,7 +77,7 @@
         grid-template-areas:
             "fname start ."
             "lname end   .";
-        column-gap: clamp(4px, 0.8vw, 10px);
+        column-gap: 0;
         row-gap: clamp(8px, 1.2vh, 14px);
         padding-top: clamp(10px, 1.6vh, 20px);
         z-index: 2;
@@ -109,7 +110,7 @@
         max-width: 100%;
         text-align: left;
         pointer-events: none;
-        transform: translateX(var(--tv-center-nudge, 28px));
+        transform: translateX(var(--tv-center-nudge, 0px));
         z-index: 3;
         box-sizing: border-box;
     }
@@ -167,35 +168,36 @@
         z-index: 3;
     }
 
-    /* Zolaq + Başlama/Bitmə — ekranın üfüqi mərkəzi (Zolaq ilə eyni xətt) */
+    /* Zolaq + Başlama/Bitmə — orta sütunda eyni sol xətt */
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack,
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times {
         justify-self: center;
         align-self: start;
-        width: max-content;
+        width: var(--tv-schedule-block-width, clamp(260px, 24vw, 380px));
         max-width: 100%;
-        text-align: center;
+        text-align: left;
         pointer-events: none;
-        transform: translateX(var(--tv-center-nudge, 28px));
+        transform: translateX(var(--tv-center-nudge, 0px));
+        box-sizing: border-box;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack {
         grid-area: stack;
-        grid-column: 1 / -1;
-        grid-row: 1;
         padding-top: clamp(8px, 1.8vh, 24px);
         z-index: 1;
     }
 
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack .lane-tv-center-col,
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--center-stack .lane-tv-center-inner {
+        display: block;
+        width: 100%;
+        text-align: left;
+    }
+
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times {
         grid-area: times;
-        grid-column: 1 / -1;
-        grid-row: 2;
         padding-top: clamp(10px, 1.6vh, 20px);
         z-index: 1;
-        width: var(--tv-schedule-block-width, clamp(260px, 24vw, 380px));
-        max-width: 100%;
-        text-align: left;
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-panel--session-times .lane-tv-center-col,
@@ -327,7 +329,7 @@
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete--group .lane-tv-first-name,
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-athlete--group .lane-tv-last-name {
-        font-size: var(--tv-row-font);
+        font-size: var(--tv-name-font);
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-first-name,
@@ -339,7 +341,7 @@
         white-space: nowrap;
         max-width: 100%;
         overflow: visible;
-        font-size: var(--tv-row-font);
+        font-size: var(--tv-name-font);
     }
 
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-schedule {
@@ -377,7 +379,10 @@
     .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-equip {
         margin-top: 6px;
         font-size: clamp(28px, 3vw, 40px);
-        line-height: 1;
+    }
+
+    .lane-card.lane-card--tv[data-tv-layout="v3"] .lane-tv-equip--hidden {
+        display: none !important;
     }
 
     .lane-tv-body .lane-card[data-tv-layout="v3"] .lane-bottom-hint {

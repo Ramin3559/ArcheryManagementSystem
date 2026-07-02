@@ -3,13 +3,15 @@ using EShooting.Application.Packages.Commands;
 using EShooting.Application.Packages.Queries;
 using EShooting.Domain.Enums;
 using EShooting.Web.Contracts.Packages;
+using EShooting.Web.Auth;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/packages")]
 public sealed class AdminPackagesController(IMediator mediator) : Controller
 {

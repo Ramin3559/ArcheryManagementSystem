@@ -17,5 +17,6 @@ public static class AthleteSearchRules
             && string.IsNullOrWhiteSpace(athlete.LastName);
     }
 
-    public static bool IsSearchable(Athlete athlete) => !IsGroupSessionPlaceholder(athlete);
+    public static bool IsSearchable(Athlete athlete) =>
+        athlete.IsActive && !IsGroupSessionPlaceholder(athlete);
 }

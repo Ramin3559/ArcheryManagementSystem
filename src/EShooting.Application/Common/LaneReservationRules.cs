@@ -7,6 +7,32 @@ public static class LaneReservationRules
 {
     public static readonly TimeSpan SessionBuffer = TimeSpan.Zero;
 
+    private static bool HasActivation(TrainingSession session)
+    {
+        // Backward-compatible: older rows may have Status=Active without ActivatedAtUtc.
+        return session.ActivatedAtUtc is not null || session.Status == SessionStatus.Active;
+    }
+
+    private static DateTime ResolveEffectiveStartUtc(TrainingSession session)
+    {
+        if (session.ActivatedAtUtc is DateTime activated)
+        {
+            return DateTimeAssumedUtc.AsUtc(activated);
+        }
+
+        return DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+    }
+
+    private static DateTime ResolveEffectiveEndUtc(TrainingSession session)
+    {
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        var plannedDuration = plannedEnd > plannedStart ? plannedEnd - plannedStart : TimeSpan.Zero;
+
+        var effectiveStart = ResolveEffectiveStartUtc(session);
+        return plannedDuration > TimeSpan.Zero ? effectiveStart + plannedDuration : effectiveStart;
+    }
+
     public static DateTime NormalizeToUtc(DateTime value)
     {
         return value.Kind switch
@@ -33,8 +59,8 @@ public static class LaneReservationRules
             return false;
         }
 
-        var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        var start = ResolveEffectiveStartUtc(session);
+        var end = ResolveEffectiveEndUtc(session);
         return end <= start && nowUtc >= start;
     }
 
@@ -43,8 +69,13 @@ public static class LaneReservationRules
     /// </summary>
     public static bool IsTimeExpired(TrainingSession session, DateTime nowUtc)
     {
-        var existingStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var existingEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        if (!HasActivation(session))
+        {
+            return false;
+        }
+
+        var existingStart = ResolveEffectiveStartUtc(session);
+        var existingEnd = ResolveEffectiveEndUtc(session);
         if (!HasValidWindow(existingStart, existingEnd))
         {
             return false;
@@ -65,11 +96,27 @@ public static class LaneReservationRules
             return false;
         }
 
-        var existingStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var existingEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-        if (!HasValidWindow(existingStart, existingEnd))
+        // Not activated yet: reserve the originally planned window.
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        var existingStart = HasActivation(session) ? ResolveEffectiveStartUtc(session) : plannedStart;
+        var existingEnd = HasActivation(session) ? ResolveEffectiveEndUtc(session) : plannedEnd;
+
+        if (!HasValidWindow(plannedStart, plannedEnd))
         {
-            return IsOpenEndedAndStarted(session, nowUtc);
+            if (session.Status == SessionStatus.Completed)
+            {
+                return false;
+            }
+
+            // Gələcək planlı müddətsiz sessiya — yalnız həmin vaxt pəncərəsində toqquşur.
+            if (nowUtc < existingStart)
+            {
+                return requestedStartUtc < existingEnd && requestedEndUtc > existingStart;
+            }
+
+            // Aktiv müddətsiz sessiya zolağı tutur (stop edilənə qədər).
+            return true;
         }
 
         // Global overlap rule (buffer is persisted in EndTimeUtc).

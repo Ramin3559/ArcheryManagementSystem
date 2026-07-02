@@ -3,28 +3,12 @@
 <article class="lane-card">
     @{
         var st = Model.Status ?? "Idle";
-        var nowUtc = DateTime.UtcNow;
-        var startUtc = Model.StartTimeUtc is null
-            ? (DateTime?)null
-            : (Model.StartTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.StartTimeUtc.Value, DateTimeKind.Utc) : Model.StartTimeUtc.Value.ToUniversalTime());
-        var endUtc = Model.EndTimeUtc is null
-            ? (DateTime?)null
-            : (Model.EndTimeUtc.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(Model.EndTimeUtc.Value, DateTimeKind.Utc) : Model.EndTimeUtc.Value.ToUniversalTime());
-
-        // Buffer ləğv edildi: sessiya EndTimeUtc-də bitir.
-        var trainingBuffer = TimeSpan.Zero;
-        var effectiveStatus = st;
-        if (startUtc is not null && endUtc is not null)
-        {
-            var trainingEndUtc = endUtc.Value - trainingBuffer;
-            if (nowUtc < startUtc.Value) effectiveStatus = "Scheduled";
-            else if (nowUtc >= trainingEndUtc) effectiveStatus = "Completed";
-            else effectiveStatus = "Active";
-        }
-
+        var isOpenEnded = LaneDisplayHelper.IsOpenEndedLaneSession(Model);
+        var effectiveStatus = LaneDisplayHelper.ResolveEffectiveLaneStatus(st, Model.StartTimeUtc, Model.EndTimeUtc, isOpenEnded);
         var isEffectivelyActive = string.Equals(effectiveStatus, "Active", StringComparison.Ordinal);
         var laneTypeText = LaneDisplayHelper.TranslateLaneType(Model.LaneType);
         var showSession = Model.IsSessionOpen && Model.SessionId is not null;
+        var endDisplay = LaneDisplayHelper.FormatSessionEndDisplay(Model.StartTimeUtc, Model.EndTimeUtc, effectiveStatus, isOpenEnded);
     }
     <div class="lane-head">
         <h3 class="lane-title">Zolaq @Model.LaneNumber</h3>
@@ -33,21 +17,17 @@
 
     <div class="lane-type">@(
         effectiveStatus == "Active"
-            ? $"Aktiv atıcı ({laneTypeText})"
+            ? $"Aktiv müştəri ({laneTypeText})"
             : effectiveStatus == "Scheduled"
-                ? $"Atıcı ({laneTypeText})"
+                ? $"Müştəri ({laneTypeText})"
                 : laneTypeText
         )</div>
     @if (showSession)
     {
         <div class="lane-meta">
             @LaneDisplayHelper.FormatAthleteLabel(Model.AthleteName)
-            @if (Model.HasPendingRentalEquipment)
-            {
-                <span title="İcarə avadanlığı verilib" style="margin-left:6px;">🏹</span>
-            }
         </div>
-        <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @LaneDisplayHelper.FormatTimeLocal(Model.EndTimeUtc)</div>
+        <div class="lane-meta lane-meta--compact">Başlanğıc: @LaneDisplayHelper.FormatTimeLocal(Model.StartTimeUtc) · Son: @endDisplay</div>
     }
 
     <div class="countdown-ring-wrap"
@@ -55,6 +35,7 @@
          data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
          data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
          data-status="@effectiveStatus"
+         data-vip-mode="@(isOpenEnded ? "1" : "0")"
          data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
         <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle class="countdown-ring__track" cx="50" cy="50" r="42" />

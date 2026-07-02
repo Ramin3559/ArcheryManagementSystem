@@ -1,4 +1,5 @@
 using EShooting.Web.Auth;
+using EShooting.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,13 +27,41 @@ public sealed class HomeController : Controller
   /// </summary>
   [HttpGet("/qeydiyyat")]
   [HttpGet("/resepsiya")]
-  [Authorize(Roles = $"{ReceptionStaffClaims.Role},Admin")]
+  [Authorize(Policy = "ReceptionPanel")]
   public IActionResult Index()
   {
     return View();
   }
 
-  /// <summary>
+    /// <summary>Müştərilərin tam siyahısı (resepsiya).</summary>
+    [HttpGet("/qeydiyyat/musteriler")]
+    [Authorize(Policy = "ReceptionPanel")]
+    public IActionResult Customers()
+    {
+        if (ReceptionPermissionGate.DenyUnless(this,ReceptionStaffClaims.CanViewCustomerDetails) is { } denied)
+        {
+            return denied;
+        }
+
+        return View("Customers");
+    }
+
+    /// <summary>Avadanlıq satışı və geri qaytarma (resepsiya).</summary>
+    [HttpGet("/qeydiyyat/avadanliq-satis")]
+    [Authorize(Policy = "ReceptionPanel")]
+    public IActionResult EquipmentSales()
+    {
+        if (!User.HasAnyReceptionPermission(
+                ReceptionStaffClaims.CanSellEquipment,
+                ReceptionStaffClaims.CanReturnEquipment))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, "Bu səhifə üçün icazəniz yoxdur.");
+        }
+
+        return View("EquipmentSales");
+    }
+
+    /// <summary>
   /// Köhnə əlfəcinlər /Home/Index üçün.
   /// </summary>
   [HttpGet("/Home/Index")]

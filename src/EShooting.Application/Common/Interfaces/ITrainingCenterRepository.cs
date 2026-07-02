@@ -21,7 +21,16 @@ public interface ITrainingCenterRepository
     Task<IReadOnlyCollection<Lane>> GetLanesAsync(CancellationToken cancellationToken);
     Task<IReadOnlyCollection<Athlete>> GetAthletesAsync(CancellationToken cancellationToken);
     Task<Athlete?> GetAthleteByIdAsync(Guid athleteId, CancellationToken cancellationToken);
-    Task<Athlete?> FindAthleteForLookupAsync(string phoneDigits, string emailNormalized, string idCardNormalized, CancellationToken cancellationToken);
+    Task<Athlete?> FindAthleteForLookupAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false);
+    Task<Athlete?> FindAthleteByExactPhoneAsync(
+        string phoneDigits,
+        CancellationToken cancellationToken,
+        bool includeInactive = false);
     Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(Guid athleteId, CancellationToken cancellationToken);
     Task<SubscriptionSchedule> AddSubscriptionScheduleAsync(SubscriptionSchedule schedule, CancellationToken cancellationToken);
     Task UpdateSubscriptionScheduleAsync(SubscriptionSchedule schedule, CancellationToken cancellationToken);
@@ -42,6 +51,17 @@ public interface ITrainingCenterRepository
     Task<SessionEquipmentIssue?> GetSessionEquipmentIssueByIdAsync(Guid issueId, CancellationToken cancellationToken);
     Task UpdateSessionEquipmentIssueAsync(SessionEquipmentIssue issue, CancellationToken cancellationToken);
 
+    Task<IReadOnlyCollection<EquipmentSaleReceipt>> GetEquipmentSaleReceiptsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<EquipmentSaleReceiptLine>> GetEquipmentSaleReceiptLinesAsync(CancellationToken cancellationToken);
+    Task<EquipmentSaleReceipt?> GetEquipmentSaleReceiptByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task AddEquipmentSaleReceiptAsync(EquipmentSaleReceipt receipt, IReadOnlyCollection<EquipmentSaleReceiptLine> lines, CancellationToken cancellationToken);
+    Task CreateEquipmentSaleAsync(
+        EquipmentSaleReceipt receipt,
+        IReadOnlyCollection<EquipmentSaleReceiptLine> lines,
+        IReadOnlyDictionary<Guid, int> quantitySoldByItemId,
+        CancellationToken cancellationToken);
+    Task UpdateEquipmentSaleReceiptAsync(EquipmentSaleReceipt receipt, CancellationToken cancellationToken);
+
     Task<IReadOnlyCollection<StaffPosition>> GetStaffPositionsAsync(bool activeOnly, CancellationToken cancellationToken);
     Task<StaffPosition?> GetStaffPositionByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<StaffPosition> AddStaffPositionAsync(StaffPosition position, CancellationToken cancellationToken);
@@ -59,4 +79,9 @@ public interface ITrainingCenterRepository
     Task UpdateStaffMemberAsync(StaffMember member, CancellationToken cancellationToken);
     Task<bool> IsStaffPinInUseAsync(string pin, Guid? excludeMemberId, CancellationToken cancellationToken);
     Task<bool> IsStaffPhoneInUseAsync(string phoneNumber, Guid? excludeMemberId, CancellationToken cancellationToken);
+
+    Task<CustomerPackageRecord> AddCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
+    Task<CustomerPackageRecord?> GetCustomerPackageRecordByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken);
 }

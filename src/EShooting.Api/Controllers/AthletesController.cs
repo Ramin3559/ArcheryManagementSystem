@@ -1,18 +1,15 @@
-using EShooting.Web.Contracts.Athletes;
+using EShooting.Api.Contracts.Athletes;
 using EShooting.Application.Athletes.Commands;
 using EShooting.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
-namespace EShooting.Web.Controllers;
+namespace EShooting.Api.Controllers;
 
 [ApiController]
 [Route("athletes")]
 public sealed class AthletesController(IMediator mediator, ITrainingCenterRepository repository) : ControllerBase
 {
-    /// <summary>
-    /// Yeni idmancini qeydiyyatdan kecirir ve yaradilan identifikatoru qaytarir.
-    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Register([FromBody] RegisterAthleteRequest request, CancellationToken cancellationToken)
     {
@@ -23,9 +20,11 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 request.PhoneNumber,
                 request.Email,
                 request.IdCardNumber,
+                request.ClubCardNumber,
                 request.Category,
                 request.IsSubscriber,
-                request.MembershipType),
+                request.MembershipType,
+                request.IsVip),
             cancellationToken);
 
         return Ok(new { id });

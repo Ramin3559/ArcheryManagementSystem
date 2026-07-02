@@ -2,12 +2,14 @@ using System.Globalization;
 using EShooting.Application.Analytics.Queries;
 using EShooting.Application.Common.Models;
 using MediatR;
+using EShooting.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EShooting.Web.Controllers.Admin;
 
-[AllowAnonymous]
+[Authorize(Policy = AdminAuthDefaults.Policy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/analytics")]
 public sealed class AdminAnalyticsController(IMediator mediator) : Controller
 {
@@ -38,11 +40,34 @@ public sealed class AdminAnalyticsController(IMediator mediator) : Controller
         [FromQuery] string? fromDate,
         [FromQuery] string? toDate,
         [FromQuery] string? month,
+        [FromQuery] string? section,
         CancellationToken cancellationToken)
     {
         var result = await LoadAsync(mode, fromDate, toDate, month, cancellationToken);
-        var bytes = AdminAnalyticsExcelExporter.Export(result);
-        var name = $"EShooting-Analitika-{result.FromLocal}-{result.ToLocal}.xlsx";
+        var sectionKey = (section ?? "all").Trim().ToLowerInvariant();
+        var bytes = AdminAnalyticsExcelExporter.Export(result, sectionKey);
+        var sectionSuffix = sectionKey == "all" ? "Hamisi" : sectionKey;
+        var name = $"EShooting-Hesabat-{sectionSuffix}-{result.FromLocal}-{result.ToLocal}.xlsx";
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name);
+    }
+
+    [HttpPost("export-grid.xlsx")]
+    public IActionResult ExportGrid([FromBody] AnalyticsGridExportRequest request)
+    {
+        if (request.Headers is null || request.Headers.Count == 0)
+        {
+            return BadRequest(new { error = "Cədvəl başlıqları boşdur." });
+        }
+
+        var rows = request.Rows ?? [];
+        var bytes = AdminAnalyticsExcelExporter.ExportGrid(
+            request.SheetName ?? "Hesabat",
+            request.Subtitle,
+            request.Headers,
+            rows);
+
+        var safeSheet = (request.SheetName ?? "Hesabat").Replace(" ", "-");
+        var name = $"EShooting-{safeSheet}-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name);
     }
 
@@ -121,37 +146,145 @@ public sealed class AdminAnalyticsController(IMediator mediator) : Controller
         sessionCount = result.SessionCount,
         subscriptionCreatedCount = result.SubscriptionCreatedCount,
         equipmentSaleCount = result.EquipmentSaleCount,
-        equipmentRentalCount = result.EquipmentRentalCount,
+        equipmentRentalIssuedCount = result.EquipmentRentalIssuedCount,
+        equipmentRentalReturnedCount = result.EquipmentRentalReturnedCount,
+        equipmentRentalOutstandingCount = result.EquipmentRentalOutstandingCount,
         equipmentSaleRevenue = result.EquipmentSaleRevenue,
-        equipmentRentalRevenue = result.EquipmentRentalRevenue,
         totalLaneHours = result.TotalLaneHours,
         busiestLaneNumber = result.BusiestLaneNumber,
-        dailyBreakdown = result.DailyBreakdown.Select(x => new
-        {
-            dateLocal = x.DateLocal,
-            uniqueCustomerCount = x.UniqueCustomerCount,
-            newCustomerCount = x.NewCustomerCount,
-            sessionCount = x.SessionCount,
-            subscriptionCreatedCount = x.SubscriptionCreatedCount,
-            equipmentSaleCount = x.EquipmentSaleCount,
-            equipmentRentalCount = x.EquipmentRentalCount,
-            equipmentSaleRevenue = x.EquipmentSaleRevenue,
-            equipmentRentalRevenue = x.EquipmentRentalRevenue,
-            laneHoursTotal = x.LaneHoursTotal
-        }),
+        packageRecordCount = result.PackageRecordCount,
+        complimentaryCount = result.ComplimentaryCount,
+        packagePriceDue = result.PackagePriceDue,
+        packagePaidCash = result.PackagePaidCash,
+        packagePaidCard = result.PackagePaidCard,
+        packagePaidTotal = result.PackagePaidTotal,
+        packageRemaining = result.PackageRemaining,
+        standaloneEquipmentSaleCount = result.StandaloneEquipmentSaleCount,
+        standaloneEquipmentSaleDue = result.StandaloneEquipmentSaleDue,
+        standaloneEquipmentPaidCash = result.StandaloneEquipmentPaidCash,
+        standaloneEquipmentPaidCard = result.StandaloneEquipmentPaidCard,
+        standaloneEquipmentPaidTotal = result.StandaloneEquipmentPaidTotal,
+        standaloneEquipmentRemaining = result.StandaloneEquipmentRemaining,
+        totalPriceDue = result.TotalPriceDue,
+        totalPaidCash = result.TotalPaidCash,
+        totalPaidCard = result.TotalPaidCard,
+        totalPaid = result.TotalPaid,
+        totalRemaining = result.TotalRemaining,
+        dailyBreakdown = result.DailyBreakdown.Select(MapDailyRow),
+        dailyTotals = MapDailyTotals(result.DailyTotals),
         laneActivity = result.LaneActivity.Select(x => new
         {
             laneNumber = x.LaneNumber,
             sessionCount = x.SessionCount,
             totalHours = x.TotalHours
         }),
-        equipmentBreakdown = result.EquipmentBreakdown.Select(x => new
+        equipmentSaleDetails = result.EquipmentSaleDetails.Select(x => new
         {
+            dateLocal = x.DateLocal,
+            timeLocal = x.TimeLocal,
             equipmentName = x.EquipmentName,
-            saleCount = x.SaleCount,
-            rentalCount = x.RentalCount,
-            saleRevenue = x.SaleRevenue,
-            rentalRevenue = x.RentalRevenue
+            totalQuantity = x.TotalQuantity,
+            inHallQuantity = x.InHallQuantity,
+            forSaleQuantity = x.ForSaleQuantity,
+            soldQuantity = x.SoldQuantity,
+            unitPrice = x.UnitPrice,
+            lineTotal = x.LineTotal,
+            paidCash = x.PaidCash,
+            paidCard = x.PaidCard,
+            discountAmount = x.DiscountAmount,
+            customerName = x.CustomerName,
+            soldByStaffName = x.SoldByStaffName,
+            saleSource = x.SaleSource
+        }),
+        customerVisitDetails = result.CustomerVisitDetails.Select(x => new
+        {
+            dateLocal = x.DateLocal,
+            customerName = x.CustomerName,
+            phone = x.Phone,
+            receptionStaffName = x.ReceptionStaffName,
+            supervisorStaffName = x.SupervisorStaffName,
+            packageName = x.PackageName,
+            recordedAtLocal = x.RecordedAtLocal,
+            laneNumber = x.LaneNumber,
+            startTimeLocal = x.StartTimeLocal,
+            endTimeLocal = x.EndTimeLocal,
+            durationHours = x.DurationHours,
+            durationLabel = x.DurationLabel,
+            priceDue = x.PriceDue,
+            amountPaidCash = x.AmountPaidCash,
+            amountPaidCard = x.AmountPaidCard,
+            amountPaid = x.AmountPaid,
+            discountAmount = x.DiscountAmount,
+            isComplimentary = x.IsComplimentary
         })
     };
+
+    private static object MapDailyRow(DailyOperationsRow x) => new
+    {
+        dateLocal = x.DateLocal,
+        uniqueCustomerCount = x.UniqueCustomerCount,
+        newCustomerCount = x.NewCustomerCount,
+        sessionCount = x.SessionCount,
+        subscriptionCreatedCount = x.SubscriptionCreatedCount,
+        equipmentSaleCount = x.EquipmentSaleCount,
+        equipmentRentalIssuedCount = x.EquipmentRentalIssuedCount,
+        equipmentRentalReturnedCount = x.EquipmentRentalReturnedCount,
+        equipmentSaleRevenue = x.EquipmentSaleRevenue,
+        laneHoursTotal = x.LaneHoursTotal,
+        packageRecordCount = x.PackageRecordCount,
+        complimentaryCount = x.ComplimentaryCount,
+        packagePriceDue = x.PackagePriceDue,
+        packagePaidCash = x.PackagePaidCash,
+        packagePaidCard = x.PackagePaidCard,
+        packagePaidTotal = x.PackagePaidTotal,
+        packageRemaining = x.PackageRemaining,
+        standaloneEquipmentSaleCount = x.StandaloneEquipmentSaleCount,
+        standaloneEquipmentSaleDue = x.StandaloneEquipmentSaleDue,
+        standaloneEquipmentPaidCash = x.StandaloneEquipmentPaidCash,
+        standaloneEquipmentPaidCard = x.StandaloneEquipmentPaidCard,
+        standaloneEquipmentPaidTotal = x.StandaloneEquipmentPaidTotal,
+        standaloneEquipmentRemaining = x.StandaloneEquipmentRemaining,
+        totalPriceDue = x.TotalPriceDue,
+        totalPaidCash = x.TotalPaidCash,
+        totalPaidCard = x.TotalPaidCard,
+        totalPaid = x.TotalPaid,
+        totalRemaining = x.TotalRemaining
+    };
+
+    private static object MapDailyTotals(DailyBreakdownTotals x) => new
+    {
+        sessionCount = x.SessionCount,
+        uniqueCustomerCount = x.UniqueCustomerCount,
+        newCustomerCount = x.NewCustomerCount,
+        subscriptionCreatedCount = x.SubscriptionCreatedCount,
+        equipmentSaleCount = x.EquipmentSaleCount,
+        equipmentRentalIssuedCount = x.EquipmentRentalIssuedCount,
+        equipmentRentalReturnedCount = x.EquipmentRentalReturnedCount,
+        equipmentSaleRevenue = x.EquipmentSaleRevenue,
+        laneHoursTotal = x.LaneHoursTotal,
+        packageRecordCount = x.PackageRecordCount,
+        complimentaryCount = x.ComplimentaryCount,
+        packagePriceDue = x.PackagePriceDue,
+        packagePaidCash = x.PackagePaidCash,
+        packagePaidCard = x.PackagePaidCard,
+        packagePaidTotal = x.PackagePaidTotal,
+        packageRemaining = x.PackageRemaining,
+        standaloneEquipmentSaleCount = x.StandaloneEquipmentSaleCount,
+        standaloneEquipmentSaleDue = x.StandaloneEquipmentSaleDue,
+        standaloneEquipmentPaidCash = x.StandaloneEquipmentPaidCash,
+        standaloneEquipmentPaidCard = x.StandaloneEquipmentPaidCard,
+        standaloneEquipmentPaidTotal = x.StandaloneEquipmentPaidTotal,
+        standaloneEquipmentRemaining = x.StandaloneEquipmentRemaining,
+        totalPriceDue = x.TotalPriceDue,
+        totalPaidCash = x.TotalPaidCash,
+        totalPaidCard = x.TotalPaidCard,
+        totalPaid = x.TotalPaid,
+        totalRemaining = x.TotalRemaining
+    };
 }
+
+public sealed record AnalyticsGridExportRequest(
+    string? SheetName,
+    string? Subtitle,
+    IReadOnlyList<string> Headers,
+    IReadOnlyList<IReadOnlyList<string>>? Rows);

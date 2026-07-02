@@ -34,6 +34,7 @@ public sealed class GetStaffMembersQueryHandler(ITrainingCenterRepository reposi
         AccessProfileId = x.AccessProfileId,
         AccessProfileName = x.AccessProfile?.Name ?? "—",
         PhoneNumber = x.PhoneNumber,
+        CurrentPin = x.PinPlain,
         IsActive = x.IsActive
     };
 }

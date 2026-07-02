@@ -10,6 +10,8 @@ public sealed class StaffMember
     public Guid AccessProfileId { get; set; }
     public string? PhoneNumber { get; set; }
     public string PinHash { get; set; } = string.Empty;
+    /// <summary>Admin panelində göstərmək üçün (resepsiya PIN-i).</summary>
+    public string? PinPlain { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

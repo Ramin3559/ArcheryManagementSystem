@@ -2,6 +2,7 @@
     Layout = null;
     var returnUrl = ViewData["ReturnUrl"] as string;
     var passwordChanged = TempData["PasswordChanged"] as string;
+    var adminLoginRequired = ViewData["AdminLoginRequired"] as bool? == true;
 }
 <!DOCTYPE html>
 <html lang="az">
@@ -115,6 +116,11 @@
 <body>
     <div class="card">
         <h1 class="brand">Target giriş</h1>
+
+        @if (adminLoginRequired)
+        {
+            <div class="msg msg--ok">Admin panel üçün ayrıca giriş edin (resepsiya PIN-i burada keçərli deyil).</div>
+        }
 
         @if (!string.IsNullOrEmpty(passwordChanged))
         {

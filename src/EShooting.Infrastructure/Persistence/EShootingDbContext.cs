@@ -14,9 +14,12 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
     public DbSet<ServicePackage> ServicePackages => Set<ServicePackage>();
     public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
     public DbSet<SessionEquipmentIssue> SessionEquipmentIssues => Set<SessionEquipmentIssue>();
+    public DbSet<EquipmentSaleReceipt> EquipmentSaleReceipts => Set<EquipmentSaleReceipt>();
+    public DbSet<EquipmentSaleReceiptLine> EquipmentSaleReceiptLines => Set<EquipmentSaleReceiptLine>();
     public DbSet<StaffPosition> StaffPositions => Set<StaffPosition>();
     public DbSet<AccessProfile> AccessProfiles => Set<AccessProfile>();
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
+    public DbSet<CustomerPackageRecord> CustomerPackageRecords => Set<CustomerPackageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +33,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.PhoneNumber).HasMaxLength(40).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(200);
             entity.Property(x => x.IdCardNumber).HasMaxLength(60);
+            entity.Property(x => x.ClubCardNumber).HasMaxLength(40);
             entity.Property(x => x.Category)
                 .HasConversion<string>()
                 .HasMaxLength(20)
@@ -41,6 +45,23 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.IsFullPackage).HasDefaultValue(false);
             entity.Property(x => x.IsVip).HasDefaultValue(false);
             entity.Property(x => x.IsGroupPlaceholder).HasDefaultValue(false);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+            entity.HasIndex(x => x.RegisteredByStaffId);
+        });
+
+        modelBuilder.Entity<CustomerPackageRecord>(entity =>
+        {
+            entity.ToTable("CustomerPackageRecords");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PackageName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.BillingTypeLabel).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.PriceDue).HasPrecision(18, 2);
+            entity.Property(x => x.AmountPaidCash).HasPrecision(18, 2);
+            entity.Property(x => x.AmountPaidCard).HasPrecision(18, 2);
+            entity.Property(x => x.AmountPaid).HasPrecision(18, 2);
+            entity.HasIndex(x => x.AthleteId);
+            entity.HasIndex(x => x.CreatedAtUtc);
         });
 
         modelBuilder.Entity<Lane>(entity =>
@@ -64,6 +85,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
 
             entity.Property(x => x.IsEquipmentIssued).HasDefaultValue(false);
             entity.Property(x => x.EquipmentReturnedAtUtc).IsRequired(false);
+            entity.Property(x => x.ActivatedAtUtc).IsRequired(false);
 
             entity.HasOne<Athlete>()
                 .WithMany()
@@ -138,8 +160,14 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.Category).HasMaxLength(80);
+            entity.Property(x => x.UsageMode)
+                .HasConversion<int>()
+                .HasDefaultValue(EquipmentUsageMode.Both);
             entity.Property(x => x.Price).HasPrecision(18, 2);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.DamagedQuantity).HasDefaultValue(0);
+            entity.Property(x => x.RentalQuantity).HasDefaultValue(0);
+            entity.Property(x => x.SaleQuantity).HasDefaultValue(0);
             entity.HasIndex(x => x.IsActive);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(x => x.IsDeleted);
@@ -150,12 +178,49 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.ToTable("SessionEquipmentIssues");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.IssueType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
+            entity.Property(x => x.Quantity).HasDefaultValue(1);
             entity.Property(x => x.ReturnedAtUtc).IsRequired(false);
             entity.HasIndex(x => x.SessionId);
             entity.HasIndex(x => x.EquipmentItemId);
             entity.HasOne<TrainingSession>()
                 .WithMany()
                 .HasForeignKey(x => x.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<EquipmentItem>()
+                .WithMany()
+                .HasForeignKey(x => x.EquipmentItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EquipmentSaleReceipt>(entity =>
+        {
+            entity.ToTable("EquipmentSaleReceipts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasConversion<int>();
+            entity.Property(x => x.TotalAmount).HasPrecision(18, 2);
+            entity.Property(x => x.AmountPaidCash).HasPrecision(18, 2);
+            entity.Property(x => x.AmountPaidCard).HasPrecision(18, 2);
+            entity.HasIndex(x => x.AthleteId);
+            entity.HasIndex(x => x.CreatedAtUtc);
+            entity.HasOne<Athlete>()
+                .WithMany()
+                .HasForeignKey(x => x.AthleteId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EquipmentSaleReceiptLine>(entity =>
+        {
+            entity.ToTable("EquipmentSaleReceiptLines");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
+            entity.Property(x => x.DiscountAmount).HasPrecision(18, 2);
+            entity.Property(x => x.Quantity).HasDefaultValue(1);
+            entity.HasIndex(x => x.ReceiptId);
+            entity.HasIndex(x => x.EquipmentItemId);
+            entity.HasOne<EquipmentSaleReceipt>()
+                .WithMany()
+                .HasForeignKey(x => x.ReceiptId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<EquipmentItem>()
                 .WithMany()
@@ -173,6 +238,10 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.HasIndex(x => x.IsActive);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(x => x.IsDeleted);
+            entity.HasOne(x => x.DefaultAccessProfile)
+                .WithMany()
+                .HasForeignKey(x => x.DefaultAccessProfileId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AccessProfile>(entity =>
@@ -195,6 +264,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.LastName).HasMaxLength(80).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(40);
             entity.Property(x => x.PinHash).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.PinPlain).HasMaxLength(6);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(x => x.IsActive);

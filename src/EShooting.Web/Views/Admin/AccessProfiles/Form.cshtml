@@ -7,9 +7,11 @@
 }
 
 <style>
-    .perm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; }
-    .perm-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; font-weight:700; }
-    .perm-item input { margin:0; }
+    .perm-section { margin-top:14px; }
+    .perm-section h3 { margin:0 0 8px; font-size:13px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+    .perm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .perm-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; font-weight:700; font-size:13px; }
+    .perm-item input { margin:0; flex-shrink:0; }
     @@media (max-width:700px){ .perm-grid { grid-template-columns:1fr; } }
 </style>
 
@@ -35,22 +37,56 @@
                 <label style="font-size:12px; font-weight:800; color:var(--muted);">Qısa təsvir</label>
                 <input name="Description" value="@Model.Description" maxlength="240" style="width:100%;" />
             </div>
-            <div style="grid-column:1/-1;">
-                <label style="font-size:12px; font-weight:800; color:var(--muted);">Resepsiya icazələri</label>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Müştəri</h3>
                 <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanRegisterCustomers" value="true" @(Model.CanRegisterCustomers ? "checked" : "") /> Müştəri qeydiyyatı / axtarış</label>
+                    <label class="perm-item"><input type="checkbox" name="CanViewCustomerDetails" value="true" @(Model.CanViewCustomerDetails ? "checked" : "") /> Müştəri məlumatlarına baxma</label>
+                    <label class="perm-item"><input type="checkbox" name="CanEditCustomerDetails" value="true" @(Model.CanEditCustomerDetails ? "checked" : "") /> Müştəri məlumatlarını dəyişdirmə</label>
+                </div>
+            </div>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Paket və ödəniş</h3>
+                <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanManageSubscriptions" value="true" @(Model.CanManageSubscriptions ? "checked" : "") /> Paket / abunə satışı</label>
+                    <label class="perm-item"><input type="checkbox" name="CanApplyDiscount" value="true" @(Model.CanApplyDiscount ? "checked" : "") /> Endirim tətbiqi</label>
+                    <label class="perm-item"><input type="checkbox" name="CanGrantComplimentarySession" value="true" @(Model.CanGrantComplimentarySession ? "checked" : "") /> Ödənişsiz zolağa yazma</label>
+                </div>
+            </div>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Zolaq və seans</h3>
+                <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanManageSessions" value="true" @(Model.CanManageSessions ? "checked" : "") /> Zolaq / seans idarəetməsi</label>
-                    <label class="perm-item"><input type="checkbox" name="CanManageEquipment" value="true" @(Model.CanManageEquipment ? "checked" : "") /> Avadanlıq vermə / qəbul</label>
+                </div>
+            </div>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Avadanlıq (resepsiya)</h3>
+                <div class="perm-grid">
+                    <label class="perm-item"><input type="checkbox" name="CanManageEquipment" value="true" @(Model.CanManageEquipment ? "checked" : "") /> Seansda avadanlıq vermə / qəbul</label>
+                    <label class="perm-item"><input type="checkbox" name="CanSellEquipment" value="true" @(Model.CanSellEquipment ? "checked" : "") /> Avadanlıq satışı</label>
+                    <label class="perm-item"><input type="checkbox" name="CanReturnEquipment" value="true" @(Model.CanReturnEquipment ? "checked" : "") /> Avadanlıq geri qaytarma</label>
+                </div>
+            </div>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Planşet (nəzarətçi)</h3>
+                <div class="perm-grid">
+                    <label class="perm-item"><input type="checkbox" name="CanAccessPlanset" value="true" @(Model.CanAccessPlanset ? "checked" : "") /> Planşetə daxil olma</label>
+                    <label class="perm-item"><input type="checkbox" name="CanIssueEquipmentRental" value="true" @(Model.CanIssueEquipmentRental ? "checked" : "") /> Planşetdən avadanlıq icarə vermə</label>
+                </div>
+            </div>
+
+            <div style="grid-column:1/-1;" class="perm-section">
+                <h3>Digər</h3>
+                <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanViewHistory" value="true" @(Model.CanViewHistory ? "checked" : "") /> Tarixçəyə baxış</label>
                 </div>
             </div>
-            <div>
-                <label style="display:flex; gap:8px; align-items:center; min-height:42px;">
-                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
-                    <span>Aktiv (işçiyə təyin oluna bilər)</span>
-                </label>
-            </div>
+
         </div>
         <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
             <button type="submit" class="btn btn-primary">@(isEdit ? "Yadda saxla" : "Yarat")</button>

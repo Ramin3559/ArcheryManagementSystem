@@ -12,25 +12,34 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
 {
     [HttpGet("athlete")]
     public async Task<IActionResult> GetAthleteInfo(
+        [FromQuery] Guid? id,
         [FromQuery] string? phone,
         [FromQuery] string? email,
         [FromQuery] string? idCardNumber,
         CancellationToken cancellationToken)
     {
-        var phoneN = NormalizeDigits(phone);
-        var emailN = NormalizeEmail(email);
-        var idN = NormalizeText(idCardNumber);
-
-        if (string.IsNullOrWhiteSpace(phoneN) && string.IsNullOrWhiteSpace(emailN) && string.IsNullOrWhiteSpace(idN))
+        Athlete? athlete = null;
+        if (id is Guid athleteId && athleteId != Guid.Empty)
         {
-            return BadRequest(new { error = "Zəhmət olmasa bir məlumat daxil edin." });
+            athlete = await repository.GetAthleteByIdAsync(athleteId, cancellationToken);
         }
+        else
+        {
+            var phoneN = NormalizeDigits(phone);
+            var emailN = NormalizeEmail(email);
+            var idN = NormalizeText(idCardNumber);
 
-        var athletes = await repository.GetAthletesAsync(cancellationToken);
-        var athlete = athletes.FirstOrDefault(a =>
-            (!string.IsNullOrWhiteSpace(phoneN) && NormalizeDigits(a.PhoneNumber) == phoneN)
-            || (!string.IsNullOrWhiteSpace(emailN) && NormalizeEmail(a.Email) == emailN)
-            || (!string.IsNullOrWhiteSpace(idN) && string.Equals(NormalizeText(a.IdCardNumber), idN, StringComparison.OrdinalIgnoreCase)));
+            if (string.IsNullOrWhiteSpace(phoneN) && string.IsNullOrWhiteSpace(emailN) && string.IsNullOrWhiteSpace(idN))
+            {
+                return BadRequest(new { error = "Zəhmət olmasa bir məlumat daxil edin." });
+            }
+
+            var athletes = await repository.GetAthletesAsync(cancellationToken);
+            athlete = athletes.FirstOrDefault(a =>
+                (!string.IsNullOrWhiteSpace(phoneN) && NormalizeDigits(a.PhoneNumber) == phoneN)
+                || (!string.IsNullOrWhiteSpace(emailN) && NormalizeEmail(a.Email) == emailN)
+                || (!string.IsNullOrWhiteSpace(idN) && string.Equals(NormalizeText(a.IdCardNumber), idN, StringComparison.OrdinalIgnoreCase)));
+        }
 
         if (athlete is null)
         {
@@ -133,6 +142,7 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             isSubscriber = athlete.IsSubscriber,
             isFullPackage = athlete.IsFullPackage,
             isVip = athlete.IsVip,
+            isActive = athlete.IsActive,
             packages,
             weeklySchedules,
             occurrencesFlat,

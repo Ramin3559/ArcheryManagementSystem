@@ -1,11 +1,24 @@
 @using EShooting.Application.Common.Models
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
-    ViewData["Title"] = "Analitika";
+    ViewData["Title"] = "Hesabat";
     var a = ViewData["Analytics"] as OperationsAnalyticsResult;
 }
 
 <style>
+    .hesabat-page { max-width: 100%; overflow-x: hidden; }
+    .hesabat-top {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: var(--bg, #f4f6fb);
+        padding-bottom: 12px;
+        margin-bottom: 4px;
+        max-width: 100%;
+    }
+    .hesabat-top .topbar { flex-wrap: wrap; max-width: 100%; }
+    .hesabat-panel,
+    .hesabat-top .card { max-width: 100%; overflow: hidden; }
     .preset-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .preset-btn {
         border-radius:999px;
@@ -28,126 +41,369 @@
     }
     .range-controls label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); font-weight:700; }
     .range-controls input { min-width: 160px; }
-    .grid3 { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-    @@media (max-width: 900px){ .grid3 { grid-template-columns: 1fr; } }
-    .hint { font-size:12px; color: var(--muted); margin-top: 4px; }
-    .money { color: #166534; }
-    .section-title { font-weight: 900; font-size: 16px; margin: 0 0 10px; }
+    .section-title { font-weight: 900; font-size: 15px; margin: 0 0 8px; }
     .top-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .tableWrap--wide { overflow-x: auto; max-width: 100%; }
+    .daily-total-row td {
+        font-weight: 900;
+        background: rgba(79, 70, 229, 0.06);
+        border-top: 2px solid rgba(79, 70, 229, 0.18);
+    }
+    .money { color: #166534; }
+    .filter-card { border: 2px solid rgba(79,70,229,0.12); }
+    .summary-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    @@media (max-width: 900px) { .summary-row { grid-template-columns: 1fr; } }
+    .summary-block-title {
+        font-weight: 800;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        margin-bottom: 6px;
+    }
+    .kv-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 4px 10px;
+        font-size: 13px;
+        line-height: 1.35;
+        max-width: 520px;
+    }
+    .kv-grid .kv-label { color: #374151; font-weight: 600; }
+    .kv-grid .kv-value { font-weight: 800; text-align: right; white-space: nowrap; }
+    .kv-grid .kv-sep {
+        grid-column: 1 / -1;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        padding-top: 4px;
+        margin-top: 2px;
+        border-top: 1px solid rgba(17,24,39,0.08);
+    }
+    .hesabat-daily { width: 100%; font-size: 11px; table-layout: auto; }
+    .hesabat-daily th, .hesabat-daily td { padding: 4px 6px; font-size: 11px; }
+    .hesabat-daily td { white-space: nowrap; }
+    .hesabat-daily th {
+        letter-spacing: 0;
+        text-transform: none;
+        font-weight: 700;
+        white-space: normal;
+        line-height: 1.25;
+        vertical-align: bottom;
+        max-width: 78px;
+    }
+    .hesabat-sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+    .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .panel-head .section-title { margin: 0; }
+    .btn-excel-sm {
+        border-radius: 10px;
+        border: 1px solid rgba(22,163,74,0.35);
+        background: var(--green);
+        color: #fff;
+        font-weight: 800;
+        font-size: 11px;
+        padding: 6px 10px;
+        min-height: auto;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .tableWrap.tableWrap--compact {
+        overflow: auto;
+        max-height: 70vh;
+        max-width: 100%;
+    }
+    .hesabat-filter-table thead .hesabat-header-labels th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #fff;
+        box-shadow: 0 1px 0 rgba(17, 24, 39, 0.12);
+    }
+    .hesabat-filter-table thead .hesabat-filter-row th {
+        position: sticky;
+        top: 34px;
+        z-index: 3;
+        background: #f5f6ff;
+        box-shadow: 0 1px 0 rgba(17, 24, 39, 0.08);
+    }
+    .hesabat-header-labels th { vertical-align: bottom; }
+    .hesabat-filter-row th {
+        padding: 2px 3px 6px;
+        background: rgba(79, 70, 229, 0.04);
+        vertical-align: top;
+    }
+    .hesabat-col-filter {
+        width: 100%;
+        max-width: 120px;
+        min-width: 56px;
+        font-size: 10px;
+        padding: 3px 4px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        font-weight: 600;
+        color: #374151;
+    }
+    .hesabat-panel { margin-bottom: 12px; }
+    .finance-compare-table th,
+    .finance-compare-table td {
+        text-align: right;
+        white-space: nowrap;
+    }
+    .finance-compare-table th:first-child,
+    .finance-compare-table td:first-child {
+        text-align: left;
+        white-space: normal;
+        min-width: 140px;
+        font-weight: 700;
+        color: #374151;
+    }
+    .finance-compare-table thead th {
+        background: #fff;
+        font-weight: 800;
+        color: #253060;
+    }
+    .finance-compare-table .finance-total-row td {
+        font-weight: 900;
+        background: rgba(79, 70, 229, 0.06);
+        border-top: 2px solid rgba(79, 70, 229, 0.18);
+    }
+    .finance-compare-table .money { color: #166534; }
+    .hesabat-top .btn,
+    .hesabat-top .preset-btn {
+        text-transform: none;
+    }
 </style>
 
-<div class="topbar">
-    <h1>Analitika</h1>
-    <div class="top-actions">
-        <button type="button" class="btn" id="analyticsRefreshBtn">Yenilə</button>
-        <a class="btn btn-excel" id="analyticsExportBtn" href="/admin/analytics/export.xlsx?mode=today">Excel-ə çıxart</a>
-    </div>
-</div>
+<div class="hesabat-page">
 
-<div class="card" style="margin-bottom:16px;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
-        <div>
-            <div class="statLabel">Tarix aralığı</div>
-            <div style="font-weight:800; font-size:18px; margin-top:2px;" id="analyticsLabel">@(a?.Label ?? "")</div>
-        </div>
-        <div class="preset-row">
-            <button type="button" class="preset-btn active" data-mode="today">Bu gün</button>
-            <button type="button" class="preset-btn" data-mode="yesterday">Dünən</button>
-            <button type="button" class="preset-btn" data-mode="last7">Son 7 gün</button>
-            <button type="button" class="preset-btn" data-mode="month">Cari ay</button>
-            <button type="button" class="preset-btn" data-mode="range">Aralıq</button>
+<div class="hesabat-top">
+    <div class="topbar">
+        <h1>Hesabat</h1>
+        <div class="top-actions">
+            <button type="button" class="btn" id="analyticsRefreshBtn">Yenilə</button>
         </div>
     </div>
 
-    <div class="range-controls" id="analyticsRangeRow" style="display:none;">
-        <label>Başlanğıc tarixi
-            <input type="date" id="analyticsFromDate" />
-        </label>
-        <label>Bitmə tarixi
-            <input type="date" id="analyticsToDate" />
-        </label>
-        <button type="button" class="btn btn-primary" id="analyticsRangeApply">Tətbiq et</button>
-    </div>
+    <div class="card filter-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+                <div class="statLabel">Tarix aralığı</div>
+                <div style="font-weight:800; font-size:18px; margin-top:2px;" id="analyticsLabel">@(a?.Label ?? "")</div>
+            </div>
+            <div class="preset-row">
+                <button type="button" class="preset-btn active" data-mode="today">Bu gün</button>
+                <button type="button" class="preset-btn" data-mode="yesterday">Dünən</button>
+                <button type="button" class="preset-btn" data-mode="last7">Son 7 gün</button>
+                <button type="button" class="preset-btn" data-mode="month">Cari ay</button>
+                <button type="button" class="preset-btn" data-mode="range">Aralıq</button>
+            </div>
+        </div>
 
-    <div class="range-controls" id="analyticsMonthRow" style="display:none;">
-        <label>Ay seç
-            <input type="month" id="analyticsMonthPicker" />
-        </label>
-        <button type="button" class="btn btn-primary" id="analyticsMonthApply">Tətbiq et</button>
+        <div class="range-controls" id="analyticsRangeRow" style="display:none;">
+            <label>Başlanğıc tarixi
+                <input type="date" id="analyticsFromDate" />
+            </label>
+            <label>Bitmə tarixi
+                <input type="date" id="analyticsToDate" />
+            </label>
+            <button type="button" class="btn btn-primary" id="analyticsRangeApply">Tətbiq et</button>
+        </div>
+
+        <div class="range-controls" id="analyticsMonthRow" style="display:none;">
+            <label>Ay seç
+                <input type="month" id="analyticsMonthPicker" />
+            </label>
+            <button type="button" class="btn btn-primary" id="analyticsMonthApply">Tətbiq et</button>
+        </div>
     </div>
 </div>
 
-<div class="grid3" style="margin-bottom:16px;">
-    <div class="card">
-        <div class="statLabel">Gələn müştəri</div>
-        <div class="statValue" id="statUniqueCustomers">@(a?.UniqueCustomerCount ?? 0)</div>
-        <div class="hint">Seçilmiş aralıqda kluba gələn fərqli şəxslər</div>
+<div class="card hesabat-panel">
+    <div class="panel-head">
+        <div class="section-title">Maliyyə icmalı</div>
+        <a class="btn-excel-sm panel-export" data-section="finance" href="/admin/analytics/export.xlsx?mode=today&amp;section=finance">Excel-ə çıxart</a>
     </div>
-    <div class="card">
-        <div class="statLabel">Yeni müştəri</div>
-        <div class="statValue" id="statNewCustomers">@(a?.NewCustomerCount ?? 0)</div>
-        <div class="hint">İlk dəfə seans edənlər</div>
-    </div>
-    <div class="card">
-        <div class="statLabel">Seans sayı</div>
-        <div class="statValue" id="statSessionCount">@(a?.SessionCount ?? 0)</div>
-        <div class="hint">Zolağa yazılan sessiyalar</div>
-    </div>
-</div>
-
-<div class="grid3" style="margin-bottom:16px;">
-    <div class="card">
-        <div class="statLabel">Yeni abunə yazılışı</div>
-        <div class="statValue" id="statSubscriptions">@(a?.SubscriptionCreatedCount ?? 0)</div>
-        <div class="hint">Aralıqda yaradılan abunə planları</div>
-    </div>
-    <div class="card">
-        <div class="statLabel">Avadanlıq satışı</div>
-        <div class="statValue" id="statSaleCount">@(a?.EquipmentSaleCount ?? 0)</div>
-        <div class="hint money" id="statSaleRevenue">Gəlir: @(a?.EquipmentSaleRevenue.ToString("0.##") ?? "0") ₼</div>
-    </div>
-    <div class="card">
-        <div class="statLabel">Avadanlıq icarəsi</div>
-        <div class="statValue" id="statRentalCount">@(a?.EquipmentRentalCount ?? 0)</div>
-        <div class="hint money" id="statRentalRevenue">Dəyər: @(a?.EquipmentRentalRevenue.ToString("0.##") ?? "0") ₼</div>
-    </div>
-</div>
-
-<div class="grid3" style="margin-bottom:16px;">
-    <div class="card">
-        <div class="statLabel">Zolaq aktiv saatı</div>
-        <div class="statValue" id="statLaneHours">@(a?.TotalLaneHours.ToString("0.##") ?? "0")</div>
-        <div class="hint">Bütün zolaqlar üzrə cəmi saat</div>
-    </div>
-    <div class="card">
-        <div class="statLabel">Ən yüklü zolaq</div>
-        <div class="statValue" id="statBusiestLane">@(a?.BusiestLaneNumber is int ln ? $"Zolaq {ln}" : "—")</div>
-        <div class="hint">Ən çox saat aktiv olan zolaq</div>
-    </div>
-    <div class="card">
-        <div class="statLabel">Avadanlıq cəmi</div>
-        <div class="statValue" id="statEquipmentTotal">@((a?.EquipmentSaleCount ?? 0) + (a?.EquipmentRentalCount ?? 0))</div>
-        <div class="hint money" id="statEquipmentRevenue">Cəmi: @(((a?.EquipmentSaleRevenue ?? 0) + (a?.EquipmentRentalRevenue ?? 0)).ToString("0.##")) ₼</div>
-    </div>
-</div>
-
-<div class="card" style="margin-bottom:16px;">
-    <div class="section-title">Günlük icmal</div>
-    <div class="tableWrap">
-        <table>
+    <div class="tableWrap tableWrap--compact">
+        <table class="hesabat-daily finance-compare-table">
             <thead>
                 <tr>
+                    <th>Göstərici</th>
+                    <th>Zolaq / paket</th>
+                    <th>Avadanlıq satışı</th>
+                    <th>Cəmi</th>
+                </tr>
+            </thead>
+            <tbody id="financeSummaryBody">
+                @{
+                    var finSession = a?.SessionCount ?? 0;
+                    var finSaleCount = a?.StandaloneEquipmentSaleCount ?? 0;
+                    var finPkgDue = a?.PackagePriceDue ?? 0m;
+                    var finSaleDue = a?.StandaloneEquipmentSaleDue ?? 0m;
+                    var finTotalDue = a?.TotalPriceDue ?? 0m;
+                    var finPkgCash = a?.PackagePaidCash ?? 0m;
+                    var finSaleCash = a?.StandaloneEquipmentPaidCash ?? 0m;
+                    var finTotalCash = a?.TotalPaidCash ?? 0m;
+                    var finPkgCard = a?.PackagePaidCard ?? 0m;
+                    var finSaleCard = a?.StandaloneEquipmentPaidCard ?? 0m;
+                    var finTotalCard = a?.TotalPaidCard ?? 0m;
+                    var finPkgPaid = a?.PackagePaidTotal ?? 0m;
+                    var finSalePaid = a?.StandaloneEquipmentPaidTotal ?? 0m;
+                    var finTotalPaid = a?.TotalPaid ?? 0m;
+                }
+                <tr>
+                    <td>Seans / satış (ədəd)</td>
+                    <td>@finSession</td>
+                    <td>@finSaleCount</td>
+                    <td>—</td>
+                </tr>
+                <tr>
+                    <td>Ödənilməli (₼)</td>
+                    <td>@finPkgDue.ToString("0.00")</td>
+                    <td>@finSaleDue.ToString("0.00")</td>
+                    <td>@finTotalDue.ToString("0.00")</td>
+                </tr>
+                <tr>
+                    <td>Nağd (₼)</td>
+                    <td class="money">@finPkgCash.ToString("0.00")</td>
+                    <td class="money">@finSaleCash.ToString("0.00")</td>
+                    <td class="money">@finTotalCash.ToString("0.00")</td>
+                </tr>
+                <tr>
+                    <td>Kart (₼)</td>
+                    <td class="money">@finPkgCard.ToString("0.00")</td>
+                    <td class="money">@finSaleCard.ToString("0.00")</td>
+                    <td class="money">@finTotalCard.ToString("0.00")</td>
+                </tr>
+                <tr class="finance-total-row">
+                    <td>Gəlir — ödənilib (₼)</td>
+                    <td class="money">@finPkgPaid.ToString("0.00")</td>
+                    <td class="money">@finSalePaid.ToString("0.00")</td>
+                    <td class="money">@finTotalPaid.ToString("0.00")</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card hesabat-panel">
+    <div class="panel-head">
+        <div class="section-title">Müştəri detalları (seans üzrə)</div>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="customerDetailsBody" data-sheet-name="Müştəri detalları">Excel-ə çıxart</a>
+    </div>
+    <div class="tableWrap tableWrap--compact">
+        <table class="hesabat-daily hesabat-filter-table">
+            <thead>
+                <tr class="hesabat-header-labels">
+                    <th>Tarix</th>
+                    <th>Müştəri adı</th>
+                    <th>Telefon</th>
+                    <th>Resepsiya (qeydiyyatçı)</th>
+                    <th>Nəzarətçi (planşet)</th>
+                    <th>Paket adı</th>
+                    <th>Yazılış vaxtı</th>
+                    <th>Zolaq</th>
+                    <th>Başlama</th>
+                    <th>Bitmə</th>
+                    <th>Oyun müddəti</th>
+                    <th>Ödənilməli (₼)</th>
+                    <th>Nağd (₼)</th>
+                    <th>Kart (₼)</th>
+                    <th>Ödənilib (₼)</th>
+                    <th>Endirim (₼)</th>
+                    <th>Ödənişsiz</th>
+                </tr>
+            </thead>
+            <tbody id="customerDetailsBody" data-filter-table="1" data-sum-cols="11,12,13,14,15">
+                @if (a?.CustomerVisitDetails is { Count: > 0 } visitRows)
+                {
+                    foreach (var row in visitRows)
+                    {
+                        <tr>
+                            <td>@row.DateLocal</td>
+                            <td>@row.CustomerName</td>
+                            <td>@row.Phone</td>
+                            <td>@row.ReceptionStaffName</td>
+                            <td>@row.SupervisorStaffName</td>
+                            <td>@row.PackageName</td>
+                            <td>@row.RecordedAtLocal</td>
+                            <td>@(row.LaneNumber is int laneNo ? $"Zolaq {laneNo}" : "—")</td>
+                            <td>@row.StartTimeLocal</td>
+                            <td>@row.EndTimeLocal</td>
+                            <td>@row.DurationLabel</td>
+                            <td>@row.PriceDue.ToString("0.00")</td>
+                            <td>@row.AmountPaidCash.ToString("0.00")</td>
+                            <td>@row.AmountPaidCard.ToString("0.00")</td>
+                            <td>@row.AmountPaid.ToString("0.00")</td>
+                            <td>@row.DiscountAmount.ToString("0.00")</td>
+                            <td>@(row.IsComplimentary ? "Bəli" : "Xeyr")</td>
+                        </tr>
+                    }
+                    var cv = visitRows.ToList();
+                    <tr class="daily-total-row hesabat-sum-row">
+                        <td>Cəmi</td>
+                        <td colspan="10"></td>
+                        <td>@cv.Sum(x => x.PriceDue).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.AmountPaidCash).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.AmountPaidCard).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.AmountPaid).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.DiscountAmount).ToString("0.00")</td>
+                        <td></td>
+                    </tr>
+                }
+                else
+                {
+                    <tr><td colspan="17" style="color:var(--muted);">Seçilmiş aralıqda seans qeydi yoxdur.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card hesabat-panel">
+    <div class="panel-head">
+        <div class="section-title">Günlük icmal</div>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="dailyBreakdownBody" data-sheet-name="Günlük icmal">Excel-ə çıxart</a>
+    </div>
+    <div class="tableWrap tableWrap--compact">
+        <table class="hesabat-daily hesabat-filter-table">
+            <thead>
+                <tr class="hesabat-header-labels">
                     <th>Tarix</th>
                     <th>Gələn müştəri</th>
                     <th>Yeni müştəri</th>
-                    <th>Seans</th>
-                    <th>Abunə</th>
-                    <th>Satış</th>
-                    <th>İcarə</th>
+                    <th>Seans sayı</th>
+                    <th>Yeni abunə</th>
+                    <th>Ödənişsiz yazılış</th>
+                    <th>Zolaq ödənilməli (₼)</th>
+                    <th>Zolaq nağd (₼)</th>
+                    <th>Zolaq kart (₼)</th>
+                    <th>Zolaq ödənilib (₼)</th>
+                    <th>Avadanlıq satışı (ədəd)</th>
+                    <th>Avadanlıq gəliri (₼)</th>
+                    <th>İcarə verilib (ədəd)</th>
+                    <th>İcarə qaytarılıb (ədəd)</th>
+                    <th>Cəmi ödənilməli (₼)</th>
+                    <th>Cəmi nağd (₼)</th>
+                    <th>Cəmi kart (₼)</th>
+                    <th>Cəmi ödənilib (₼)</th>
                     <th>Zolaq saatı</th>
                 </tr>
             </thead>
-            <tbody id="dailyBreakdownBody">
+            <tbody id="dailyBreakdownBody" data-filter-table="1" data-sum-cols="2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18">
                 @if (a?.DailyBreakdown is { Count: > 0 } dailyRows)
                 {
                     foreach (var row in dailyRows)
@@ -158,111 +414,140 @@
                             <td>@row.NewCustomerCount</td>
                             <td>@row.SessionCount</td>
                             <td>@row.SubscriptionCreatedCount</td>
+                            <td>@row.ComplimentaryCount</td>
+                            <td>@row.PackagePriceDue.ToString("0.00")</td>
+                            <td>@row.PackagePaidCash.ToString("0.00")</td>
+                            <td>@row.PackagePaidCard.ToString("0.00")</td>
+                            <td>@row.PackagePaidTotal.ToString("0.00")</td>
                             <td>@row.EquipmentSaleCount</td>
-                            <td>@row.EquipmentRentalCount</td>
+                            <td>@row.EquipmentSaleRevenue.ToString("0.00")</td>
+                            <td>@row.EquipmentRentalIssuedCount</td>
+                            <td>@row.EquipmentRentalReturnedCount</td>
+                            <td>@row.TotalPriceDue.ToString("0.00")</td>
+                            <td>@row.TotalPaidCash.ToString("0.00")</td>
+                            <td>@row.TotalPaidCard.ToString("0.00")</td>
+                            <td>@row.TotalPaid.ToString("0.00")</td>
                             <td>@row.LaneHoursTotal.ToString("0.##")</td>
                         </tr>
                     }
+                    var dt = a.DailyTotals;
+                    <tr class="daily-total-row hesabat-sum-row">
+                        <td>Cəmi</td>
+                        <td></td>
+                        <td>@dt.NewCustomerCount</td>
+                        <td>@dt.SessionCount</td>
+                        <td>@dt.SubscriptionCreatedCount</td>
+                        <td>@dt.ComplimentaryCount</td>
+                        <td>@dt.PackagePriceDue.ToString("0.00")</td>
+                        <td>@dt.PackagePaidCash.ToString("0.00")</td>
+                        <td>@dt.PackagePaidCard.ToString("0.00")</td>
+                        <td>@dt.PackagePaidTotal.ToString("0.00")</td>
+                        <td>@dt.EquipmentSaleCount</td>
+                        <td>@dt.EquipmentSaleRevenue.ToString("0.00")</td>
+                        <td>@dt.EquipmentRentalIssuedCount</td>
+                        <td>@dt.EquipmentRentalReturnedCount</td>
+                        <td>@dt.TotalPriceDue.ToString("0.00")</td>
+                        <td>@dt.TotalPaidCash.ToString("0.00")</td>
+                        <td>@dt.TotalPaidCard.ToString("0.00")</td>
+                        <td>@dt.TotalPaid.ToString("0.00")</td>
+                        <td>@dt.LaneHoursTotal.ToString("0.##")</td>
+                    </tr>
                 }
                 else
                 {
-                    <tr><td colspan="8" style="color:var(--muted);">Məlumat yoxdur.</td></tr>
+                    <tr><td colspan="21" style="color:var(--muted);">Məlumat yoxdur.</td></tr>
                 }
             </tbody>
         </table>
     </div>
 </div>
 
-<div class="card" style="margin-bottom:16px;">
-    <div class="section-title">Zolaq üzrə aktivlik</div>
-    <div class="tableWrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Zolaq</th>
-                    <th>Seans sayı</th>
-                    <th>Aktiv saat</th>
+<div class="card hesabat-panel">
+    <div class="panel-head">
+        <div>
+            <div class="section-title">Avadanlıq hesabatı (satış üzrə)</div>
+            <p class="hesabat-sub">Hər satış sətir üzrə: cari stok, zaldə, satışda, ödəniş və satıcı.</p>
+        </div>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="equipmentBreakdownBody" data-sheet-name="Avadanlıq hesabatı">Excel-ə çıxart</a>
+    </div>
+    <div class="tableWrap tableWrap--compact tableWrap--wide">
+        <table class="hesabat-daily hesabat-filter-table">
+        <thead>
+            <tr class="hesabat-header-labels">
+                <th>Tarix</th>
+                <th>Saat</th>
+                <th>Avadanlıq adı</th>
+                <th>Cəmi stok</th>
+                <th>İcarə</th>
+                <th>Satış</th>
+                <th>Satılan (ədəd)</th>
+                <th>Vahid qiymət (₼)</th>
+                <th>Məbləğ (₼)</th>
+                <th>Endirim (₼)</th>
+                <th>Nağd (₼)</th>
+                <th>Kart (₼)</th>
+                <th>Müştəri</th>
+                <th>Satıcı</th>
+                <th>Mənbə</th>
+            </tr>
+        </thead>
+        <tbody id="equipmentBreakdownBody" data-filter-table="1" data-sum-cols="6,8,9,10,11">
+            @if (a?.EquipmentSaleDetails is { Count: > 0 } equipRows)
+            {
+                var er = equipRows.ToList();
+                foreach (var row in er)
+                {
+                    <tr>
+                        <td>@row.DateLocal</td>
+                        <td>@row.TimeLocal</td>
+                        <td>@row.EquipmentName</td>
+                        <td>@row.TotalQuantity</td>
+                        <td>@row.InHallQuantity</td>
+                        <td>@row.ForSaleQuantity</td>
+                        <td>@row.SoldQuantity</td>
+                        <td>@row.UnitPrice.ToString("0.00")</td>
+                        <td>@row.LineTotal.ToString("0.00")</td>
+                        <td>@row.DiscountAmount.ToString("0.00")</td>
+                        <td>@row.PaidCash.ToString("0.00")</td>
+                        <td>@row.PaidCard.ToString("0.00")</td>
+                        <td>@row.CustomerName</td>
+                        <td>@row.SoldByStaffName</td>
+                        <td>@row.SaleSource</td>
+                    </tr>
+                }
+                <tr class="daily-total-row hesabat-sum-row">
+                    <td colspan="6">Cəmi</td>
+                    <td>@er.Sum(x => x.SoldQuantity)</td>
+                    <td></td>
+                    <td>@er.Sum(x => x.LineTotal).ToString("0.00")</td>
+                    <td>@er.Sum(x => x.DiscountAmount).ToString("0.00")</td>
+                    <td>@er.Sum(x => x.PaidCash).ToString("0.00")</td>
+                    <td>@er.Sum(x => x.PaidCard).ToString("0.00")</td>
+                    <td colspan="3"></td>
                 </tr>
-            </thead>
-            <tbody id="laneActivityBody">
-                @if (a?.LaneActivity is { Count: > 0 } laneRows)
-                {
-                    foreach (var row in laneRows.Where(x => x.SessionCount > 0 || x.TotalHours > 0))
-                    {
-                        <tr>
-                            <td>Zolaq @row.LaneNumber</td>
-                            <td>@row.SessionCount</td>
-                            <td>@row.TotalHours.ToString("0.##")</td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="3" style="color:var(--muted);">Seçilmiş aralıqda aktiv zolaq yoxdur.</td></tr>
-                }
-            </tbody>
-        </table>
+            }
+            else
+            {
+                <tr><td colspan="15" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq satışı yoxdur.</td></tr>
+            }
+        </tbody>
+    </table>
     </div>
 </div>
 
-<div class="card">
-    <div class="section-title">Avadanlıq üzrə detallar</div>
-    <div class="tableWrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Avadanlıq</th>
-                    <th>Satış</th>
-                    <th>İcarə</th>
-                    <th>Satış gəliri</th>
-                    <th>İcarə dəyəri</th>
-                </tr>
-            </thead>
-            <tbody id="equipmentBreakdownBody">
-                @if (a?.EquipmentBreakdown is { Count: > 0 } equipRows)
-                {
-                    foreach (var row in equipRows)
-                    {
-                        <tr>
-                            <td>@row.EquipmentName</td>
-                            <td>@row.SaleCount</td>
-                            <td>@row.RentalCount</td>
-                            <td>@row.SaleRevenue.ToString("0.##") ₼</td>
-                            <td>@row.RentalRevenue.ToString("0.##") ₼</td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="5" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq əməliyyatı yoxdur.</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
 </div>
 
+<script src="/js/hesabat-table-filters.js?v=4"></script>
 <script>
     (function () {
         const analyticsUrl = "/admin/analytics/data";
         let currentMode = "today";
         const labelEl = document.getElementById("analyticsLabel");
-        const exportBtn = document.getElementById("analyticsExportBtn");
         const rangeRow = document.getElementById("analyticsRangeRow");
         const monthRow = document.getElementById("analyticsMonthRow");
         const fromDateEl = document.getElementById("analyticsFromDate");
         const toDateEl = document.getElementById("analyticsToDate");
         const monthPickerEl = document.getElementById("analyticsMonthPicker");
-
-        function fmtMoney(value) {
-            const n = Number(value);
-            if (!Number.isFinite(n)) return "0 ₼";
-            return n.toFixed(2).replace(/\.00$/, "") + " ₼";
-        }
-
-        function setText(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = String(value ?? "");
-        }
 
         function buildQueryParams() {
             const params = new URLSearchParams();
@@ -282,18 +567,31 @@
         }
 
         function syncExportLink() {
-            if (!(exportBtn instanceof HTMLAnchorElement)) return;
-            exportBtn.href = "/admin/analytics/export.xlsx?" + buildQueryParams().toString();
+            const qs = buildQueryParams().toString();
+            document.querySelectorAll(".panel-export").forEach(function (link) {
+                if (!(link instanceof HTMLAnchorElement)) return;
+                const section = link.getAttribute("data-section") || "";
+                link.href = "/admin/analytics/export.xlsx?" + qs + (section ? "&section=" + encodeURIComponent(section) : "");
+            });
         }
 
-        function renderDaily(rows) {
+        function dailyCell(value, money) {
+            const n = Number(value);
+            if (money) return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+            if (typeof value === "number" && !Number.isInteger(value)) return Number(value).toFixed(2);
+            return String(value ?? 0);
+        }
+
+        function renderDaily(rows, totals) {
             const body = document.getElementById("dailyBreakdownBody");
             if (!body) return;
             const list = Array.isArray(rows) ? rows : [];
             if (!list.length) {
-                body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">Məlumat yoxdur.</td></tr>';
+                body.innerHTML = '<tr><td colspan="19" style="color:var(--muted);">Məlumat yoxdur.</td></tr>';
+                if (window.HesabatTableFilters) HesabatTableFilters.refreshById("dailyBreakdownBody");
                 return;
             }
+
             body.innerHTML = list.map(function (row) {
                 return "<tr>"
                     + "<td>" + (row.dateLocal || "—") + "</td>"
@@ -301,30 +599,48 @@
                     + "<td>" + (row.newCustomerCount ?? 0) + "</td>"
                     + "<td>" + (row.sessionCount ?? 0) + "</td>"
                     + "<td>" + (row.subscriptionCreatedCount ?? 0) + "</td>"
+                    + "<td>" + (row.complimentaryCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(row.packagePriceDue, true) + "</td>"
+                    + "<td>" + dailyCell(row.packagePaidCash, true) + "</td>"
+                    + "<td>" + dailyCell(row.packagePaidCard, true) + "</td>"
+                    + "<td>" + dailyCell(row.packagePaidTotal, true) + "</td>"
                     + "<td>" + (row.equipmentSaleCount ?? 0) + "</td>"
-                    + "<td>" + (row.equipmentRentalCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(row.equipmentSaleRevenue, true) + "</td>"
+                    + "<td>" + (row.equipmentRentalIssuedCount ?? 0) + "</td>"
+                    + "<td>" + (row.equipmentRentalReturnedCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(row.totalPriceDue, true) + "</td>"
+                    + "<td>" + dailyCell(row.totalPaidCash, true) + "</td>"
+                    + "<td>" + dailyCell(row.totalPaidCard, true) + "</td>"
+                    + "<td>" + dailyCell(row.totalPaid, true) + "</td>"
                     + "<td>" + Number(row.laneHoursTotal ?? 0).toFixed(2) + "</td>"
                     + "</tr>";
             }).join("");
-        }
 
-        function renderLanes(rows) {
-            const body = document.getElementById("laneActivityBody");
-            if (!body) return;
-            const list = (Array.isArray(rows) ? rows : []).filter(function (x) {
-                return (Number(x.sessionCount) || 0) > 0 || (Number(x.totalHours) || 0) > 0;
-            });
-            if (!list.length) {
-                body.innerHTML = '<tr><td colspan="3" style="color:var(--muted);">Seçilmiş aralıqda aktiv zolaq yoxdur.</td></tr>';
-                return;
-            }
-            body.innerHTML = list.map(function (row) {
-                return "<tr>"
-                    + "<td>Zolaq " + (row.laneNumber ?? "—") + "</td>"
-                    + "<td>" + (row.sessionCount ?? 0) + "</td>"
-                    + "<td>" + Number(row.totalHours ?? 0).toFixed(2) + "</td>"
+            if (window.HesabatTableFilters) {
+                HesabatTableFilters.refreshById("dailyBreakdownBody");
+            } else {
+                const t = totals || {};
+                body.innerHTML += "<tr class='daily-total-row hesabat-sum-row'>"
+                    + "<td>Cəmi</td><td></td>"
+                    + "<td>" + (t.newCustomerCount ?? 0) + "</td>"
+                    + "<td>" + (t.sessionCount ?? 0) + "</td>"
+                    + "<td>" + (t.subscriptionCreatedCount ?? 0) + "</td>"
+                    + "<td>" + (t.complimentaryCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(t.packagePriceDue, true) + "</td>"
+                    + "<td>" + dailyCell(t.packagePaidCash, true) + "</td>"
+                    + "<td>" + dailyCell(t.packagePaidCard, true) + "</td>"
+                    + "<td>" + dailyCell(t.packagePaidTotal, true) + "</td>"
+                    + "<td>" + (t.equipmentSaleCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(t.equipmentSaleRevenue, true) + "</td>"
+                    + "<td>" + (t.equipmentRentalIssuedCount ?? 0) + "</td>"
+                    + "<td>" + (t.equipmentRentalReturnedCount ?? 0) + "</td>"
+                    + "<td>" + dailyCell(t.totalPriceDue, true) + "</td>"
+                    + "<td>" + dailyCell(t.totalPaidCash, true) + "</td>"
+                    + "<td>" + dailyCell(t.totalPaidCard, true) + "</td>"
+                    + "<td>" + dailyCell(t.totalPaid, true) + "</td>"
+                    + "<td>" + Number(t.laneHoursTotal ?? 0).toFixed(2) + "</td>"
                     + "</tr>";
-            }).join("");
+            }
         }
 
         function renderEquipment(rows) {
@@ -332,16 +648,113 @@
             if (!body) return;
             const list = Array.isArray(rows) ? rows : [];
             if (!list.length) {
-                body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq əməliyyatı yoxdur.</td></tr>';
+                body.innerHTML = '<tr><td colspan="14" style="color:var(--muted);">Seçilmiş aralıqda avadanlıq satışı yoxdur.</td></tr>';
+                if (window.HesabatTableFilters) HesabatTableFilters.refreshById("equipmentBreakdownBody");
+                return;
+            }
+
+            let sumSold = 0, sumTotal = 0, sumDiscount = 0, sumCash = 0, sumCard = 0;
+            const html = list.map(function (row) {
+                sumSold += Number(row.soldQuantity) || 0;
+                sumTotal += Number(row.lineTotal) || 0;
+                sumDiscount += Number(row.discountAmount) || 0;
+                sumCash += Number(row.paidCash) || 0;
+                sumCard += Number(row.paidCard) || 0;
+                return "<tr>"
+                    + "<td>" + (row.dateLocal || "—") + "</td>"
+                    + "<td>" + (row.timeLocal || "—") + "</td>"
+                    + "<td>" + (row.equipmentName || "—") + "</td>"
+                    + "<td>" + (row.totalQuantity ?? 0) + "</td>"
+                    + "<td>" + (row.inHallQuantity ?? 0) + "</td>"
+                    + "<td>" + (row.forSaleQuantity ?? 0) + "</td>"
+                    + "<td>" + (row.soldQuantity ?? 0) + "</td>"
+                    + "<td>" + dailyCell(row.unitPrice, true) + "</td>"
+                    + "<td>" + dailyCell(row.lineTotal, true) + "</td>"
+                    + "<td>" + dailyCell(row.discountAmount, true) + "</td>"
+                    + "<td>" + dailyCell(row.paidCash, true) + "</td>"
+                    + "<td>" + dailyCell(row.paidCard, true) + "</td>"
+                    + "<td>" + (row.customerName || "—") + "</td>"
+                    + "<td>" + (row.soldByStaffName || "—") + "</td>"
+                    + "<td>" + (row.saleSource || "—") + "</td>"
+                    + "</tr>";
+            }).join("");
+
+            body.innerHTML = html + "<tr class='daily-total-row hesabat-sum-row'>"
+                + "<td colspan='6'>Cəmi</td>"
+                + "<td>" + sumSold + "</td>"
+                + "<td></td>"
+                + "<td>" + dailyCell(sumTotal, true) + "</td>"
+                + "<td>" + dailyCell(sumDiscount, true) + "</td>"
+                + "<td>" + dailyCell(sumCash, true) + "</td>"
+                + "<td>" + dailyCell(sumCard, true) + "</td>"
+                + "<td colspan='3'></td>"
+                + "</tr>";
+
+            if (window.HesabatTableFilters) HesabatTableFilters.refreshById("equipmentBreakdownBody");
+        }
+
+        function renderCustomers(rows) {
+            const body = document.getElementById("customerDetailsBody");
+            if (!body) return;
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                body.innerHTML = '<tr><td colspan="17" style="color:var(--muted);">Seçilmiş aralıqda seans qeydi yoxdur.</td></tr>';
+                if (window.HesabatTableFilters) HesabatTableFilters.refreshById("customerDetailsBody");
                 return;
             }
             body.innerHTML = list.map(function (row) {
                 return "<tr>"
-                    + "<td>" + (row.equipmentName || "—") + "</td>"
-                    + "<td>" + (row.saleCount ?? 0) + "</td>"
-                    + "<td>" + (row.rentalCount ?? 0) + "</td>"
-                    + "<td>" + fmtMoney(row.saleRevenue) + "</td>"
-                    + "<td>" + fmtMoney(row.rentalRevenue) + "</td>"
+                    + "<td>" + (row.dateLocal || "—") + "</td>"
+                    + "<td>" + (row.customerName || "—") + "</td>"
+                    + "<td>" + (row.phone || "—") + "</td>"
+                    + "<td>" + (row.receptionStaffName || "—") + "</td>"
+                    + "<td>" + (row.supervisorStaffName || "—") + "</td>"
+                    + "<td>" + (row.packageName || "—") + "</td>"
+                    + "<td>" + (row.recordedAtLocal || "—") + "</td>"
+                    + "<td>" + (row.laneNumber ? ("Zolaq " + row.laneNumber) : "—") + "</td>"
+                    + "<td>" + (row.startTimeLocal || "—") + "</td>"
+                    + "<td>" + (row.endTimeLocal || "—") + "</td>"
+                    + "<td>" + (row.durationLabel || "—") + "</td>"
+                    + "<td>" + dailyCell(row.priceDue, true) + "</td>"
+                    + "<td>" + dailyCell(row.amountPaidCash, true) + "</td>"
+                    + "<td>" + dailyCell(row.amountPaidCard, true) + "</td>"
+                    + "<td>" + dailyCell(row.amountPaid, true) + "</td>"
+                    + "<td>" + dailyCell(row.discountAmount, true) + "</td>"
+                    + "<td>" + (row.isComplimentary ? "Bəli" : "Xeyr") + "</td>"
+                    + "</tr>";
+            }).join("");
+            if (window.HesabatTableFilters) HesabatTableFilters.refreshById("customerDetailsBody");
+        }
+
+        function renderFinanceSummary(data) {
+            const body = document.getElementById("financeSummaryBody");
+            if (!body || !data) return;
+            const rows = [
+                ["Seans / satış (ədəd)", data.sessionCount ?? 0, data.standaloneEquipmentSaleCount ?? 0, "—", false],
+                ["Ödənilməli (₼)", data.packagePriceDue, data.standaloneEquipmentSaleDue, data.totalPriceDue, false],
+                ["Nağd (₼)", data.packagePaidCash, data.standaloneEquipmentPaidCash, data.totalPaidCash, true],
+                ["Kart (₼)", data.packagePaidCard, data.standaloneEquipmentPaidCard, data.totalPaidCard, true],
+                ["Gəlir — ödənilib (₼)", data.packagePaidTotal, data.standaloneEquipmentPaidTotal, data.totalPaid, true]
+            ];
+            body.innerHTML = rows.map(function (row, idx) {
+                const isLast = idx === rows.length - 1;
+                const trClass = isLast ? " class='finance-total-row'" : "";
+                function cell(value, money) {
+                    if (value === "—") return "<td>—</td>";
+                    const cls = money ? " class='money'" : "";
+                    if (typeof value === "number" || (value !== null && value !== undefined && value !== "")) {
+                        if (money || typeof value === "number") {
+                            return "<td" + cls + ">" + dailyCell(value, true) + "</td>";
+                        }
+                        return "<td" + cls + ">" + String(value) + "</td>";
+                    }
+                    return "<td" + cls + ">0.00</td>";
+                }
+                return "<tr" + trClass + ">"
+                    + "<td>" + row[0] + "</td>"
+                    + cell(row[1], row[4])
+                    + cell(row[2], row[4])
+                    + cell(row[3], row[4])
                     + "</tr>";
             }).join("");
         }
@@ -349,29 +762,12 @@
         function renderData(data) {
             if (!data) return;
             if (labelEl) labelEl.textContent = data.label || "";
-            setText("statUniqueCustomers", data.uniqueCustomerCount ?? 0);
-            setText("statNewCustomers", data.newCustomerCount ?? 0);
-            setText("statSessionCount", data.sessionCount ?? 0);
-            setText("statSubscriptions", data.subscriptionCreatedCount ?? 0);
-            setText("statSaleCount", data.equipmentSaleCount ?? 0);
-            setText("statRentalCount", data.equipmentRentalCount ?? 0);
-            setText("statLaneHours", Number(data.totalLaneHours ?? 0).toFixed(2));
-            setText("statBusiestLane", data.busiestLaneNumber ? ("Zolaq " + data.busiestLaneNumber) : "—");
-            setText("statEquipmentTotal", (Number(data.equipmentSaleCount) || 0) + (Number(data.equipmentRentalCount) || 0));
 
-            const saleRev = document.getElementById("statSaleRevenue");
-            if (saleRev) saleRev.textContent = "Gəlir: " + fmtMoney(data.equipmentSaleRevenue);
-            const rentalRev = document.getElementById("statRentalRevenue");
-            if (rentalRev) rentalRev.textContent = "Dəyər: " + fmtMoney(data.equipmentRentalRevenue);
-            const totalRev = document.getElementById("statEquipmentRevenue");
-            if (totalRev) {
-                const sum = (Number(data.equipmentSaleRevenue) || 0) + (Number(data.equipmentRentalRevenue) || 0);
-                totalRev.textContent = "Cəmi: " + fmtMoney(sum);
-            }
+            renderFinanceSummary(data);
 
-            renderDaily(data.dailyBreakdown);
-            renderLanes(data.laneActivity);
-            renderEquipment(data.equipmentBreakdown);
+            renderDaily(data.dailyBreakdown, data.dailyTotals);
+            renderCustomers(data.customerVisitDetails);
+            renderEquipment(data.equipmentSaleDetails);
             syncExportLink();
         }
 
@@ -383,12 +779,42 @@
             if (monthRow) monthRow.style.display = currentMode === "month" ? "" : "none";
         }
 
-        function loadAnalytics() {
-            syncExportLink();
-            return fetch(buildUrl(), { credentials: "same-origin", cache: "no-store" })
-                .then(function (res) { return res.ok ? res.json() : null; })
+        let analyticsLoading = false;
+
+        function loadAnalytics(forceRefresh) {
+            if (analyticsLoading) return;
+            analyticsLoading = true;
+            const refreshBtn = document.getElementById("analyticsRefreshBtn");
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = "Yenilənir...";
+            }
+
+            const params = buildQueryParams();
+            if (forceRefresh) {
+                params.set("_", String(Date.now()));
+            }
+
+            return fetch(analyticsUrl + "?" + params.toString(), {
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
+            })
+                .then(function (res) {
+                    if (!res.ok) throw new Error("load failed");
+                    return res.json();
+                })
                 .then(renderData)
-                .catch(function () { /* ignore */ });
+                .catch(function () {
+                    alert("Hesabat yenilənərkən xəta baş verdi.");
+                })
+                .finally(function () {
+                    analyticsLoading = false;
+                    if (refreshBtn) {
+                        refreshBtn.disabled = false;
+                        refreshBtn.textContent = "Yenilə";
+                    }
+                });
         }
 
         document.querySelectorAll(".preset-btn[data-mode]").forEach(function (btn) {
@@ -401,7 +827,10 @@
 
         document.getElementById("analyticsRangeApply")?.addEventListener("click", loadAnalytics);
         document.getElementById("analyticsMonthApply")?.addEventListener("click", loadAnalytics);
-        document.getElementById("analyticsRefreshBtn")?.addEventListener("click", loadAnalytics);
+        document.getElementById("analyticsRefreshBtn")?.addEventListener("click", function (e) {
+            e.preventDefault();
+            loadAnalytics(true);
+        });
         fromDateEl?.addEventListener("change", function () {
             if (currentMode === "range") loadAnalytics();
         });
@@ -421,5 +850,28 @@
         }
         syncPresetUi();
         syncExportLink();
+
+        document.querySelectorAll(".panel-export-table").forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+                e.preventDefault();
+                const tbodyId = btn.getAttribute("data-export-tbody");
+                const sheetName = btn.getAttribute("data-sheet-name") || "Hesabat";
+                const rangeLabel = labelEl ? labelEl.textContent.trim() : "";
+                if (window.HesabatTableFilters && tbodyId) {
+                    HesabatTableFilters.exportFiltered(tbodyId, sheetName, rangeLabel);
+                }
+            });
+        });
+
+        function bootFilters() {
+            if (window.HesabatTableFilters) {
+                HesabatTableFilters.initAll();
+            }
+        }
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", bootFilters);
+        } else {
+            bootFilters();
+        }
     })();
 </script>

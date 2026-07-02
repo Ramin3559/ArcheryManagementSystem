@@ -1,6 +1,7 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Common.Models;
+using EShooting.Application.Sessions;
 using EShooting.Domain.Enums;
 using MediatR;
 
@@ -11,6 +12,27 @@ public sealed record GetLaneDashboardQuery : IRequest<IReadOnlyCollection<LaneDa
 public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repository)
     : IRequestHandler<GetLaneDashboardQuery, IReadOnlyCollection<LaneDashboardItem>>
 {
+    private static bool HasActivation(EShooting.Domain.Entities.TrainingSession session)
+    {
+        return session.ActivatedAtUtc is not null || session.Status == SessionStatus.Active;
+    }
+
+    private static DateTime ResolveEffectiveStartUtc(EShooting.Domain.Entities.TrainingSession session)
+    {
+        return session.ActivatedAtUtc is DateTime activated
+            ? DateTimeAssumedUtc.AsUtc(activated)
+            : DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+    }
+
+    private static DateTime ResolveEffectiveEndUtc(EShooting.Domain.Entities.TrainingSession session)
+    {
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        var plannedDuration = plannedEnd > plannedStart ? plannedEnd - plannedStart : TimeSpan.Zero;
+        var start = ResolveEffectiveStartUtc(session);
+        return plannedDuration > TimeSpan.Zero ? start + plannedDuration : start;
+    }
+
     public async Task<IReadOnlyCollection<LaneDashboardItem>> Handle(
         GetLaneDashboardQuery request,
         CancellationToken cancellationToken)
@@ -20,13 +42,26 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         // Yalnız bu günün (yerli vaxtla) planlı sessiyalarını göstəririk.
         // Sabahkı və ya gələcək günün planları "Planlaşdırılıb" kimi görünməyəcək.
         var localNow = nowUtc.ToLocalTime();
-        var localTomorrowMidnight = localNow.Date.AddDays(1);
-        var endOfTodayUtc = localTomorrowMidnight.ToUniversalTime();
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
-        var athletes = await repository.GetAthletesAsync(cancellationToken);
         var equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
+        foreach (var stale in sessions.Where(x => SessionHousekeeping.ShouldAutoComplete(x, nowUtc)).ToList())
+        {
+            if (SessionEquipmentRules.HasPendingRentalEquipment(stale, equipmentIssues))
+            {
+                continue;
+            }
+
+            SessionHousekeeping.MarkCompleted(stale, nowUtc);
+            await repository.UpdateSessionAsync(stale, cancellationToken);
+        }
+
+        var athletes = await repository.GetAthletesAsync(cancellationToken);
+        var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var equipmentItems = await repository.GetEquipmentItemsAsync(activeOnly: false, cancellationToken);
+        var equipmentNames = equipmentItems.ToDictionary(x => x.Id, x => x.Name);
+        var athleteNameById = athletes.ToDictionary(x => x.Id, x => x.FullName ?? "—");
         var athleteById = athletes.ToDictionary(
             x => x.Id,
             x => new { x.FullName, x.FirstName, x.LastName, x.MembershipType, x.IsVip });
@@ -43,24 +78,27 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
 
                 var laneSessions = laneAllSessions
                     .Where(x => x.Status != SessionStatus.Completed)
+                    .Where(x => IsRelevantForLaneDisplay(x, nowUtc, localNow))
                     .OrderByDescending(x => x.StartTimeUtc)
                     .ToList();
 
                 // 1) Hazırda canlı pəncərədə olan sessiya.
-                // 2) Yoxdursa: yalnız BUGÜNÜN gələcək saatları üçün ən tez planlı sessiya.
-                //    Sabah üçün və ya keçmişdə qalmış planlı sessiyalar Planlı kimi göstərilməyəcək —
-                //    zolaq Boş olaraq qalacaq.
-                var activeSession = laneSessions.FirstOrDefault(x => IsInLiveWindow(x, nowUtc))
+                // 2) Yoxdursa: ən yaxın gələcək planlı sessiya (bugün və ya sonrakı günlər).
+                // 3) Yoxdursa: bu günün gecikmiş, hələ bağlanmamış sessiyası.
+                var activeSession = laneSessions
+                        .Where(x => IsInLiveWindow(x, nowUtc))
+                        .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
+                        .FirstOrDefault()
                     ?? laneSessions
                         .Where(x =>
                         {
                             var startUtc = DateTimeAssumedUtc.AsUtc(x.StartTimeUtc);
-                            return startUtc > nowUtc && startUtc < endOfTodayUtc;
+                            return startUtc > nowUtc;
                         })
                         .OrderBy(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
                         .FirstOrDefault()
                     ?? laneSessions
-                        .Where(x => IsOverdueOpenSession(x, nowUtc))
+                        .Where(x => SessionHousekeeping.IsDisplayableOverdueSession(x, nowUtc))
                         .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.EndTimeUtc))
                         .FirstOrDefault();
 
@@ -81,16 +119,37 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                 var status = ResolveStatus(activeSession, nowUtc);
                 DateTime? startTimeUtc = activeSession is null
                     ? null
-                    : DateTimeAssumedUtc.AsUtc(activeSession.StartTimeUtc);
+                    : (HasActivation(activeSession)
+                        ? ResolveEffectiveStartUtc(activeSession)
+                        : DateTimeAssumedUtc.AsUtc(activeSession.StartTimeUtc));
                 DateTime? endTimeUtc = activeSession is null
                     ? null
-                    : DateTimeAssumedUtc.AsUtc(activeSession.EndTimeUtc);
+                    : (HasActivation(activeSession)
+                        ? ResolveEffectiveEndUtc(activeSession)
+                        : DateTimeAssumedUtc.AsUtc(activeSession.EndTimeUtc));
 
                 var isOpenEndedSession = activeSession is not null
                     && startTimeUtc is not null
                     && endTimeUtc is not null
-                    && !HasValidTimeWindow(startTimeUtc.Value, endTimeUtc.Value);
-                var isAthleteVip = athlete?.IsVip ?? false;
+                    && (!HasValidTimeWindow(startTimeUtc.Value, endTimeUtc.Value)
+                        || WalkInSubscriptionRules.HasActiveWalkIn(
+                            subscriptionSchedules,
+                            activeSession.AthleteId,
+                            localNow));
+                var isAthleteVip = (athlete?.IsVip ?? false)
+                    || (activeSession is not null
+                        && WalkInSubscriptionRules.HasActiveWalkIn(
+                            subscriptionSchedules,
+                            activeSession.AthleteId,
+                            localNow));
+
+                if (isOpenEndedSession
+                    && startTimeUtc is not null
+                    && endTimeUtc is not null
+                    && endTimeUtc.Value > startTimeUtc.Value)
+                {
+                    endTimeUtc = startTimeUtc;
+                }
 
                 DateTime? cooldownUntilUtc = null;
                 if (status == "Idle")
@@ -106,6 +165,13 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                         cooldownUntilUtc = lastEndedUtc + LaneReservationRules.SessionBuffer;
                     }
                 }
+
+                var pendingRental = SessionEquipmentRules.ResolveLanePendingRental(
+                    laneAllSessions,
+                    equipmentIssues,
+                    equipmentNames,
+                    athleteNameById,
+                    nowUtc);
 
                 return new LaneDashboardItem
                 {
@@ -126,8 +192,12 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     Warning = warning,
                     IsEquipmentIssued = activeSession?.IsEquipmentIssued ?? false,
                     IsEquipmentReturned = activeSession?.EquipmentReturnedAtUtc is not null,
-                    HasPendingRentalEquipment = activeSession is not null
-                        && SessionEquipmentRules.HasPendingRentalEquipment(activeSession, equipmentIssues),
+                    HasPendingRentalEquipment = pendingRental is not null,
+                    PendingRentalSessionId = pendingRental?.SessionId,
+                    PendingRentalAthleteName = pendingRental?.AthleteName,
+                    PendingRentalEquipmentSummary = pendingRental is null
+                        ? null
+                        : string.Join(", ", pendingRental.EquipmentLabels),
                     IsSessionOpen = activeSession?.Status != SessionStatus.Completed,
                     IsOpenEndedSession = isOpenEndedSession,
                     IsAthleteVip = isAthleteVip
@@ -138,10 +208,29 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         return result;
     }
 
-    private static bool IsOverdueOpenSession(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)
+    private static bool IsRelevantForLaneDisplay(
+        EShooting.Domain.Entities.TrainingSession session,
+        DateTime nowUtc,
+        DateTime localNow)
     {
         var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        if (start.ToLocalTime().Date >= localNow.Date)
+        {
+            return true;
+        }
+
+        if (IsInLiveWindow(session, nowUtc))
+        {
+            return true;
+        }
+
+        return SessionHousekeeping.IsDisplayableOverdueSession(session, nowUtc);
+    }
+
+    private static bool IsOverdueOpenSession(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)
+    {
+        var start = ResolveEffectiveStartUtc(session);
+        var end = ResolveEffectiveEndUtc(session);
         if (!HasValidTimeWindow(start, end))
         {
             return session.Status == SessionStatus.Active && nowUtc >= start;
@@ -152,11 +241,34 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
 
     private static bool IsInLiveWindow(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)
     {
-        var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-        if (!HasValidTimeWindow(start, end))
+        if (!HasActivation(session))
         {
-            return session.Status == SessionStatus.Active;
+            return false;
+        }
+
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        var start = ResolveEffectiveStartUtc(session);
+        var end = ResolveEffectiveEndUtc(session);
+        if (!HasValidTimeWindow(plannedStart, plannedEnd))
+        {
+            if (session.Status == SessionStatus.Completed)
+            {
+                return false;
+            }
+
+            if (nowUtc < start)
+            {
+                return false;
+            }
+
+            // Köhnə günlərin açıq VIP sessiyalarını TV-də aktiv sayma.
+            if (start.ToLocalTime().Date < nowUtc.ToLocalTime().Date)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         return nowUtc >= start && nowUtc < end;
@@ -169,9 +281,21 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             return "Ready";
         }
 
-        var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-        if (!HasValidTimeWindow(start, end))
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+
+        if (!HasActivation(session))
+        {
+            if (nowUtc < plannedStart)
+            {
+                return $"Starts in {FormatDuration(plannedStart - nowUtc)}";
+            }
+            return "Waiting";
+        }
+
+        var start = ResolveEffectiveStartUtc(session);
+        var end = ResolveEffectiveEndUtc(session);
+        if (!HasValidTimeWindow(plannedStart, plannedEnd))
         {
             if (session.Status == SessionStatus.Completed)
             {
@@ -222,9 +346,17 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             return "Completed";
         }
 
-        var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var end = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-        if (!HasValidTimeWindow(start, end))
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+
+        if (!HasActivation(session))
+        {
+            return "Scheduled";
+        }
+
+        var start = ResolveEffectiveStartUtc(session);
+        var end = ResolveEffectiveEndUtc(session);
+        if (!HasValidTimeWindow(plannedStart, plannedEnd))
         {
             if (nowUtc < start)
             {

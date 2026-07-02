@@ -1,14 +1,7 @@
-@using EShooting.Web.Controllers.Admin
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     ViewData["Title"] = "Tarixçə";
-    var rows = (List<HistoryRow>?)ViewData["Rows"] ?? new List<HistoryRow>();
-    var f = (HistoryFilter?)ViewData["Filter"] ?? new HistoryFilter();
-    var identityNoMatch = ViewData["IdentitySearchNoMatch"] is bool b && b;
-    var rangeLabel = (string?)ViewData["HistoryRangeLabel"] ?? "";
-    var fromIso = f.FromDate?.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd");
-    var toIso = f.ToDate?.ToString("yyyy-MM-dd") ?? fromIso;
-    var exportUrl = $"/admin/export.xlsx?phone={Uri.EscapeDataString(f.Phone ?? "")}&email={Uri.EscapeDataString(f.Email ?? "")}&idCardNumber={Uri.EscapeDataString(f.IdCardNumber ?? "")}&fromDate={fromIso}&toDate={toIso}";
+    var today = DateTime.Now.ToString("yyyy-MM-dd");
 }
 
 <style>
@@ -25,44 +18,43 @@
     }
     .preset-btn:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
     .range-hint { font-size:13px; color: var(--muted); margin-top:8px; }
+    .card.loading { opacity: 0.65; pointer-events: none; }
+    #identityNoMatchBanner { display: none; margin-bottom: 12px; border-color: #f59e0b; background: #fffbeb; }
 </style>
 
-@if (identityNoMatch)
-{
-    <div class="card" style="margin-bottom:12px; border-color:#f59e0b; background:#fffbeb;">
-        <strong style="color:#92400e;">İdmançı tapılmadı.</strong>
-        <span style="color:#78350f;"> Telefon / e-poçt / Ş-V üzrə heç bir qeydiyyat tam uyğun gəlmədi; nəticə boşdur.</span>
-        <div style="margin-top:6px; font-size:13px; color:#92400e;">Telefon üçün yalnız rəqəmlər istifadə olunur; uyğunluq <strong>tam üst-üstə düşmə</strong>dir (hissəvi axtarış yoxdur).</div>
-    </div>
-}
+<div class="card" id="identityNoMatchBanner">
+    <strong style="color:#92400e;">Müştəri tapılmadı.</strong>
+    <span style="color:#78350f;"> Telefon / e-poçt / Ş-V üzrə heç bir qeydiyyat tam uyğun gəlmədi; nəticə boşdur.</span>
+    <div style="margin-top:6px; font-size:13px; color:#92400e;">Telefon üçün yalnız rəqəmlər istifadə olunur; uyğunluq <strong>tam üst-üstə düşmə</strong>dir (hissəvi axtarış yoxdur).</div>
+</div>
 
 <div class="topbar">
     <h1>Tarixçə</h1>
-    <a class="btn btn-excel" id="historyExportBtn" href="@exportUrl">Excel-ə çıxart</a>
+    <a class="btn btn-excel" id="historyExportBtn" href="/admin/export.xlsx">Excel-ə çıxart</a>
 </div>
 
 <div class="card" style="margin-bottom:12px;">
-    <form method="get" action="/admin/history" id="historyFilterForm">
+    <form id="historyFilterForm" autocomplete="off">
         <div class="row">
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Telefon</div>
-                <input name="phone" id="historyPhone" value="@(f.Phone ?? "")" placeholder="Telefon" />
+                <input name="phone" id="historyPhone" placeholder="Telefon" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">E-mail</div>
-                <input name="email" id="historyEmail" value="@(f.Email ?? "")" placeholder="E-mail" />
+                <input name="email" id="historyEmail" placeholder="E-mail" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Ş/V / FİN</div>
-                <input name="idCardNumber" id="historyIdCard" value="@(f.IdCardNumber ?? "")" placeholder="Ş/V / FİN" />
+                <input name="idCardNumber" id="historyIdCard" placeholder="Ş/V / FİN" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Başlanğıc</div>
-                <input name="fromDate" id="historyFromDate" type="date" value="@fromIso" />
+                <input name="fromDate" id="historyFromDate" type="date" value="@today" />
             </div>
             <div>
                 <div class="statLabel" style="margin-bottom:6px;">Bitmə</div>
-                <input name="toDate" id="historyToDate" type="date" value="@toIso" />
+                <input name="toDate" id="historyToDate" type="date" value="@today" />
             </div>
             <div>
                 <button class="btn btn-primary" type="submit">Göstər</button>
@@ -78,24 +70,19 @@
         </div>
 
         <div class="range-hint">
-            Göstərilən aralıq: <strong id="historyRangeLabel">@rangeLabel</strong>.
+            Göstərilən aralıq: <strong id="historyRangeLabel">@today</strong>.
             Səhifə ilk açılanda yalnız <strong>bu günün</strong> nəticələri yüklənir; geniş tarix seçəndə «Göstər» basın.
         </div>
     </form>
 </div>
 
-@{
-    var grandTotalScore = rows.Sum(x => x.TotalScore);
-    var grandScoreCount = rows.Sum(x => x.ScoreCount);
-}
-
-<div class="card">
+<div class="card" id="historyTableCard">
     <div class="tableWrap">
         <table>
             <thead>
             <tr>
                 <th>Tarix</th>
-                <th>İdmançı</th>
+                <th>Müştəri</th>
                 <th>Telefon</th>
                 <th>Kateqoriya</th>
                 <th>Zolaq</th>
@@ -105,81 +92,122 @@
                 <th style="text-align:right;">Cəmi xal</th>
             </tr>
             </thead>
-            <tbody>
-            @if (rows.Count == 0)
-            {
-                <tr>
-                    <td colspan="9" style="color:var(--muted);">Seçilmiş aralıqda nəticə yoxdur.</td>
-                </tr>
-            }
-            else
-            {
-                foreach (var r in rows)
-                {
-                    <tr>
-                        <td>@r.DateLocal</td>
-                        <td>@r.AthleteName</td>
-                        <td>@r.Phone</td>
-                        <td>@r.Category</td>
-                        <td>@(r.LaneNumber <= 0 ? "—" : r.LaneNumber)</td>
-                        <td>@r.StartTimeLocal</td>
-                        <td>@r.EndTimeLocal</td>
-                        <td style="text-align:right;">@r.ScoreCount</td>
-                        <td style="text-align:right; font-weight:800;">@r.TotalScore</td>
-                    </tr>
-                }
-            }
+            <tbody id="historyTableBody">
+            <tr><td colspan="9" style="color:var(--muted);">Yüklənir…</td></tr>
             </tbody>
-            @if (rows.Count > 0)
-            {
-                <tfoot>
-                <tr style="background:#f3f4f6; font-weight:900;">
-                    <td colspan="7" style="text-align:right;">Yekun (@rows.Count sətir):</td>
-                    <td style="text-align:right;">@grandScoreCount</td>
-                    <td style="text-align:right;">@grandTotalScore</td>
-                </tr>
-                </tfoot>
-            }
+            <tfoot id="historyTableFoot" style="display:none;">
+            <tr style="background:#f3f4f6; font-weight:900;">
+                <td colspan="7" style="text-align:right;" id="historyFootLabel">Yekun:</td>
+                <td style="text-align:right;" id="historyFootCount">0</td>
+                <td style="text-align:right;" id="historyFootScore">0</td>
+            </tr>
+            </tfoot>
         </table>
     </div>
 </div>
 
 <script>
     (function () {
-        const form = document.getElementById("historyFilterForm");
-        const fromEl = document.getElementById("historyFromDate");
-        const toEl = document.getElementById("historyToDate");
-        const exportBtn = document.getElementById("historyExportBtn");
-        const rangeLabelEl = document.getElementById("historyRangeLabel");
+        var STORAGE_KEY = "history";
+        var form = document.getElementById("historyFilterForm");
+        var fromEl = document.getElementById("historyFromDate");
+        var toEl = document.getElementById("historyToDate");
+        var exportBtn = document.getElementById("historyExportBtn");
+        var rangeLabelEl = document.getElementById("historyRangeLabel");
+        var tbody = document.getElementById("historyTableBody");
+        var tfoot = document.getElementById("historyTableFoot");
+        var tableCard = document.getElementById("historyTableCard");
+        var identityBanner = document.getElementById("identityNoMatchBanner");
+        var AFS = window.AdminFilterState;
 
         function isoDate(d) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, "0");
+            var day = String(d.getDate()).padStart(2, "0");
             return y + "-" + m + "-" + day;
         }
 
-        function syncExportLink() {
-            if (!(exportBtn instanceof HTMLAnchorElement) || !(form instanceof HTMLFormElement)) return;
-            const params = new URLSearchParams(new FormData(form));
-            exportBtn.href = "/admin/export.xlsx?" + params.toString();
+        function qsFromForm() {
+            return new URLSearchParams(new FormData(form));
         }
 
-        function syncRangeLabel() {
-            if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement) || !rangeLabelEl) return;
-            const from = fromEl.value;
-            const to = toEl.value || from;
+        function syncExportLink() {
+            if (exportBtn instanceof HTMLAnchorElement) {
+                exportBtn.href = "/admin/export.xlsx?" + qsFromForm().toString();
+            }
+        }
+
+        function syncRangeLabel(from, to) {
+            if (!rangeLabelEl) return;
             rangeLabelEl.textContent = from && to && from !== to ? (from + " — " + to) : (from || to || "—");
+        }
+
+        function renderRows(rows) {
+            if (!tbody) return;
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);">Seçilmiş aralıqda nəticə yoxdur.</td></tr>';
+                if (tfoot) tfoot.style.display = "none";
+                return;
+            }
+            var grandScore = 0;
+            var grandCount = 0;
+            tbody.innerHTML = rows.map(function (r) {
+                grandScore += Number(r.totalScore) || 0;
+                grandCount += Number(r.scoreCount) || 0;
+                var lane = Number(r.laneNumber) > 0 ? String(r.laneNumber) : "—";
+                return "<tr>"
+                    + "<td>" + AFS.escapeHtml(r.dateLocal) + "</td>"
+                    + "<td>" + AFS.escapeHtml(r.athleteName) + "</td>"
+                    + "<td>" + AFS.escapeHtml(r.phone) + "</td>"
+                    + "<td>" + AFS.escapeHtml(r.category) + "</td>"
+                    + "<td>" + lane + "</td>"
+                    + "<td>" + AFS.escapeHtml(r.startTimeLocal) + "</td>"
+                    + "<td>" + AFS.escapeHtml(r.endTimeLocal) + "</td>"
+                    + "<td style=\"text-align:right;\">" + (r.scoreCount ?? 0) + "</td>"
+                    + "<td style=\"text-align:right; font-weight:800;\">" + (r.totalScore ?? 0) + "</td>"
+                    + "</tr>";
+            }).join("");
+            if (tfoot) {
+                tfoot.style.display = "";
+                var footLabel = document.getElementById("historyFootLabel");
+                var footCount = document.getElementById("historyFootCount");
+                var footScore = document.getElementById("historyFootScore");
+                if (footLabel) footLabel.textContent = "Yekun (" + rows.length + " sətir):";
+                if (footCount) footCount.textContent = String(grandCount);
+                if (footScore) footScore.textContent = String(grandScore);
+            }
+        }
+
+        async function loadHistory() {
+            if (!form) return;
+            AFS.save(STORAGE_KEY, form);
             syncExportLink();
+            var from = fromEl instanceof HTMLInputElement ? fromEl.value : "";
+            var to = toEl instanceof HTMLInputElement ? toEl.value : "";
+            syncRangeLabel(from, to || from);
+            if (tableCard) tableCard.classList.add("loading");
+            try {
+                var res = await fetch("/admin/history/data?" + qsFromForm().toString(), { credentials: "same-origin" });
+                if (!res.ok) throw new Error("load failed");
+                var data = await res.json();
+                if (identityBanner) {
+                    identityBanner.style.display = data.identitySearchNoMatch ? "" : "none";
+                }
+                if (data.rangeLabel) syncRangeLabel(from, to || from);
+                renderRows(Array.isArray(data.rows) ? data.rows : []);
+            } catch (e) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="color:#b91c1c;">Tarixçə yüklənmədi.</td></tr>';
+            } finally {
+                if (tableCard) tableCard.classList.remove("loading");
+            }
         }
 
         function applyPreset(preset) {
             if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement)) return;
-            const today = new Date();
+            var today = new Date();
             today.setHours(0, 0, 0, 0);
-            let from = new Date(today);
-            let to = new Date(today);
-
+            var from = new Date(today);
+            var to = new Date(today);
             if (preset === "yesterday") {
                 from.setDate(from.getDate() - 1);
                 to = new Date(from);
@@ -189,11 +217,9 @@
                 from = new Date(today.getFullYear(), today.getMonth(), 1);
                 to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             }
-
             fromEl.value = isoDate(from);
             toEl.value = isoDate(to);
-            syncRangeLabel();
-            form.submit();
+            void loadHistory();
         }
 
         document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
@@ -202,9 +228,25 @@
             });
         });
 
-        fromEl?.addEventListener("change", syncRangeLabel);
-        toEl?.addEventListener("change", syncRangeLabel);
-        form?.addEventListener("input", syncExportLink);
-        syncRangeLabel();
+        if (form && AFS) {
+            AFS.initForm(STORAGE_KEY, form, {
+                applyDefaults: function (f) {
+                    var today = AFS.todayIso();
+                    var from = f.elements.namedItem("fromDate");
+                    var to = f.elements.namedItem("toDate");
+                    if (from && "value" in from && !from.value) from.value = today;
+                    if (to && "value" in to && !to.value) to.value = today;
+                }
+            });
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
+                void loadHistory();
+            });
+            fromEl?.addEventListener("change", syncExportLink);
+            toEl?.addEventListener("change", syncExportLink);
+            form.addEventListener("input", syncExportLink);
+            syncExportLink();
+            void loadHistory();
+        }
     })();
 </script>

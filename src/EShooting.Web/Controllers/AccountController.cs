@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EShooting.Web.Auth;
+using EShooting.Web.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -18,19 +19,35 @@ public sealed class AccountController(
     [AllowAnonymous]
     public async Task<IActionResult> Login(string? returnUrl = null)
     {
+        if (IsReceptionReturnUrl(returnUrl))
+        {
+            return Redirect("/resepsiya/giris");
+        }
+
         var isAdminReturnUrl = !string.IsNullOrWhiteSpace(returnUrl)
             && returnUrl.StartsWith("/admin", StringComparison.OrdinalIgnoreCase);
 
+        if (await HttpContext.IsAdminAuthenticatedAsync())
+        {
+            if (isAdminReturnUrl || string.IsNullOrWhiteSpace(returnUrl))
+            {
+                return RedirectToLocal(returnUrl ?? "/admin");
+            }
+
+            return Redirect("/admin");
+        }
+
         if (User.Identity?.IsAuthenticated == true)
         {
-            if (!User.IsInRole("Reception") && !User.IsInRole("ReceptionStaff") && !User.IsInRole("Admin"))
+            if (!User.IsInRole("Reception") && !User.IsInRole("ReceptionStaff"))
             {
-                await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                await HttpContext.SignOutReceptionAsync();
             }
-            else if (isAdminReturnUrl && !User.IsInRole("Admin"))
+            else if (isAdminReturnUrl)
             {
-                await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                return Redirect($"/admin/login?returnUrl={Uri.EscapeDataString(returnUrl!)}");
+                ViewData["ReturnUrl"] = returnUrl;
+                ViewData["AdminLoginRequired"] = true;
+                return View();
             }
             else
             {
@@ -54,15 +71,13 @@ public sealed class AccountController(
                 new(ClaimTypes.Name, userName),
                 new(ClaimTypes.Role, "Admin")
             };
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var identity = new ClaimsIdentity(
+                claims,
+                AdminAuthDefaults.Scheme,
+                ClaimTypes.Name,
+                ClaimTypes.Role);
             var principal = new ClaimsPrincipal(identity);
-            await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                principal,
-                new AuthenticationProperties
-                {
-                    IsPersistent = true
-                });
+            await HttpContext.SignInAdminAsync(principal);
 
             return RedirectToLocal(string.IsNullOrWhiteSpace(returnUrl) ? "/admin" : returnUrl);
         }
@@ -109,13 +124,19 @@ public sealed class AccountController(
         return RedirectToAction(nameof(Login), new { returnUrl });
     }
 
+    [HttpGet]
+    [AllowAnonymous]
+    public Task<IActionResult> Logout(string? returnUrl = null) => SignOutAdminAndRedirect(returnUrl);
+
     [HttpPost]
-    [Authorize]
+    [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Logout()
+    public Task<IActionResult> LogoutPost(string? returnUrl = null) => SignOutAdminAndRedirect(returnUrl);
+
+    private async Task<IActionResult> SignOutAdminAndRedirect(string? returnUrl)
     {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return RedirectToAction(nameof(Login));
+        await HttpContext.SignOutAdminAsync();
+        return RedirectToAction(nameof(Login), new { returnUrl });
     }
 
     private IActionResult RedirectToLocal(string? returnUrl)
@@ -127,4 +148,10 @@ public sealed class AccountController(
 
         return Redirect("/admin");
     }
+
+    private static bool IsReceptionReturnUrl(string? returnUrl) =>
+        !string.IsNullOrWhiteSpace(returnUrl)
+        && (returnUrl.StartsWith("/qeydiyyat", StringComparison.OrdinalIgnoreCase)
+            || returnUrl.StartsWith("/resepsiya", StringComparison.OrdinalIgnoreCase)
+            || returnUrl.StartsWith("/Home/Index", StringComparison.OrdinalIgnoreCase));
 }

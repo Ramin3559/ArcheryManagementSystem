@@ -23,6 +23,9 @@ public sealed class LaneDashboardItem
     public bool IsEquipmentIssued { get; init; }
     public bool IsEquipmentReturned { get; init; }
     public bool HasPendingRentalEquipment { get; init; }
+    public Guid? PendingRentalSessionId { get; init; }
+    public string? PendingRentalAthleteName { get; init; }
+    public string? PendingRentalEquipmentSummary { get; init; }
     public bool IsSessionOpen { get; init; }
     /// <summary>VIP / müddətsiz sessiya — TV-də geri sayım yox, artan vaxt.</summary>
     public bool IsOpenEndedSession { get; init; }

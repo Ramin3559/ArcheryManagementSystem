@@ -60,13 +60,48 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.PhoneNumber = athlete.PhoneNumber;
         existing.Email = athlete.Email;
         existing.IdCardNumber = athlete.IdCardNumber;
+        existing.ClubCardNumber = athlete.ClubCardNumber;
         existing.Category = athlete.Category;
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
         existing.IsFullPackage = athlete.IsFullPackage;
         existing.IsVip = athlete.IsVip;
+        existing.IsActive = athlete.IsActive;
+        existing.RegisteredByStaffId = athlete.RegisteredByStaffId;
         return Task.CompletedTask;
     }
+
+    private readonly List<CustomerPackageRecord> _customerPackageRecords = [];
+
+    public Task<CustomerPackageRecord> AddCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
+    {
+        _customerPackageRecords.Add(record);
+        return Task.FromResult(record);
+    }
+
+    public Task<CustomerPackageRecord?> GetCustomerPackageRecordByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_customerPackageRecords.FirstOrDefault(x => x.Id == id));
+
+    public Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
+    {
+        var existing = _customerPackageRecords.FirstOrDefault(x => x.Id == record.Id);
+        if (existing is null)
+        {
+            _customerPackageRecords.Add(record);
+            return Task.CompletedTask;
+        }
+
+        existing.AmountPaidCash = record.AmountPaidCash;
+        existing.AmountPaidCard = record.AmountPaidCard;
+        existing.AmountPaid = record.AmountPaid;
+        existing.PriceDue = record.PriceDue;
+        existing.IsComplimentary = record.IsComplimentary;
+        existing.IsActive = record.IsActive;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<CustomerPackageRecord>>(_customerPackageRecords.ToList());
 
     public Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken)
     {
@@ -129,6 +164,21 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         return GetSessionsAsync(cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(
+        DateTime fromLocalDate,
+        DateTime toLocalDate,
+        CancellationToken cancellationToken)
+    {
+        var from = fromLocalDate.Date;
+        var to = toLocalDate.Date;
+        var filtered = _sessions.Where(s =>
+        {
+            var local = s.StartTimeUtc.ToLocalTime().Date;
+            return local >= from && local <= to;
+        }).ToList();
+        return Task.FromResult<IReadOnlyCollection<TrainingSession>>(filtered);
+    }
+
     public Task<Athlete?> GetAthleteByIdAsync(Guid athleteId, CancellationToken cancellationToken)
     {
         return Task.FromResult(_athletes.FirstOrDefault(x => x.Id == athleteId));
@@ -138,13 +188,16 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         string phoneDigits,
         string emailNormalized,
         string idCardNormalized,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
     {
         var phoneQ = (phoneDigits ?? "").Trim();
         var emailQ = (emailNormalized ?? "").Trim();
         var idQ = (idCardNormalized ?? "").Trim();
 
-        var match = _athletes.FirstOrDefault(a =>
+        var match = _athletes
+            .Where(a => includeInactive || a.IsActive)
+            .FirstOrDefault(a =>
         {
             var p = string.IsNullOrWhiteSpace(a.PhoneNumber) ? "" : new string(a.PhoneNumber.Where(char.IsDigit).ToArray());
             var e = (a.Email ?? "").Trim().ToLowerInvariant();
@@ -276,9 +329,14 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
 
         existing.Name = item.Name;
         existing.Category = item.Category;
+        existing.UsageMode = item.UsageMode;
+        existing.RentalQuantity = item.RentalQuantity;
+        existing.SaleQuantity = item.SaleQuantity;
         existing.Quantity = item.Quantity;
+        existing.DamagedQuantity = item.DamagedQuantity;
         existing.Price = item.Price;
         existing.IsActive = item.IsActive;
+        existing.IsDeleted = item.IsDeleted;
         existing.UpdatedAtUtc = item.UpdatedAtUtc;
         return Task.CompletedTask;
     }
@@ -303,6 +361,40 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         if (existing is not null)
         {
             existing.ReturnedAtUtc = issue.ReturnedAtUtc;
+            existing.ReturnedByStaffId = issue.ReturnedByStaffId;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private readonly List<EquipmentSaleReceipt> _equipmentSaleReceipts = [];
+    private readonly List<EquipmentSaleReceiptLine> _equipmentSaleReceiptLines = [];
+
+    public Task<IReadOnlyCollection<EquipmentSaleReceipt>> GetEquipmentSaleReceiptsAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<EquipmentSaleReceipt>>(_equipmentSaleReceipts.ToList());
+
+    public Task<IReadOnlyCollection<EquipmentSaleReceiptLine>> GetEquipmentSaleReceiptLinesAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<EquipmentSaleReceiptLine>>(_equipmentSaleReceiptLines.ToList());
+
+    public Task<EquipmentSaleReceipt?> GetEquipmentSaleReceiptByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_equipmentSaleReceipts.FirstOrDefault(x => x.Id == id));
+
+    public Task AddEquipmentSaleReceiptAsync(
+        EquipmentSaleReceipt receipt,
+        IReadOnlyCollection<EquipmentSaleReceiptLine> lines,
+        CancellationToken cancellationToken)
+    {
+        _equipmentSaleReceipts.Add(receipt);
+        _equipmentSaleReceiptLines.AddRange(lines);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateEquipmentSaleReceiptAsync(EquipmentSaleReceipt receipt, CancellationToken cancellationToken)
+    {
+        var idx = _equipmentSaleReceipts.FindIndex(x => x.Id == receipt.Id);
+        if (idx >= 0)
+        {
+            _equipmentSaleReceipts[idx] = receipt;
         }
 
         return Task.CompletedTask;
@@ -333,6 +425,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         if (existing is null) { _staffPositions.Add(position); return Task.CompletedTask; }
         existing.Name = position.Name;
         existing.Description = position.Description;
+        existing.DefaultAccessProfileId = position.DefaultAccessProfileId;
         existing.IsActive = position.IsActive;
         existing.UpdatedAtUtc = position.UpdatedAtUtc;
         return Task.CompletedTask;
@@ -361,9 +454,18 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.Name = profile.Name;
         existing.Description = profile.Description;
         existing.CanRegisterCustomers = profile.CanRegisterCustomers;
+        existing.CanViewCustomerDetails = profile.CanViewCustomerDetails;
+        existing.CanEditCustomerDetails = profile.CanEditCustomerDetails;
         existing.CanManageSubscriptions = profile.CanManageSubscriptions;
+        existing.CanRecordPayments = profile.CanRecordPayments;
+        existing.CanApplyDiscount = profile.CanApplyDiscount;
+        existing.CanGrantComplimentarySession = profile.CanGrantComplimentarySession;
         existing.CanManageSessions = profile.CanManageSessions;
         existing.CanManageEquipment = profile.CanManageEquipment;
+        existing.CanSellEquipment = profile.CanSellEquipment;
+        existing.CanReturnEquipment = profile.CanReturnEquipment;
+        existing.CanAccessPlanset = profile.CanAccessPlanset;
+        existing.CanIssueEquipmentRental = profile.CanIssueEquipmentRental;
         existing.CanViewHistory = profile.CanViewHistory;
         existing.IsActive = profile.IsActive;
         existing.UpdatedAtUtc = profile.UpdatedAtUtc;

@@ -13,6 +13,8 @@
     .field input, .field select { width:100%; min-width:0; }
     .field--full { grid-column:1/-1; }
     .hint { font-size:12px; color:var(--muted); margin-top:4px; }
+    .current-pin { margin-top:8px; padding:10px 12px; border-radius:10px; background:rgba(13,122,77,0.08); border:1px solid rgba(13,122,77,0.18); font-size:14px; }
+    .current-pin strong { font-size:18px; letter-spacing:.12em; color:#0d7a4d; }
     .validation { color:#b91c1c; font-weight:700; margin-bottom:10px; }
     .check-row { display:flex; align-items:center; gap:8px; min-height:42px; }
 </style>
@@ -79,16 +81,16 @@
 
             <div class="field">
                 <label for="Pin">Giriş kodu (PIN)</label>
+                @if (isEdit && !string.IsNullOrWhiteSpace(Model.CurrentPin))
+                {
+                    <div class="current-pin">Mövcud PIN: <strong>@Model.CurrentPin</strong></div>
+                }
+                else if (isEdit)
+                {
+                    <div class="hint">Mövcud PIN sistemdə saxlanmayıb — yeni PIN daxil edib saxlayın.</div>
+                }
                 <input id="Pin" name="Pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" autocomplete="new-password" @(isEdit ? "" : "required") />
-                <div class="hint">@(isEdit ? "Boş buraxsanız — köhnə PIN qalır. Yeni PIN: 4–6 rəqəm." : "4–6 rəqəm — resepsiyaya daxil olmaq üçün")</div>
-            </div>
-
-            <div class="field">
-                <label>&nbsp;</label>
-                <label class="check-row">
-                    <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
-                    <span>Aktiv (resepsiyaya daxil ola bilər)</span>
-                </label>
+                <div class="hint">@(isEdit ? "Yeni PIN: 4–6 rəqəm." : "4–6 rəqəm — resepsiyaya daxil olmaq üçün")</div>
             </div>
         </div>
 

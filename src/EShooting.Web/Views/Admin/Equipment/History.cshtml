@@ -1,0 +1,234 @@
+@using EShooting.Application.Common
+@using EShooting.Domain.Enums
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Avadanlıq jurnalı";
+    var staffMembers = (IReadOnlyCollection<EShooting.Application.Common.Models.StaffMemberItem>?)ViewData["StaffMembers"] ?? [];
+    var equipmentItems = (IReadOnlyCollection<EShooting.Application.Common.Models.EquipmentCatalogItem>?)ViewData["EquipmentItems"] ?? [];
+    var today = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
+}
+
+<style>
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; align-items: end; }
+    .filter-grid label.field { display: flex; flex-direction: column; gap: 6px; }
+    .filter-grid .field span { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .filter-grid input, .filter-grid select { width: 100%; min-width: 0; }
+    .filter-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-weight: 700; }
+    .summary span { color: var(--muted); font-weight: 600; }
+    .card.loading { opacity: 0.65; pointer-events: none; }
+</style>
+
+<div class="topbar">
+    <h1>Avadanlıq jurnalı</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn" href="/admin/equipment">← Kataloq</a>
+        <a class="btn btn-excel" id="equipmentHistoryExportBtn" href="/admin/equipment/history/export.xlsx">Excel-ə çıxart</a>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+    <form id="equipmentHistoryFilterForm" autocomplete="off">
+        <div class="filter-grid">
+            <label class="field">
+                <span>Başlanğıc</span>
+                <input type="date" name="fromLocal" value="@today" />
+            </label>
+            <label class="field">
+                <span>Bitmə</span>
+                <input type="date" name="toLocal" value="@today" />
+            </label>
+            <label class="field">
+                <span>Avadanlıq</span>
+                <select name="equipmentItemId">
+                    <option value="">Hamısı</option>
+                    @foreach (var eq in equipmentItems)
+                    {
+                        <option value="@eq.Id">@eq.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field">
+                <span>Növ</span>
+                <select name="issueType">
+                    <option value="">Hamısı</option>
+                    <option value="@EquipmentIssueType.Sale">Satış</option>
+                    <option value="@EquipmentIssueType.Rental">İcarə (zal)</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Verən işçi</span>
+                <select name="issuedByStaffId">
+                    <option value="">Hamısı</option>
+                    @foreach (var s in staffMembers)
+                    {
+                        <option value="@s.Id">@s.FullName</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Filtrlə</button>
+        </div>
+    </form>
+</div>
+
+<div class="summary card" id="equipmentHistorySummary">
+    <div>Satış: <span id="summarySale">—</span></div>
+    <div>İcarə: <span id="summaryRental">—</span></div>
+    <div>Cəmi: <span id="summaryGrand">—</span></div>
+</div>
+
+<div class="card" id="equipmentHistoryTableCard">
+    <div class="tableWrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Tarix</th>
+                <th>Avadanlıq</th>
+                <th>Növ</th>
+                <th>Say</th>
+                <th>Qiymət</th>
+                <th>Cəm</th>
+                <th>Müştəri</th>
+                <th>Zolaq</th>
+                <th>Verən</th>
+                <th>Təhvil</th>
+            </tr>
+            </thead>
+            <tbody id="equipmentHistoryTableBody">
+            <tr><td colspan="10">Yüklənir…</td></tr>
+            </tbody>
+            <tfoot id="equipmentHistoryTableFoot" style="display:none;">
+            <tr style="font-weight:700; background:var(--surface-2, #f8fafc);">
+                <td colspan="3">Cəmi</td>
+                <td id="footQuantities">—</td>
+                <td></td>
+                <td id="footGrand">—</td>
+                <td colspan="4"></td>
+            </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var STORAGE_KEY = "equipment-history";
+        var form = document.getElementById("equipmentHistoryFilterForm");
+        var exportBtn = document.getElementById("equipmentHistoryExportBtn");
+        var tbody = document.getElementById("equipmentHistoryTableBody");
+        var tfoot = document.getElementById("equipmentHistoryTableFoot");
+        var tableCard = document.getElementById("equipmentHistoryTableCard");
+        var AFS = window.AdminFilterState;
+
+        function formatPrice(n) {
+            var v = Number(n) || 0;
+            return v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " AZN";
+        }
+
+        function qsFromForm() {
+            return new URLSearchParams(new FormData(form));
+        }
+
+        function syncExportUrl() {
+            if (exportBtn instanceof HTMLAnchorElement) {
+                exportBtn.href = "/admin/equipment/history/export.xlsx?" + qsFromForm().toString();
+            }
+        }
+
+        function renderReturnCell(row) {
+            if (row.returnedAtLocal) {
+                var html = AFS.escapeHtml(row.returnedAtLocal);
+                if (row.returnedByStaffName) {
+                    html += '<br /><small style="color:var(--muted);">' + AFS.escapeHtml(row.returnedByStaffName) + "</small>";
+                }
+                return html;
+            }
+            if (row.issueType === 1) {
+                return '<span style="color:#b45309;">Gözləyir</span>';
+            }
+            return "—";
+        }
+
+        function updateSummary(result) {
+            var saleEl = document.getElementById("summarySale");
+            var rentalEl = document.getElementById("summaryRental");
+            var grandEl = document.getElementById("summaryGrand");
+            if (saleEl) saleEl.textContent = (result.saleQuantityTotal ?? 0) + " ədəd · " + formatPrice(result.saleRevenueTotal);
+            if (rentalEl) rentalEl.textContent = (result.rentalQuantityTotal ?? 0) + " ədəd";
+            if (grandEl) grandEl.textContent = formatPrice(result.grandTotal);
+            var footQuantities = document.getElementById("footQuantities");
+            var footGrand = document.getElementById("footGrand");
+            if (footQuantities) footQuantities.textContent = (result.saleQuantityTotal ?? 0) + " satış · " + (result.rentalQuantityTotal ?? 0) + " icarə";
+            if (footGrand) footGrand.textContent = formatPrice(result.grandTotal);
+        }
+
+        function renderRows(result) {
+            var items = Array.isArray(result.items) ? result.items : [];
+            if (!tbody) return;
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="10">Seçilmiş filtr üzrə əməliyyat yoxdur.</td></tr>';
+                if (tfoot) tfoot.style.display = "none";
+                return;
+            }
+            tbody.innerHTML = items.map(function (row) {
+                var lane = row.laneNumber != null ? String(row.laneNumber) : "—";
+                var cat = row.category ? '<br /><small style="color:var(--muted);">' + AFS.escapeHtml(row.category) + "</small>" : "";
+                return "<tr>"
+                    + "<td>" + AFS.escapeHtml(row.issuedAtLocal) + "</td>"
+                    + "<td><strong>" + AFS.escapeHtml(row.equipmentName) + "</strong>" + cat + "</td>"
+                    + "<td>" + AFS.escapeHtml(row.issueTypeLabel) + "</td>"
+                    + "<td>" + (row.quantity ?? 0) + "</td>"
+                    + "<td>" + formatPrice(row.unitPrice) + "</td>"
+                    + "<td>" + formatPrice(row.lineTotal) + "</td>"
+                    + "<td>" + AFS.escapeHtml(row.customerName) + "</td>"
+                    + "<td>" + lane + "</td>"
+                    + "<td>" + AFS.escapeHtml(row.issuedByStaffName) + "</td>"
+                    + "<td>" + renderReturnCell(row) + "</td>"
+                    + "</tr>";
+            }).join("");
+            if (tfoot) tfoot.style.display = "";
+        }
+
+        async function loadHistory() {
+            if (!form) return;
+            AFS.save(STORAGE_KEY, form);
+            syncExportUrl();
+            if (tableCard) tableCard.classList.add("loading");
+            try {
+                var res = await fetch("/admin/equipment/history/data?" + qsFromForm().toString(), { credentials: "same-origin" });
+                if (!res.ok) throw new Error("load failed");
+                var data = await res.json();
+                updateSummary(data);
+                renderRows(data);
+            } catch (e) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Jurnal yüklənmədi.</td></tr>';
+            } finally {
+                if (tableCard) tableCard.classList.remove("loading");
+            }
+        }
+
+        if (form && AFS) {
+            AFS.initForm(STORAGE_KEY, form, {
+                applyDefaults: function (f) {
+                    var today = AFS.todayIso();
+                    var from = f.elements.namedItem("fromLocal");
+                    var to = f.elements.namedItem("toLocal");
+                    if (from && "value" in from && !from.value) from.value = today;
+                    if (to && "value" in to && !to.value) to.value = today;
+                }
+            });
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
+                void loadHistory();
+            });
+            form.addEventListener("change", function () {
+                syncExportUrl();
+                void loadHistory();
+            });
+            syncExportUrl();
+            void loadHistory();
+        }
+    })();
+</script>

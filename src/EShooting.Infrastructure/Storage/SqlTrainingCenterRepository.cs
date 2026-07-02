@@ -1,5 +1,8 @@
+using EShooting.Application.Athletes;
+using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.StaffMembers;
+using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Infrastructure.Persistence;
@@ -28,12 +31,15 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.PhoneNumber = athlete.PhoneNumber;
         existing.Email = athlete.Email;
         existing.IdCardNumber = athlete.IdCardNumber;
+        existing.ClubCardNumber = athlete.ClubCardNumber;
         existing.Category = athlete.Category;
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
         existing.IsFullPackage = athlete.IsFullPackage;
         existing.IsVip = athlete.IsVip;
         existing.IsGroupPlaceholder = athlete.IsGroupPlaceholder;
+        existing.IsActive = athlete.IsActive;
+        existing.RegisteredByStaffId = athlete.RegisteredByStaffId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -69,6 +75,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.LaneId = session.LaneId;
         existing.StartTimeUtc = session.StartTimeUtc;
         existing.EndTimeUtc = session.EndTimeUtc;
+        existing.ActivatedAtUtc = session.ActivatedAtUtc;
         existing.Status = session.Status;
         existing.SubscriptionScheduleId = session.SubscriptionScheduleId;
         existing.IsEquipmentIssued = session.IsEquipmentIssued;
@@ -172,7 +179,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         string phoneDigits,
         string emailNormalized,
         string idCardNormalized,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
     {
         var phoneQ = (phoneDigits ?? "").Trim();
         var emailQ = (emailNormalized ?? "").Trim();
@@ -223,7 +231,31 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         }
 
         return candidates
+            .Where(a => includeInactive || a.IsActive)
             .OrderByDescending(a => Score(a, phoneQ, emailQ, idQ))
+            .FirstOrDefault();
+    }
+
+    public async Task<Athlete?> FindAthleteByExactPhoneAsync(
+        string phoneDigits,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
+        var normalized = AthleteRegistrationRules.NormalizeDigits(phoneDigits);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var candidates = await dbContext.Athletes
+            .AsNoTracking()
+            .Where(a => a.PhoneNumber != null && a.PhoneNumber != "")
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(a => AthleteRegistrationRules.NormalizeDigits(a.PhoneNumber) == normalized)
+            .Where(a => includeInactive || a.IsActive)
+            .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefault();
     }
 
@@ -234,19 +266,10 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         var nowUtc = DateTime.UtcNow;
         var sessions = await dbContext.Sessions
             .AsNoTracking()
-            .Where(s => s.AthleteId == athleteId && s.Status == SessionStatus.Active)
+            .Where(s => s.AthleteId == athleteId && s.Status != SessionStatus.Completed)
             .ToListAsync(cancellationToken);
 
-        var active = sessions.FirstOrDefault(s =>
-        {
-            var start = s.StartTimeUtc.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(s.StartTimeUtc, DateTimeKind.Utc)
-                : s.StartTimeUtc.ToUniversalTime();
-            var end = s.EndTimeUtc.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(s.EndTimeUtc, DateTimeKind.Utc)
-                : s.EndTimeUtc.ToUniversalTime();
-            return start <= nowUtc && nowUtc < end;
-        });
+        var active = sessions.FirstOrDefault(s => SessionHousekeeping.IsAthleteSessionCurrentlyActive(s, nowUtc));
 
         if (active is null)
         {
@@ -409,7 +432,11 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         existing.Name = item.Name;
         existing.Category = item.Category;
+        existing.UsageMode = item.UsageMode;
+        existing.RentalQuantity = item.RentalQuantity;
+        existing.SaleQuantity = item.SaleQuantity;
         existing.Quantity = item.Quantity;
+        existing.DamagedQuantity = item.DamagedQuantity;
         existing.Price = item.Price;
         existing.IsActive = item.IsActive;
         existing.IsDeleted = item.IsDeleted;
@@ -442,6 +469,85 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             ?? throw new InvalidOperationException("Avadanlıq verilməsi tapılmadı.");
 
         existing.ReturnedAtUtc = issue.ReturnedAtUtc;
+        existing.ReturnedByStaffId = issue.ReturnedByStaffId;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<EquipmentSaleReceipt>> GetEquipmentSaleReceiptsAsync(CancellationToken cancellationToken)
+    {
+        return await dbContext.EquipmentSaleReceipts.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<EquipmentSaleReceiptLine>> GetEquipmentSaleReceiptLinesAsync(CancellationToken cancellationToken)
+    {
+        return await dbContext.EquipmentSaleReceiptLines.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
+    public Task<EquipmentSaleReceipt?> GetEquipmentSaleReceiptByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return dbContext.EquipmentSaleReceipts.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task AddEquipmentSaleReceiptAsync(
+        EquipmentSaleReceipt receipt,
+        IReadOnlyCollection<EquipmentSaleReceiptLine> lines,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.EquipmentSaleReceipts.AddAsync(receipt, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (lines.Count > 0)
+        {
+            foreach (var line in lines)
+            {
+                line.ReceiptId = receipt.Id;
+                await dbContext.EquipmentSaleReceiptLines.AddAsync(line, cancellationToken);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task CreateEquipmentSaleAsync(
+        EquipmentSaleReceipt receipt,
+        IReadOnlyCollection<EquipmentSaleReceiptLine> lines,
+        IReadOnlyDictionary<Guid, int> quantitySoldByItemId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            foreach (var (itemId, qty) in quantitySoldByItemId)
+            {
+                var item = await dbContext.EquipmentItems
+                    .FirstOrDefaultAsync(x => x.Id == itemId, cancellationToken)
+                    ?? throw new InvalidOperationException("Avadanlıq tapılmadı.");
+
+                EquipmentIssuanceRules.ApplyStockOnIssue(item, EquipmentIssueType.Sale, qty);
+            }
+
+            await dbContext.EquipmentSaleReceipts.AddAsync(receipt, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            foreach (var line in lines)
+            {
+                line.ReceiptId = receipt.Id;
+                await dbContext.EquipmentSaleReceiptLines.AddAsync(line, cancellationToken);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task UpdateEquipmentSaleReceiptAsync(EquipmentSaleReceipt receipt, CancellationToken cancellationToken)
+    {
+        dbContext.EquipmentSaleReceipts.Update(receipt);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -476,6 +582,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         existing.Name = position.Name;
         existing.Description = position.Description;
+        existing.DefaultAccessProfileId = position.DefaultAccessProfileId;
         existing.IsActive = position.IsActive;
         existing.IsDeleted = position.IsDeleted;
         existing.UpdatedAtUtc = position.UpdatedAtUtc;
@@ -515,9 +622,18 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.Name = profile.Name;
         existing.Description = profile.Description;
         existing.CanRegisterCustomers = profile.CanRegisterCustomers;
+        existing.CanViewCustomerDetails = profile.CanViewCustomerDetails;
+        existing.CanEditCustomerDetails = profile.CanEditCustomerDetails;
         existing.CanManageSubscriptions = profile.CanManageSubscriptions;
+        existing.CanRecordPayments = profile.CanRecordPayments;
+        existing.CanApplyDiscount = profile.CanApplyDiscount;
+        existing.CanGrantComplimentarySession = profile.CanGrantComplimentarySession;
         existing.CanManageSessions = profile.CanManageSessions;
         existing.CanManageEquipment = profile.CanManageEquipment;
+        existing.CanSellEquipment = profile.CanSellEquipment;
+        existing.CanReturnEquipment = profile.CanReturnEquipment;
+        existing.CanAccessPlanset = profile.CanAccessPlanset;
+        existing.CanIssueEquipmentRental = profile.CanIssueEquipmentRental;
         existing.CanViewHistory = profile.CanViewHistory;
         existing.IsActive = profile.IsActive;
         existing.IsDeleted = profile.IsDeleted;
@@ -583,6 +699,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.AccessProfileId = member.AccessProfileId;
         existing.PhoneNumber = member.PhoneNumber;
         existing.PinHash = member.PinHash;
+        existing.PinPlain = member.PinPlain;
         existing.IsActive = member.IsActive;
         existing.IsDeleted = member.IsDeleted;
         existing.UpdatedAtUtc = member.UpdatedAtUtc;
@@ -613,4 +730,23 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         return await query.AnyAsync(cancellationToken);
     }
+
+    public async Task<CustomerPackageRecord> AddCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
+    {
+        await dbContext.CustomerPackageRecords.AddAsync(record, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return record;
+    }
+
+    public async Task<CustomerPackageRecord?> GetCustomerPackageRecordByIdAsync(Guid id, CancellationToken cancellationToken)
+        => await dbContext.CustomerPackageRecords.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    public async Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
+    {
+        dbContext.CustomerPackageRecords.Update(record);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
+        => await dbContext.CustomerPackageRecords.AsNoTracking().ToListAsync(cancellationToken);
 }

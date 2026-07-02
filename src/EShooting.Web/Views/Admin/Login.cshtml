@@ -25,7 +25,7 @@
     <h1>Admin giriş</h1>
     <p>/admin üçün giriş edin</p>
 
-    <form method="post" action="/admin/login">
+        <form asp-controller="Account" asp-action="Login" method="post">
         @Html.AntiForgeryToken()
         <input type="hidden" name="returnUrl" value="@returnUrl" />
         <input name="userName" placeholder="İstifadəçi adı" autocomplete="username" />

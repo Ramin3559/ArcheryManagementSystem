@@ -29,12 +29,12 @@
 <div class="card">
     <div class="tableWrap">
         <table>
-            <thead><tr><th>Ad</th><th>İcazələr</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Ad</th><th>İcazələr</th><th></th></tr></thead>
             <tbody>
-            @if (Model.Count == 0) { <tr><td colspan="4">Hələ profil yoxdur.</td></tr> }
+            @if (Model.Count == 0) { <tr><td colspan="3">Hələ profil yoxdur.</td></tr> }
             else {
                 foreach (var p in Model) {
-                    <tr style="@(p.IsActive ? "" : "opacity:0.65;")">
+                    <tr>
                         <td>
                             <strong>@p.Name</strong>
                             @if (!string.IsNullOrWhiteSpace(p.Description)) {
@@ -42,14 +42,9 @@
                             }
                         </td>
                         <td class="perm">@AccessProfileDisplayHelper.PermissionsShort(p)</td>
-                        <td><span class="badge @(p.IsActive ? "badge--ok" : "badge--off")">@(p.IsActive ? "Aktiv" : "Deaktiv")</span></td>
                         <td>
                             <div class="actions">
                                 <a class="btn btn-primary" href="/admin/access-profiles/@p.Id/edit">Dəyişdir</a>
-                                <form method="post" action="/admin/access-profiles/@p.Id/toggle-active" style="margin:0;">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn @(p.IsActive ? "btn-warning" : "btn-excel")">@(p.IsActive ? "Deaktiv et" : "Aktiv et")</button>
-                                </form>
                                 <form method="post" action="/admin/access-profiles/@p.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-danger">Sil</button>

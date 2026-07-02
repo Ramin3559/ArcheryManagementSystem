@@ -10,7 +10,7 @@ public static class AdminExcelExporter
         var ws = wb.Worksheets.Add("Tarixçə");
 
         ws.Cell(1, 1).Value = "Tarix";
-        ws.Cell(1, 2).Value = "İdmançı Adı";
+        ws.Cell(1, 2).Value = "Müştəri adı";
         ws.Cell(1, 3).Value = "Telefon";
         ws.Cell(1, 4).Value = "Kateqoriya";
         ws.Cell(1, 5).Value = "Zolaq";

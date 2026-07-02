@@ -1,4 +1,5 @@
 @using EShooting.Web.Controllers.Admin
+@using System.Text.Json
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     ViewData["Title"] = "Əsas səhifə";
@@ -7,6 +8,21 @@
     var today = (int)(ViewData["TodaysSessions"] ?? 0);
     var popular = (string)(ViewData["PopularLane"] ?? "—");
     var la = ViewData["LaneAnalyticsToday"] as AdminLaneAnalytics.RangeResult;
+    var initialAnalyticsJson = la == null
+        ? "null"
+        : JsonSerializer.Serialize(new
+        {
+            label = la.Label,
+            busiestLaneNumber = la.BusiestLaneNumber,
+            sessionTotal = la.SessionTotal,
+            hoursTotal = la.HoursTotal,
+            byLane = la.ByLane.Select(r => new
+            {
+                laneNumber = r.LaneNumber,
+                sessionCount = r.SessionCount,
+                totalHours = r.TotalHours
+            })
+        });
 }
 
 <style>
@@ -36,7 +52,62 @@
         display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:#374151; margin: 10px 0 6px;
     }
     .chart-summary b { color:#111827; }
-    .chart-host { position: relative; height: 360px; }
+    .chart-host { position: relative; height: 360px; min-height: 280px; }
+    .lane-activity-chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        height: 100%;
+        padding: 8px 4px 0;
+        box-sizing: border-box;
+    }
+    .lane-activity-bar-col {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        height: 100%;
+    }
+    .lane-activity-bar-track {
+        flex: 1 1 auto;
+        width: 100%;
+        max-width: 64px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+    .lane-activity-bar {
+        width: 100%;
+        border-radius: 8px 8px 4px 4px;
+        min-height: 6px;
+        transition: height 0.2s ease;
+    }
+    .lane-activity-label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #374151;
+        text-align: center;
+        white-space: nowrap;
+    }
+    .lane-activity-meta {
+        font-size: 10px;
+        color: #6b7280;
+        text-align: center;
+        line-height: 1.2;
+        min-height: 24px;
+    }
+    .lane-activity-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--muted);
+        font-weight: 700;
+        text-align: center;
+        padding: 20px;
+    }
     @@media (max-width: 720px){ .chart-host { height: 280px; } }
 </style>
 
@@ -111,7 +182,7 @@
     </div>
 
     <div class="chart-host">
-        <canvas id="laneChart"></canvas>
+        <div id="laneChart" class="lane-activity-chart" aria-label="Zolaqlar üzrə aktivlik qrafiki"></div>
     </div>
 
     <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:#374151;">
@@ -148,7 +219,7 @@
                 <tr>
                     <th>Zolaq</th>
                     <th>Status</th>
-                    <th>Atıcı</th>
+                    <th>Müştəri</th>
                     <th>Başlanğıc</th>
                     <th>Son</th>
                     <th>Qalan vaxt</th>
@@ -162,20 +233,34 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script type="application/json" id="initialLaneAnalytics">@Html.Raw(initialAnalyticsJson)</script>
+<script src="~/lib/signalr/signalr.min.js"></script>
 <script>
     (function () {
         var statsUrl = "/admin/stats";
         var lanesUrl = "/dashboard/lanes";
         var analyticsUrl = "/admin/lane-analytics";
         var lastLanesJson = "";
+        var initialAnalytics = null;
 
         var laMode = "today";
-        var laChart = null;
+
+        try {
+            var initialEl = document.getElementById("initialLaneAnalytics");
+            if (initialEl && initialEl.textContent) {
+                initialAnalytics = JSON.parse(initialEl.textContent);
+            }
+        } catch (e) { /* ignore */ }
 
         function safeText(v) { return (v == null ? "" : String(v)); }
+
+        function adminFetch(url) {
+            return fetch(url, {
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+        }
 
         function parseUtc(value) {
             if (!value) return null;
@@ -215,7 +300,7 @@
         }
 
         function loadStats() {
-            return fetch(statsUrl + "?_=" + Date.now(), { credentials: "same-origin", cache: "no-store" })
+            return adminFetch(statsUrl + "?_=" + Date.now())
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
                     if (!d) return;
@@ -226,15 +311,15 @@
                 })["catch"](function () { });
         }
 
-        function loadLanes() {
-            return fetch(lanesUrl + "?_=" + Date.now(), { credentials: "same-origin", cache: "no-store" })
+        function loadLanes(force) {
+            return adminFetch(lanesUrl + "?_=" + Date.now())
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (lanes) {
                     if (!Array.isArray(lanes)) return;
                     var key = JSON.stringify(lanes.map(function (l) {
                         return [l.laneNumber, l.status, l.athleteName, l.startTimeUtc, l.endTimeUtc, (l.queueAthleteNames || []).join("|")];
                     }));
-                    if (key !== lastLanesJson) {
+                    if (force || key !== lastLanesJson) {
                         lastLanesJson = key;
                         renderLanes(lanes);
                     }
@@ -313,124 +398,47 @@
             return (Math.round(v * 100) / 100).toFixed(2);
         }
 
+        function activityColor(value, maxHours) {
+            if (!(value > 0) || maxHours <= 0) return "rgba(229,231,235,0.95)";
+            var ratio = value / maxHours;
+            if (ratio >= 0.66) return "rgba(22,163,74,0.85)";
+            if (ratio >= 0.33) return "rgba(59,130,246,0.85)";
+            return "rgba(245,158,11,0.85)";
+        }
+
         function renderChart(data) {
-            var canvas = document.getElementById("laneChart");
-            if (!canvas) return;
-            if (typeof Chart === "undefined") return;
-            try {
-                if (typeof ChartDataLabels !== "undefined") {
-                    Chart.register(ChartDataLabels);
-                }
-            } catch (e) { /* ignore */ }
+            var host = document.getElementById("laneChart");
+            if (!host) return;
 
             var rows = (data.byLane || []).slice().sort(function (a, b) {
                 return (a.laneNumber || 0) - (b.laneNumber || 0);
             });
-            var labels = rows.map(function (r) { return "Zolaq " + r.laneNumber; });
-            var hours = rows.map(function (r) { return Number(r.totalHours || 0); });
-            var sessions = rows.map(function (r) { return Number(r.sessionCount || 0); });
 
-            var maxHours = hours.reduce(function (m, v) { return v > m ? v : m; }, 0);
-            function activityColor(v) {
-                if (!(v > 0) || maxHours <= 0) return "rgba(229,231,235,0.85)";
-                var ratio = v / maxHours;
-                if (ratio >= 0.66) return "rgba(22,163,74,0.85)";   // yaşıl — yüksək
-                if (ratio >= 0.33) return "rgba(59,130,246,0.85)";  // göy — orta
-                return "rgba(245,158,11,0.85)";                     // sarı — aşağı
-            }
-            function activityBorder(v) {
-                if (!(v > 0) || maxHours <= 0) return "rgba(156,163,175,1)";
-                var ratio = v / maxHours;
-                if (ratio >= 0.66) return "rgba(22,163,74,1)";
-                if (ratio >= 0.33) return "rgba(59,130,246,1)";
-                return "rgba(245,158,11,1)";
-            }
-            var barColors = hours.map(activityColor);
-            var hoverColors = hours.map(activityBorder);
-
-            var ctx = canvas.getContext("2d");
-            if (!ctx) return;
-
-            if (laChart) {
-                laChart.data.labels = labels;
-                laChart.data.datasets[0].data = hours;
-                laChart.data.datasets[0].backgroundColor = barColors;
-                laChart.data.datasets[0].hoverBackgroundColor = hoverColors;
-                laChart.data.datasets[0]._sessions = sessions;
-                laChart.update();
+            if (rows.length === 0) {
+                host.innerHTML = '<div class="lane-activity-empty">Seçilmiş aralıqda aktivlik yoxdur.</div>';
                 return;
             }
 
-            laChart = new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: "Saat",
-                            data: hours,
-                            _sessions: sessions,
-                            backgroundColor: barColors,
-                            hoverBackgroundColor: hoverColors,
-                            borderRadius: 8,
-                            maxBarThickness: 64
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: { padding: { top: 28 } },
-                    interaction: { mode: "index", intersect: false },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                title: function (items) {
-                                    return items && items[0] ? items[0].label : "";
-                                },
-                                label: function (ctx) {
-                                    var idx = ctx.dataIndex;
-                                    var ds = ctx.dataset || {};
-                                    var hrs = Number(ctx.parsed.y || 0);
-                                    var ses = Number((ds._sessions || [])[idx] || 0);
-                                    var avg = ses > 0 ? (hrs / ses) * 60 : 0;
-                                    return [
-                                        "Saat: " + fmtHours(hrs),
-                                        "Seans: " + ses,
-                                        "Orta seans: " + (ses > 0 ? (Math.round(avg) + " dəq") : "—")
-                                    ];
-                                }
-                            }
-                        },
-                        datalabels: (typeof ChartDataLabels !== "undefined") ? {
-                            anchor: "end",
-                            align: "end",
-                            offset: 4,
-                            clip: false,
-                            color: "#1f2937",
-                            font: { weight: "700", size: 12 },
-                            formatter: function (value, ctx) {
-                                var idx = ctx.dataIndex;
-                                var ses = Number(((ctx.dataset || {})._sessions || [])[idx] || 0);
-                                var hrs = Number(value || 0);
-                                if (hrs <= 0 && ses <= 0) return "";
-                                return ses + " seans · " + fmtHours(hrs) + " s";
-                            }
-                        } : undefined
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: "Saat" },
-                            ticks: { precision: 0 }
-                        },
-                        x: {
-                            grid: { display: false }
-                        }
-                    }
-                }
-            });
+            var hours = rows.map(function (r) { return Number(r.totalHours || 0); });
+            var sessions = rows.map(function (r) { return Number(r.sessionCount || 0); });
+            var maxHours = hours.reduce(function (m, v) { return v > m ? v : m; }, 0);
+            var scaleMax = maxHours > 0 ? maxHours : 1;
+
+            host.innerHTML = rows.map(function (r, idx) {
+                var hrs = hours[idx] || 0;
+                var ses = sessions[idx] || 0;
+                var heightPct = Math.max(6, Math.round((hrs / scaleMax) * 100));
+                var meta = (ses > 0 || hrs > 0)
+                    ? (ses + " seans · " + fmtHours(hrs) + " s")
+                    : "—";
+                return '<div class="lane-activity-bar-col">'
+                    + '<div class="lane-activity-meta">' + safeText(meta) + '</div>'
+                    + '<div class="lane-activity-bar-track">'
+                    + '<div class="lane-activity-bar" style="height:' + heightPct + '%; background:' + activityColor(hrs, maxHours) + ';"></div>'
+                    + '</div>'
+                    + '<div class="lane-activity-label">Zolaq ' + safeText(r.laneNumber) + '</div>'
+                    + '</div>';
+            }).join("");
         }
 
         function renderSummary(data) {
@@ -449,7 +457,7 @@
         }
 
         function loadAnalytics() {
-            return fetch(buildAnalyticsUrl(), { credentials: "same-origin", cache: "no-store" })
+            return adminFetch(buildAnalyticsUrl())
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
                     if (!d) return;
@@ -489,8 +497,15 @@
         document.getElementById("laFromDate")?.addEventListener("change", loadAnalytics);
         document.getElementById("laToDate")?.addEventListener("change", loadAnalytics);
 
-        function refreshAll() {
-            return Promise.all([loadStats(), loadLanes(), loadAnalytics()]);
+        function refreshAll(forceLanes) {
+            return Promise.all([loadStats(), loadLanes(!!forceLanes), loadAnalytics()]);
+        }
+
+        function markRefreshed() {
+            var hint = document.getElementById("adminRefreshHint");
+            if (!hint) return;
+            var now = new Date();
+            hint.textContent = "Yeniləndi: " + fmtHm(now) + ":" + String(now.getSeconds()).padStart(2, "0");
         }
 
         // SignalR ilə anlıq yenilənmə.
@@ -506,22 +521,33 @@
                 }
             };
             var conn = new signalR.HubConnectionBuilder().withUrl("/hubs/lane").withAutomaticReconnect(retry).build();
-            conn.on("lane-updated", refreshAll);
+            conn.on("lane-updated", function () { refreshAll(false).then(markRefreshed); });
             conn.on("score-updated", loadStats);
-            if (conn.onreconnected) conn.onreconnected(refreshAll);
-            conn.start().then(refreshAll, function () { setTimeout(startSignalR, 5000); });
+            if (conn.onreconnected) conn.onreconnected(function () { refreshAll(false).then(markRefreshed); });
+            conn.start().then(function () { return refreshAll(false).then(markRefreshed); }, function () { setTimeout(startSignalR, 5000); });
         }
 
-        document.getElementById("adminRefreshBtn")?.addEventListener("click", refreshAll);
-        document.addEventListener("visibilitychange", function () {
-            if (document.visibilityState === "visible") refreshAll();
+        document.getElementById("adminRefreshBtn")?.addEventListener("click", function () {
+            var btn = document.getElementById("adminRefreshBtn");
+            if (btn instanceof HTMLButtonElement) btn.disabled = true;
+            refreshAll(true).then(function () {
+                markRefreshed();
+            })["finally"](function () {
+                if (btn instanceof HTMLButtonElement) btn.disabled = false;
+            });
         });
-        window.addEventListener("online", refreshAll);
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "visible") refreshAll(false).then(markRefreshed);
+        });
+        window.addEventListener("online", function () { refreshAll(false).then(markRefreshed); });
 
         syncModeUi();
-        // Default seçim "Bu gün" — server-side render olunan ilk məlumat var, amma chart üçün API-dən gətirək.
-        refreshAll();
-        setInterval(refreshAll, 10000);
+        if (initialAnalytics) {
+            renderSummary(initialAnalytics);
+            renderChart(initialAnalytics);
+        }
+        refreshAll(false).then(markRefreshed);
+        setInterval(function () { refreshAll(false).then(markRefreshed); }, 10000);
         setInterval(tickRemaining, 1000);
         startSignalR();
     })();
