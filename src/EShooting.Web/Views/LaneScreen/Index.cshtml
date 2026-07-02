@@ -11,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
-    <title>EShooting — Zolaq @laneNumber (TV v3)</title>
+    <title>EShooting — Zolaq @laneNumber (TV v4)</title>
     <style>
         :root {
             --brand: #8B2318;
@@ -20,8 +20,8 @@
             --text: #8B2318;
             --text-muted: #a04438;
             --border: #e8d4d0;
-            --tv-safe-x: clamp(10px, 1.5vw, 20px);
-            --tv-safe-y: clamp(8px, 1vh, 16px);
+            --tv-safe-x: clamp(18px, 2.8vw, 40px);
+            --tv-safe-y: clamp(14px, 2vh, 32px);
         }
 
         * { box-sizing: border-box; -webkit-text-size-adjust: 100%; }
@@ -188,16 +188,13 @@
             var endItem = document.querySelector("[data-role=\"schedule-end\"]");
             if (start && startItem) startItem.textContent = "Başlama: " + formatLocalTimeFromApi(start);
             if (endItem instanceof HTMLElement) {
-                var endRow = endItem.closest(".lane-tv-schedule__row");
-                var endPanel = endItem.closest(".lane-tv-panel--session-end");
-                if (endPanel instanceof HTMLElement) endPanel.style.display = "";
-                else if (endRow instanceof HTMLElement) endRow.style.display = "";
                 if (openEnded) {
                     endItem.textContent = "Bitmə: Davam edir";
                 } else if (end) {
                     endItem.textContent = "Bitmə: " + formatLocalTimeFromApi(end);
                 }
             }
+            scheduleFitAthleteNames();
         }
 
         function isVipModeRing(ringEl) {
@@ -344,82 +341,276 @@
         function ensureRingHasSize(ringEl) {
             if (!(ringEl instanceof HTMLElement)) return;
             var w = ringEl.clientWidth || ringEl.offsetWidth || 0;
-            if (w >= 80) return;
+            if (w >= 160) return;
             var vw = window.innerWidth || 1280;
             var vh = window.innerHeight || 720;
-            var fallback = Math.floor(Math.min(660, vw * 0.52, vh * 0.54));
-            fallback = Math.max(200, fallback);
+            var topReserve = Math.min(200, Math.max(132, vh * 0.17));
+            var scheduleReserve = Math.min(440, Math.max(300, vw * 0.34));
+            var heightCap = vh - topReserve - 16;
+            var widthCap = vw - scheduleReserve - 48;
+            var fallback = Math.floor(Math.min(2640, heightCap, widthCap));
+            fallback = Math.max(320, fallback);
             ringEl.style.setProperty("--ring-size", fallback + "px");
         }
 
         function getLaneTvNameMaxWidth(panel) {
             if (!(panel instanceof HTMLElement)) return 0;
-            var gapPx = 6;
             var card = panel.closest(".lane-card");
-            if (card instanceof HTMLElement) {
-                var gapVar = parseFloat(window.getComputedStyle(card).getPropertyValue("--tv-name-schedule-gap"));
-                if (!Number.isNaN(gapVar) && gapVar > 0) gapPx = gapVar;
-            }
+            var ringPanel = card ? card.querySelector(".lane-tv-panel--ring") : null;
+            var panelRect = panel.getBoundingClientRect();
+            var maxW = Math.max(120, panel.clientWidth);
 
-            var detailGrid = panel.closest(".lane-tv-detail-grid");
-            var scheduleEl = null;
-            if (panel.classList.contains("lane-tv-panel--name-first")) {
-                scheduleEl = detailGrid ? detailGrid.querySelector(".lane-tv-panel--session-start") : null;
-            } else if (panel.classList.contains("lane-tv-panel--name-last")) {
-                scheduleEl = detailGrid ? detailGrid.querySelector(".lane-tv-panel--session-end") : null;
-            } else {
-                scheduleEl = document.querySelector(".lane-tv-panel--session-start, .lane-tv-panel--session-times");
-            }
-
-            if (scheduleEl instanceof HTMLElement) {
-                var panelRect = panel.getBoundingClientRect();
-                var schedRect = scheduleEl.getBoundingClientRect();
-                if (schedRect.left > panelRect.left) {
-                    return Math.max(48, schedRect.left - panelRect.left - gapPx);
+            if (ringPanel instanceof HTMLElement) {
+                var ringRect = ringPanel.getBoundingClientRect();
+                if (ringRect.width > 0 && ringRect.left > panelRect.left + 24) {
+                    maxW = Math.max(120, ringRect.left - panelRect.left - 16);
                 }
             }
 
-            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0
-                && (panel.classList.contains("lane-tv-panel--name-first") || panel.classList.contains("lane-tv-panel--name-last"))) {
-                var colGap = parseFloat(window.getComputedStyle(detailGrid).columnGap) || 0;
-                return Math.max(120, Math.floor((detailGrid.clientWidth - colGap * 2) / 3) - Math.ceil(gapPx / 2));
+            var vw = window.innerWidth || 1280;
+            return Math.min(maxW, Math.max(120, vw * 0.52));
+        }
+
+        function getLaneTvNameMaxHeight(card, panel) {
+            if (!(card instanceof HTMLElement) || !(panel instanceof HTMLElement)) return 0;
+            var clock = card.querySelector(".lane-tv-panel--clock-bottom");
+            if (!(clock instanceof HTMLElement)) return 0;
+
+            var panelTop = panel.getBoundingClientRect().top;
+            var clockTop = clock.getBoundingClientRect().top;
+            var schedule = card.querySelector(".lane-tv-panel--schedule-top .lane-tv-schedule");
+            if (schedule instanceof HTMLElement) {
+                var scheduleBottom = schedule.getBoundingClientRect().bottom;
+                if (scheduleBottom > panelTop) {
+                    panelTop = scheduleBottom + 8;
+                }
             }
 
-            if (detailGrid instanceof HTMLElement && detailGrid.clientWidth > 0) {
-                var gridColGap = parseFloat(window.getComputedStyle(detailGrid).columnGap) || 0;
-                return Math.max(48, Math.floor((detailGrid.clientWidth - gridColGap * 2) / 3) - Math.ceil(gapPx / 2));
+            var hint = card.querySelector(".lane-tv-panel--hint-bottom.is-show");
+            if (hint instanceof HTMLElement) {
+                var hintTop = hint.getBoundingClientRect().top;
+                if (hintTop > panelTop) {
+                    clockTop = Math.min(clockTop, hintTop - 6);
+                }
             }
 
-            return Math.max(48, panel.clientWidth);
+            return Math.max(48, clockTop - panelTop - 8);
+        }
+
+        function resetLaneTvAthleteFit(panel) {
+            if (!(panel instanceof HTMLElement)) return;
+            var athlete = panel.querySelector(".lane-tv-athlete");
+            panel.style.removeProperty("max-height");
+            if (athlete instanceof HTMLElement) {
+                athlete.style.removeProperty("font-size");
+                athlete.style.removeProperty("gap");
+                athlete.style.removeProperty("transform");
+                athlete.style.removeProperty("transform-origin");
+            }
+            panel.querySelectorAll(".lane-tv-full-name, .lane-tv-first-name, .lane-tv-last-name").forEach(function (line) {
+                if (!(line instanceof HTMLElement)) return;
+                line.style.removeProperty("font-size");
+                line.style.removeProperty("transform");
+                line.style.removeProperty("transform-origin");
+                line.style.removeProperty("letter-spacing");
+            });
+        }
+
+        var laneTvTextMeasurer = null;
+        function ensureLaneTvTextMeasurer() {
+            if (laneTvTextMeasurer instanceof HTMLElement) return laneTvTextMeasurer;
+            laneTvTextMeasurer = document.createElement("span");
+            laneTvTextMeasurer.setAttribute("aria-hidden", "true");
+            laneTvTextMeasurer.style.cssText = "position:absolute;left:-99999px;top:-99999px;visibility:hidden;white-space:nowrap;display:block;font-weight:700;line-height:1.08;pointer-events:none;";
+            document.body.appendChild(laneTvTextMeasurer);
+            return laneTvTextMeasurer;
+        }
+
+        function measureLaneTvTextWidth(text, fontSizePx, referenceLine) {
+            var sample = String(text || "").trim();
+            if (!sample) return 0;
+            var measurer = ensureLaneTvTextMeasurer();
+            var ref = referenceLine instanceof HTMLElement ? referenceLine : document.body;
+            var cs = window.getComputedStyle(ref);
+            measurer.style.fontFamily = cs.fontFamily;
+            measurer.style.fontWeight = cs.fontWeight;
+            measurer.style.fontSize = fontSizePx + "px";
+            measurer.style.letterSpacing = cs.letterSpacing;
+            measurer.textContent = sample;
+            return measurer.offsetWidth || 0;
+        }
+
+        function laneTvBlockFitsHeight(athlete, maxH) {
+            if (!(athlete instanceof HTMLElement) || maxH <= 0) return true;
+            return athlete.scrollHeight <= maxH + 1;
+        }
+
+        function laneTvAllLinesFitWidth(lines, maxW, fontSizePx) {
+            if (maxW <= 0) return true;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (!(line instanceof HTMLElement)) continue;
+                var text = String(line.textContent || "").trim();
+                if (!text) continue;
+                if (measureLaneTvTextWidth(text, fontSizePx, line) > maxW) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function getLaneTvScheduleMaxWidth(panel) {
+            if (!(panel instanceof HTMLElement)) return 0;
+            var card = panel.closest(".lane-card");
+            var panelRect = panel.getBoundingClientRect();
+            var styles = window.getComputedStyle(panel);
+            var padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+            var maxW = Math.max(80, (panel.clientWidth || panelRect.width) - padX);
+
+            if (card instanceof HTMLElement) {
+                var logo = card.querySelector(".lane-tv-panel--logo");
+                if (logo instanceof HTMLElement) {
+                    var logoImg = logo.querySelector(".lane-tv-brand-logo");
+                    var edgeEl = logoImg instanceof HTMLElement ? logoImg : logo;
+                    var edgeRect = edgeEl.getBoundingClientRect();
+                    if (edgeRect.width > 0 && edgeRect.left > panelRect.left + 48) {
+                        maxW = Math.min(maxW, edgeRect.left - panelRect.left - padX - 24);
+                    }
+                }
+            }
+
+            return Math.max(80, maxW);
+        }
+
+        function getLaneTvScheduleMeasureLines(schedule) {
+            var lines = [];
+            var start = schedule.querySelector("[data-role=\"schedule-start\"]");
+            var end = schedule.querySelector("[data-role=\"schedule-end\"]");
+            if (start instanceof HTMLElement) {
+                var startText = String(start.textContent || "").trim();
+                if (startText) lines.push({ el: start, text: startText });
+            }
+            if (end instanceof HTMLElement) {
+                var endText = String(end.textContent || "").trim();
+                if (endText) lines.push({ el: end, text: endText });
+            }
+            return lines;
+        }
+
+        function fitLaneTvSchedule() {
+            document.querySelectorAll(".lane-tv-body .lane-tv-panel--schedule-top").forEach(function (panel) {
+                if (!(panel instanceof HTMLElement)) return;
+                var card = panel.closest(".lane-card");
+                var schedule = panel.querySelector(".lane-tv-schedule");
+                if (!(schedule instanceof HTMLElement)) return;
+
+                schedule.style.removeProperty("font-size");
+                var maxW = getLaneTvScheduleMaxWidth(panel);
+                if (maxW <= 0) return;
+
+                var measureLines = getLaneTvScheduleMeasureLines(schedule);
+                if (measureLines.length === 0) return;
+
+                var endItem = schedule.querySelector("[data-role=\"schedule-end\"]");
+                var isVipEnd = endItem instanceof HTMLElement
+                    && String(endItem.textContent || "").indexOf("Davam edir") >= 0;
+                var safeMaxW = maxW - (isVipEnd ? 18 : 10);
+
+                var baseFs = parseFloat(window.getComputedStyle(schedule).fontSize) || 52;
+                var minFs = 18;
+                var fs = Math.round(baseFs);
+                var refLine = measureLines[0].el;
+
+                while (fs > minFs) {
+                    var fits = true;
+                    for (var i = 0; i < measureLines.length; i++) {
+                        if (measureLaneTvTextWidth(measureLines[i].text, fs, refLine) > safeMaxW) {
+                            fits = false;
+                            break;
+                        }
+                    }
+                    if (fits) break;
+                    fs -= 1;
+                }
+
+                schedule.style.setProperty("font-size", fs + "px", "important");
+            });
         }
 
         function fitLaneTvAthleteNames() {
-            document.querySelectorAll(".lane-tv-body .lane-tv-panel--name, .lane-tv-body .lane-tv-panel--name-first, .lane-tv-body .lane-tv-panel--name-last").forEach(function (panel) {
+            document.querySelectorAll(".lane-tv-body .lane-tv-panel--name").forEach(function (panel) {
                 if (!(panel instanceof HTMLElement)) return;
-                var maxW = getLaneTvNameMaxWidth(panel);
-                panel.querySelectorAll(".lane-tv-first-name, .lane-tv-last-name").forEach(function (line) {
-                    if (!(line instanceof HTMLElement)) return;
-                    line.style.removeProperty("font-size");
-                    line.style.removeProperty("transform");
-                    line.style.removeProperty("transform-origin");
-                    line.style.removeProperty("letter-spacing");
+                var card = panel.closest(".lane-card");
+                var athlete = panel.querySelector(".lane-tv-athlete");
+                if (!(athlete instanceof HTMLElement)) return;
 
-                    var computed = window.getComputedStyle(line);
-                    var fs = parseFloat(computed.fontSize) || 64;
-                    var minFs = Math.max(38, Math.round(fs * 0.72));
-                    while (line.scrollWidth > maxW && fs > minFs) {
-                        fs -= 1;
-                        line.style.setProperty("font-size", fs + "px", "important");
+                resetLaneTvAthleteFit(panel);
+
+                var isGroup = athlete.classList.contains("lane-tv-athlete--group");
+                var maxW = getLaneTvNameMaxWidth(panel);
+                var maxH = isGroup && card ? getLaneTvNameMaxHeight(card, panel) : 0;
+                var lines = Array.prototype.slice.call(
+                    panel.querySelectorAll(".lane-tv-full-name, .lane-tv-first-name, .lane-tv-last-name")
+                );
+                var baseFs = parseFloat(window.getComputedStyle(athlete).fontSize) || 64;
+                var minFs = 14;
+                var fs = Math.round(baseFs);
+
+                if (isGroup && maxH > 0) {
+                    panel.style.maxHeight = maxH + "px";
+                }
+
+                while (fs > minFs) {
+                    athlete.style.setProperty("font-size", fs + "px", "important");
+                    lines.forEach(function (line) {
+                        if (line instanceof HTMLElement) line.style.removeProperty("font-size");
+                    });
+                    if (laneTvAllLinesFitWidth(lines, maxW, fs) && laneTvBlockFitsHeight(athlete, maxH)) {
+                        break;
                     }
+                    fs -= 1;
+                }
+
+                athlete.style.setProperty("font-size", fs + "px", "important");
+                lines.forEach(function (line) {
+                    if (line instanceof HTMLElement) line.style.removeProperty("font-size");
                 });
+
+                if (!laneTvAllLinesFitWidth(lines, maxW, fs) || !laneTvBlockFitsHeight(athlete, maxH)) {
+                    athlete.style.setProperty("font-size", minFs + "px", "important");
+                    fs = minFs;
+                }
+
+                if (!laneTvBlockFitsHeight(athlete, maxH) && maxH > 0) {
+                    var scale = maxH / Math.max(athlete.scrollHeight, 1);
+                    athlete.style.transformOrigin = isGroup ? "top left" : "center left";
+                    athlete.style.transform = "scale(" + scale + ")";
+                }
+            });
+        }
+
+        function bindLaneTvLogoFit() {
+            document.querySelectorAll(".lane-tv-brand-logo").forEach(function (img) {
+                if (!(img instanceof HTMLImageElement)) return;
+                if (img.dataset.laneTvFitBound === "1") return;
+                img.dataset.laneTvFitBound = "1";
+                if (!img.complete) {
+                    img.addEventListener("load", scheduleFitAthleteNames, { once: true });
+                }
             });
         }
 
         function scheduleFitAthleteNames() {
-            var run = function () { fitLaneTvAthleteNames(); };
+            bindLaneTvLogoFit();
+            var run = function () {
+                fitLaneTvSchedule();
+                fitLaneTvAthleteNames();
+            };
             (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(run);
             setTimeout(run, 60);
             setTimeout(run, 250);
+            setTimeout(run, 700);
+            setTimeout(run, 1400);
         }
 
         // Dairənin içində vaxt mətni daireye sığsın deyə şrifti dinamik kiçildirik.
@@ -495,9 +686,9 @@
             var fs = Math.floor(Math.min(
                 box.maxW / (charCount * charRatio),
                 box.maxH / 0.88,
-                box.ringSize * (isLongTime ? 0.24 : 0.34)
+                box.ringSize * (isLongTime ? 0.28 : 0.38)
             ));
-            fs = Math.max(34, Math.min(fs, isLongTime ? 96 : 120));
+            fs = Math.max(34, Math.min(fs, isLongTime ? 140 : 180));
             timer.style.setProperty("font-size", fs + "px", "important");
 
             var rect = timer.getBoundingClientRect();
@@ -849,7 +1040,7 @@
             function observeCountdownRing() { /* noop */ }
         }
 
-        const TV_LAYOUT_VERSION = "v3";
+        const TV_LAYOUT_VERSION = "v4";
 
         function normalizeLaneHtml(html) {
             if (!html) return "";
@@ -915,40 +1106,28 @@
                 if (liveEl.textContent !== freshEl.textContent) liveEl.textContent = freshEl.textContent;
             }
 
-            patchClassAndText(live.querySelector(".lane-tv-lane-num"), fresh.querySelector(".lane-tv-lane-num"));
+            function patchLaneNum(liveEl, freshEl) {
+                if (!liveEl || !freshEl) return;
+                if (liveEl.className !== freshEl.className) liveEl.className = freshEl.className;
+                var liveVal = liveEl.querySelector(".lane-tv-lane-num__value");
+                var freshVal = freshEl.querySelector(".lane-tv-lane-num__value");
+                if (liveVal && freshVal) {
+                    if (liveVal.textContent !== freshVal.textContent) liveVal.textContent = freshVal.textContent;
+                    return;
+                }
+                if (liveEl.textContent !== freshEl.textContent) liveEl.textContent = freshEl.textContent;
+            }
+
+            patchLaneNum(live.querySelector(".lane-tv-lane-num"), fresh.querySelector(".lane-tv-lane-num"));
             live.querySelectorAll(".status-pill, .lane-tv-status-pill").forEach(function (pill) { pill.remove(); });
             patchTextNodes(live.querySelector(".lane-tv-athlete"), fresh.querySelector(".lane-tv-athlete"));
-            patchClassAndText(live.querySelector(".lane-tv-panel--name-first .lane-tv-first-name"), fresh.querySelector(".lane-tv-panel--name-first .lane-tv-first-name"));
-            patchClassAndText(live.querySelector(".lane-tv-panel--name-last .lane-tv-last-name"), fresh.querySelector(".lane-tv-panel--name-last .lane-tv-last-name"));
+            patchClassAndText(live.querySelector(".lane-tv-full-name"), fresh.querySelector(".lane-tv-full-name"));
+            patchTextNodes(live.querySelector(".lane-tv-schedule"), fresh.querySelector(".lane-tv-schedule"));
             patchClassAndText(live.querySelector("[data-role=\"schedule-start\"]"), fresh.querySelector("[data-role=\"schedule-start\"]"));
-            patchClassAndText(live.querySelector("[data-role=\"schedule-end\"]"), fresh.querySelector("[data-role=\"schedule-end\"]"));
-            patchTextNodes(
-                live.querySelector(".lane-tv-panel--session-times [data-role=\"lane-schedule\"]") ||
-                    live.querySelector("[data-role=\"lane-schedule\"]"),
-                fresh.querySelector(".lane-tv-panel--session-times [data-role=\"lane-schedule\"]") ||
-                    fresh.querySelector("[data-role=\"lane-schedule\"]"));
             patchClassAndText(live.querySelector("[data-role=\"lane-bottom-hint\"]"), fresh.querySelector("[data-role=\"lane-bottom-hint\"]"));
 
-            var liveStack = live.querySelector(".lane-tv-panel--center-stack");
-            var freshStack = fresh.querySelector(".lane-tv-panel--center-stack");
-            var liveTimes = live.querySelector(".lane-tv-panel--session-times");
-            var freshTimes = fresh.querySelector(".lane-tv-panel--session-times");
-            var liveDetail = live.querySelector(".lane-tv-detail-grid");
-            var freshDetail = fresh.querySelector(".lane-tv-detail-grid");
-            if (!!liveStack !== !!freshStack || !!liveTimes !== !!freshTimes || !!liveDetail !== !!freshDetail) {
-                mountLaneHtml(newHtml);
-                return;
-            }
-
-            var liveClock = live.querySelector(".lane-tv-panel--clock");
-            var freshClock = fresh.querySelector(".lane-tv-panel--clock");
-            if (!!liveClock !== !!freshClock) {
-                mountLaneHtml(newHtml);
-                return;
-            }
-
-            var liveName = live.querySelector(".lane-tv-panel--name, .lane-tv-detail-grid");
-            var freshName = fresh.querySelector(".lane-tv-panel--name, .lane-tv-detail-grid");
+            var liveName = live.querySelector(".lane-tv-panel--name");
+            var freshName = fresh.querySelector(".lane-tv-panel--name");
             if (!!liveName !== !!freshName) {
                 mountLaneHtml(newHtml);
                 return;

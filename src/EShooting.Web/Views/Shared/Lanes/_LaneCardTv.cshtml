@@ -17,8 +17,18 @@
     var isGroupDisplay = athleteLines.Count > 1;
 }
 @await Html.PartialAsync("Lanes/_LaneCardTvStyles")
-<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")@(isVipTvMode && hasSession ? " lane-card--tv-vip" : "")@(hasSession && !isGroupDisplay ? " lane-card--tv-single" : "")" data-tv-layout="v3">
+<article class="lane-card lane-card--tv@(hasSession ? " lane-card--tv-active" : "")@(isVipTvMode && hasSession ? " lane-card--tv-vip" : "")@(hasSession && !isGroupDisplay ? " lane-card--tv-single" : "")" data-tv-layout="v4">
     <div class="lane-tv-grid">
+        <div class="lane-tv-panel lane-tv-panel--schedule-top">
+            @if (hasSession)
+            {
+                <div class="lane-tv-schedule" data-role="lane-schedule">
+                    <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
+                    <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
+                </div>
+            }
+        </div>
+
         <div class="lane-tv-panel lane-tv-panel--logo">
             <img class="lane-tv-brand-logo"
                  src="/images/logoZolag.png"
@@ -26,24 +36,22 @@
                  onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/logoZolag.jpg';}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='/images/club-logo.jpg';}else if(this.dataset.fallback==='2'){this.dataset.fallback='3';this.src='/images/placeholder-logo.jpg';}" />
         </div>
 
-        <div class="lane-tv-panel lane-tv-panel--center-stack">
-            <div class="lane-tv-center-col">
-                <div class="lane-tv-center-inner">
-                    <h2 class="lane-tv-lane-num">Zolaq @Model.LaneNumber</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="lane-tv-panel lane-tv-panel--clock">
-            <span id="laneTvWallClockGrid" class="lane-tv-wall-clock__value" data-role="wall-clock-display">@wallClockNow</span>
+        <div class="lane-tv-panel lane-tv-panel--lane-top">
+            <h2 class="lane-tv-lane-num"><span class="lane-tv-lane-num__label">Zolaq</span><span class="lane-tv-lane-num__value">@Model.LaneNumber</span></h2>
         </div>
 
         @if (hasSession)
         {
-            if (isGroupDisplay)
-            {
-                <div class="lane-tv-panel lane-tv-panel--name">
-                    <div class="lane-tv-athlete lane-tv-athlete--group">
+            <div class="lane-tv-panel lane-tv-panel--name">
+                <div class="lane-tv-athlete@(isGroupDisplay ? " lane-tv-athlete--group" : " lane-tv-athlete--single")">
+                    @if (athleteLines.Count == 0)
+                    {
+                        <div class="lane-tv-person">
+                            <span class="lane-tv-first-name">@(Model.AthleteName ?? "—")</span>
+                        </div>
+                    }
+                    else
+                    {
                         @foreach (var person in athleteLines)
                         {
                             <div class="lane-tv-person">
@@ -61,70 +69,13 @@
                                 }
                             </div>
                         }
-                        @if (Model.HasPendingRentalEquipment)
-                        {
-                            <span class="lane-tv-equip lane-tv-equip--hidden" aria-hidden="true">🏹</span>
-                        }
-                    </div>
+                    }
+                    @if (Model.HasPendingRentalEquipment)
+                    {
+                        <span class="lane-tv-equip lane-tv-equip--hidden" aria-hidden="true">🏹</span>
+                    }
                 </div>
-
-                <div class="lane-tv-panel lane-tv-panel--session-times">
-                    <div class="lane-tv-center-col">
-                        <div class="lane-tv-center-inner">
-                            <div class="lane-tv-schedule" data-role="lane-schedule">
-                                <div class="lane-tv-schedule__row">
-                                    <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
-                                </div>
-                                <div class="lane-tv-schedule__row lane-tv-schedule__row--end">
-                                    <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
-            else
-            {
-                var person = athleteLines.Count > 0 ? athleteLines[0] : default;
-                var hasFirst = athleteLines.Count > 0 && !string.IsNullOrEmpty(person.First);
-                var hasLast = athleteLines.Count > 0 && !string.IsNullOrEmpty(person.Last);
-
-                <div class="lane-tv-detail-grid">
-                    <div class="lane-tv-panel lane-tv-panel--name-first">
-                        @if (hasFirst)
-                        {
-                            <span class="lane-tv-first-name">@person.First</span>
-                        }
-                        else
-                        {
-                            <span class="lane-tv-first-name">—</span>
-                        }
-                    </div>
-
-                    <div class="lane-tv-panel lane-tv-panel--session-start">
-                        <div class="lane-tv-center-col">
-                            <div class="lane-tv-center-inner">
-                                <span class="lane-tv-schedule__item" data-role="schedule-start">Başlama: @startText</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="lane-tv-panel lane-tv-panel--name-last">
-                        @if (hasLast)
-                        {
-                            <span class="lane-tv-last-name">@person.Last</span>
-                        }
-                    </div>
-
-                    <div class="lane-tv-panel lane-tv-panel--session-end">
-                        <div class="lane-tv-center-col">
-                            <div class="lane-tv-center-inner">
-                                <span class="lane-tv-schedule__item" data-role="schedule-end">Bitmə: @endText</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
+            </div>
         }
 
         <div class="lane-tv-panel lane-tv-panel--ring">
@@ -147,9 +98,14 @@
                 </div>
             </div>
         </div>
+
+        <div class="lane-tv-panel lane-tv-panel--clock-bottom">
+            <span id="laneTvWallClockGrid" class="lane-tv-wall-clock__value" data-role="wall-clock-display">@wallClockNow</span>
+        </div>
+
+        @if (hasSession)
+        {
+            <div class="lane-tv-panel lane-tv-panel--hint-bottom lane-bottom-hint" data-role="lane-bottom-hint"></div>
+        }
     </div>
-    @if (hasSession)
-    {
-        <div class="lane-bottom-hint" data-role="lane-bottom-hint"></div>
-    }
 </article>
