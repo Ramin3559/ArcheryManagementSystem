@@ -98,6 +98,10 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                         .OrderBy(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
                         .FirstOrDefault()
                     ?? laneSessions
+                        .Where(x => IsPendingActivationWindow(x, nowUtc))
+                        .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
+                        .FirstOrDefault()
+                    ?? laneSessions
                         .Where(x => SessionHousekeeping.IsDisplayableOverdueSession(x, nowUtc))
                         .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.EndTimeUtc))
                         .FirstOrDefault();
@@ -206,6 +210,23 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             .ToList();
 
         return result;
+    }
+
+    private static bool IsPendingActivationWindow(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)
+    {
+        if (HasActivation(session) || session.Status == SessionStatus.Completed)
+        {
+            return false;
+        }
+
+        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
+        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
+        if (!HasValidTimeWindow(plannedStart, plannedEnd))
+        {
+            return false;
+        }
+
+        return nowUtc >= plannedStart && nowUtc < plannedEnd;
     }
 
     private static bool IsRelevantForLaneDisplay(

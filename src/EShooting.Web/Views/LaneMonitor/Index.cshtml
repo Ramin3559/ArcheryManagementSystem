@@ -1199,6 +1199,16 @@
                         return;
                     }
 
+                    if (status === "Scheduled") {
+                        el.classList.add("is-pending");
+                        const startLocal = new Date(startMs);
+                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        if (captionEl) captionEl.textContent = "Planlı";
+                        setBottomHint("", "");
+                        applyRingRemaining(progressEl, 1);
+                        return;
+                    }
+
                     if (nowMs < startMs) {
                         el.classList.add("is-pending");
                         const untilMs = startMs - nowMs;

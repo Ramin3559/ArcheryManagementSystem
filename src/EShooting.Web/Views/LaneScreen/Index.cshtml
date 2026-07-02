@@ -875,6 +875,16 @@
                     return;
                 }
 
+                if (status === "Scheduled") {
+                    el.classList.add("is-pending");
+                    timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+                    if (captionEl) captionEl.textContent = "";
+                    setBottomHint("", "");
+                    setCleanupMode(false);
+                    applyRingRemaining(el, 1);
+                    return;
+                }
+
                 if (nowMs < startMs) {
                     el.classList.add("is-pending");
                     const untilMs = startMs - nowMs;

@@ -218,7 +218,7 @@ public sealed class ScheduleSessionCommandHandler(
             LaneId = lane.Id,
             StartTimeUtc = startTimeUtc,
             EndTimeUtc = requestedEndTimeUtc,
-            Status = startTimeUtc <= nowUtc ? SessionStatus.Active : SessionStatus.Scheduled,
+            Status = SessionStatus.Scheduled,
             IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
             EquipmentReturnedAtUtc = null
         };

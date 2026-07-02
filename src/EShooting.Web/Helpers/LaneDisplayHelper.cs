@@ -152,6 +152,16 @@ public static class LaneDisplayHelper
             ? DateTime.SpecifyKind(endTimeUtc.Value, DateTimeKind.Utc)
             : endTimeUtc.Value.ToUniversalTime();
 
+        if (string.Equals(st, "Scheduled", StringComparison.OrdinalIgnoreCase))
+        {
+            if (nowUtc >= endUtc && endUtc > startUtc)
+            {
+                return "Completed";
+            }
+
+            return "Scheduled";
+        }
+
         if (isOpenEnded || endUtc <= startUtc)
         {
             if (nowUtc < startUtc) return "Scheduled";
