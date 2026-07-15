@@ -1,3 +1,4 @@
+using System.Globalization;
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
@@ -53,6 +54,18 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
         if (request.ActiveToDateLocal.Date < request.ActiveFromDateLocal.Date)
         {
             throw new InvalidOperationException("ActiveToDateLocal must be after ActiveFromDateLocal.");
+        }
+
+        var nowLocal = AzerbaijanTime.NowLocal;
+        var firstOccurrence = SubscriptionOccurrenceRules.ResolveFirstOccurrenceDateLocal(
+            request.ActiveFromDateLocal.Date,
+            request.DayOfWeek,
+            request.StartTimeLocal,
+            nowLocal);
+        if (firstOccurrence > request.ActiveToDateLocal.Date)
+        {
+            throw new InvalidOperationException(
+                "Seçilmiş həftə günü/saat üçün abunə müddətində cari vaxtdan sonra keçərli tarix qalmayıb.");
         }
 
         if (request.LaneNumber is < 0 or > 11)
@@ -136,24 +149,8 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             }
         }
 
-        var schedule = new SubscriptionSchedule
-        {
-            AthleteId = athlete.Id,
-            LaneNumber = baseLaneNumber,
-            DayOfWeek = request.DayOfWeek,
-            StartTimeLocal = request.StartTimeLocal,
-            DurationMinutes = request.DurationMinutes,
-            ActiveFromDateLocal = request.ActiveFromDateLocal.Date,
-            ActiveToDateLocal = request.ActiveToDateLocal.Date,
-            IsEnabled = true,
-            PreferredLaneType = request.PreferredLaneType,
-            IsFullPackage = false
-        };
-
-        var createdSchedule = await repository.AddSubscriptionScheduleAsync(schedule, cancellationToken);
-
-        // Create sessions for every occurrence, applying overrides.
-        var from = request.ActiveFromDateLocal.Date;
+        // Validate ALL occurrence slots before creating the schedule (no orphan on mid-loop failure).
+        var from = firstOccurrence;
         var to = request.ActiveToDateLocal.Date;
         for (var day = from; day <= to; day = day.AddDays(1))
         {
@@ -162,6 +159,60 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             var ov = overridesByDate.TryGetValue(day, out var o) ? o : null;
             var laneNumber = ov?.LaneNumber ?? baseLaneNumber;
             var startTimeLocal = ov?.StartTimeLocal ?? request.StartTimeLocal;
+            if (SubscriptionOccurrenceRules.IsSlotInThePast(day, startTimeLocal, nowLocal)) continue;
+
+            if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                    sessions,
+                    existingSchedules,
+                    lanes,
+                    laneNumber,
+                    day,
+                    startTimeLocal,
+                    request.DurationMinutes,
+                    nowUtc))
+            {
+                var label = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
+            }
+        }
+
+        var overridesJson = SubscriptionOccurrenceJson.SerializeOverrides(
+            overridesByDate.Values
+                .OrderBy(x => x.DateLocal.Date)
+                .Select(ov => new SubscriptionOccurrenceJson.OverrideRow
+                {
+                    DateLocal = ov.DateLocal.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    StartTimeLocal = $"{ov.StartTimeLocal.Hours:D2}:{ov.StartTimeLocal.Minutes:D2}",
+                    LaneNumber = ov.LaneNumber,
+                    DurationMinutes = request.DurationMinutes
+                }));
+
+        var schedule = new SubscriptionSchedule
+        {
+            AthleteId = athlete.Id,
+            LaneNumber = baseLaneNumber,
+            DayOfWeek = request.DayOfWeek,
+            StartTimeLocal = request.StartTimeLocal,
+            DurationMinutes = request.DurationMinutes,
+            ActiveFromDateLocal = firstOccurrence,
+            ActiveToDateLocal = request.ActiveToDateLocal.Date,
+            IsEnabled = true,
+            PreferredLaneType = request.PreferredLaneType,
+            IsFullPackage = false,
+            OccurrenceOverridesJson = overridesJson
+        };
+
+        var createdSchedule = await repository.AddSubscriptionScheduleAsync(schedule, cancellationToken);
+
+        // Create sessions for every occurrence, applying overrides.
+        for (var day = from; day <= to; day = day.AddDays(1))
+        {
+            if ((int)day.DayOfWeek != request.DayOfWeek) continue;
+
+            var ov = overridesByDate.TryGetValue(day, out var o) ? o : null;
+            var laneNumber = ov?.LaneNumber ?? baseLaneNumber;
+            var startTimeLocal = ov?.StartTimeLocal ?? request.StartTimeLocal;
+            if (SubscriptionOccurrenceRules.IsSlotInThePast(day, startTimeLocal, nowLocal)) continue;
 
             var lane = lanes.FirstOrDefault(l => l.Number == laneNumber)
                 ?? await repository.GetLaneByNumberAsync(laneNumber, cancellationToken);
@@ -170,40 +221,25 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
                 throw new InvalidOperationException($"Zolaq {laneNumber} tapılmadı.");
             }
 
+            // Defensive re-check after schedule insert (exclude self).
+            if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                    sessions,
+                    existingSchedules,
+                    lanes,
+                    laneNumber,
+                    day,
+                    startTimeLocal,
+                    request.DurationMinutes,
+                    nowUtc,
+                    excludeScheduleId: createdSchedule.Id))
+            {
+                var label = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
+            }
+
             var slotLocal = day.Add(startTimeLocal);
-            var startUtc = DateTime.SpecifyKind(slotLocal, DateTimeKind.Local).ToUniversalTime();
+            var startUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(slotLocal);
             var endUtc = startUtc.AddMinutes(request.DurationMinutes);
-
-            // Prevent overlap with existing sessions on that lane.
-            var laneBusy = sessions
-                .Where(s => s.LaneId == lane.Id)
-                .Any(s => LaneReservationRules.OverlapsSession(s, startUtc, endUtc, nowUtc));
-            if (laneBusy)
-            {
-                var label = day.ToString("yyyy-MM-dd");
-                throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
-            }
-
-            // Prevent overlap with existing enabled subscription schedules that reserve the same lane.
-            var reqStartLocal = slotLocal;
-            var reqEndLocal = slotLocal.AddMinutes(request.DurationMinutes);
-            var reservedBySchedule = existingSchedules.Any(s =>
-            {
-                if (!s.IsEnabled) return false;
-                if (s.Id == createdSchedule.Id) return false;
-                if (day < s.ActiveFromDateLocal.Date || day > s.ActiveToDateLocal.Date) return false;
-                if (s.DayOfWeek != (int)day.DayOfWeek) return false;
-                var reservedLane = s.LastAssignedLaneNumber ?? (s.LaneNumber > 0 ? s.LaneNumber : (int?)null);
-                if (reservedLane != laneNumber) return false;
-                var subStart = day.Add(s.StartTimeLocal);
-                var subEnd = subStart.AddMinutes(s.DurationMinutes);
-                return reqStartLocal < subEnd && reqEndLocal > subStart;
-            });
-            if (reservedBySchedule)
-            {
-                var label = day.ToString("yyyy-MM-dd");
-                throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
-            }
 
             await repository.AddSessionAsync(new TrainingSession
             {
@@ -219,4 +255,3 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
         return createdSchedule.Id;
     }
 }
-

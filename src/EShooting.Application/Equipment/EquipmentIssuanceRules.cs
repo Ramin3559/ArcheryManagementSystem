@@ -17,7 +17,9 @@ public static class EquipmentIssuanceRules
 
     public static void SyncDerivedFields(EquipmentItem item)
     {
-        item.Quantity = Math.Max(0, item.RentalQuantity) + Math.Max(0, item.SaleQuantity);
+        item.Quantity = Math.Max(0, item.WarehouseQuantity)
+            + Math.Max(0, item.RentalQuantity)
+            + Math.Max(0, item.SaleQuantity);
         item.UsageMode = DeriveUsageMode(item.RentalQuantity, item.SaleQuantity);
         item.UpdatedAtUtc = DateTime.UtcNow;
     }
@@ -87,7 +89,9 @@ public static class EquipmentIssuanceRules
     public static void ApplyDamagedOnReturn(EquipmentItem item, int quantity)
     {
         if (quantity <= 0) return;
+        // Verilərkən Zal stokundan düşülüb; qayıdarkən xarab hissə geri qayıtmır —
+        // yalnız xarab sayğacına yazılır (Zal siyahısından çıxmış qalır).
         item.DamagedQuantity += quantity;
-        item.UpdatedAtUtc = DateTime.UtcNow;
+        SyncDerivedFields(item);
     }
 }

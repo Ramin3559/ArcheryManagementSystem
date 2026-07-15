@@ -27,6 +27,8 @@ public sealed class LaneDashboardItem
     public string? PendingRentalAthleteName { get; init; }
     public string? PendingRentalEquipmentSummary { get; init; }
     public bool IsSessionOpen { get; init; }
+    /// <summary>Resepsiyada «Aktiv et» / «İndi başla» ilə təsdiqlənib.</summary>
+    public bool IsSessionActivated { get; init; }
     /// <summary>VIP / müddətsiz sessiya — TV-də geri sayım yox, artan vaxt.</summary>
     public bool IsOpenEndedSession { get; init; }
     public bool IsAthleteVip { get; init; }

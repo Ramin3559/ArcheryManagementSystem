@@ -17,7 +17,8 @@ public sealed record ScheduleSessionCommand(
     PreferredLaneType PreferredLaneType,
     IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null,
     Guid? IssuedByStaffId = null,
-    bool ForceOpenEnded = false) : IRequest<Guid>;
+    bool ForceOpenEnded = false,
+    bool ActivateImmediately = false) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -32,6 +33,11 @@ public sealed class ScheduleSessionCommandHandler(
 
         var startTimeUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(request.StartTimeUtc);
         var nowUtc = DateTime.UtcNow;
+        if (startTimeUtc < nowUtc.AddSeconds(-30))
+        {
+            throw new InvalidOperationException(
+                "Geri vaxta yaza bilməzsiniz. «İndi başla» seçin və ya cari vaxtdan sonrakı saatı yazın.");
+        }
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
@@ -224,6 +230,12 @@ public sealed class ScheduleSessionCommandHandler(
         };
 
         var created = await repository.AddSessionAsync(session, cancellationToken);
+
+        if (request.ActivateImmediately)
+        {
+            SessionActivationRules.MarkActivated(created, nowUtc);
+            await repository.UpdateSessionAsync(created, cancellationToken);
+        }
 
         if (equipmentIssues.Count > 0)
         {

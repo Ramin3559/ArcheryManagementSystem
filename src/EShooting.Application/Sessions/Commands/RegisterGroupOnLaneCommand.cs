@@ -1,5 +1,7 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.Common.Models;
+using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using MediatR;
@@ -11,12 +13,16 @@ public sealed record RegisterGroupOnLaneCommand(
     int LaneNumber,
     DateTime StartTimeUtc,
     int DurationMinutes,
-    bool IsEquipmentIssued) : IRequest<RegisterGroupOnLaneResult>;
+    bool IsEquipmentIssued,
+    bool ActivateImmediately = false,
+    IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null,
+    Guid? IssuedByStaffId = null) : IRequest<RegisterGroupOnLaneResult>;
 
 public sealed record RegisterGroupOnLaneResult(IReadOnlyCollection<RegisterGroupOnLaneItem> Sessions);
 
 public sealed record RegisterGroupOnLaneItem(
     Guid SessionId,
+    Guid AthleteId,
     string AthleteName,
     DateTime StartTimeUtc,
     DateTime EndTimeUtc);
@@ -102,21 +108,63 @@ public sealed class RegisterGroupOnLaneCommandHandler(
             }, cancellationToken);
         }
 
+        var equipmentIssues = request.EquipmentIssues ?? [];
+        var hasRentalEquipment = equipmentIssues.Any(x => x.IssueType == EquipmentIssueType.Rental);
+        var legacyEquipmentFlag = request.IsEquipmentIssued && equipmentIssues.Count == 0;
+
         var created = await repository.AddSessionAsync(new TrainingSession
         {
             AthleteId = athlete.Id,
             LaneId = lane.Id,
             StartTimeUtc = startTimeUtc,
             EndTimeUtc = endTimeUtc,
-            Status = startTimeUtc <= nowUtc && nowUtc < endTimeUtc ? SessionStatus.Active : SessionStatus.Scheduled,
-            IsEquipmentIssued = request.IsEquipmentIssued,
+            Status = SessionStatus.Scheduled,
+            IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
             EquipmentReturnedAtUtc = null
         }, cancellationToken);
+
+        if (request.ActivateImmediately)
+        {
+            SessionActivationRules.MarkActivated(created, nowUtc);
+            await repository.UpdateSessionAsync(created, cancellationToken);
+        }
+
+        if (equipmentIssues.Count > 0)
+        {
+            var issueRows = new List<SessionEquipmentIssue>();
+            foreach (var issue in equipmentIssues)
+            {
+                var catalogItem = await repository.GetEquipmentItemByIdAsync(issue.EquipmentItemId, cancellationToken)
+                    ?? throw new InvalidOperationException("Seçilmiş avadanlıq tapılmadı.");
+                if (!catalogItem.IsActive || catalogItem.IsDeleted)
+                {
+                    throw new InvalidOperationException($"«{catalogItem.Name}» deaktivdir və verilə bilməz.");
+                }
+
+                EquipmentIssuanceRules.ValidateIssueType(catalogItem, issue.IssueType);
+                var quantity = issue.Quantity > 0 ? issue.Quantity : 1;
+                EquipmentIssuanceRules.ApplyStockOnIssue(catalogItem, issue.IssueType, quantity);
+                await repository.UpdateEquipmentItemAsync(catalogItem, cancellationToken);
+
+                issueRows.Add(new SessionEquipmentIssue
+                {
+                    SessionId = created.Id,
+                    EquipmentItemId = catalogItem.Id,
+                    IssueType = issue.IssueType,
+                    Quantity = quantity,
+                    UnitPrice = EquipmentIssuanceRules.ResolveUnitPrice(catalogItem, issue.IssueType),
+                    IssuedByStaffId = request.IssuedByStaffId,
+                    ReturnedAtUtc = null
+                });
+            }
+
+            await repository.AddSessionEquipmentIssuesAsync(issueRows, cancellationToken);
+        }
 
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);
         return new RegisterGroupOnLaneResult(
         [
-            new RegisterGroupOnLaneItem(created.Id, athlete.FullName, startTimeUtc, endTimeUtc)
+            new RegisterGroupOnLaneItem(created.Id, athlete.Id, athlete.FullName, startTimeUtc, endTimeUtc)
         ]);
     }
 

@@ -6,7 +6,7 @@ public sealed class EquipmentSaleReceipt
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    /// <summary>Alıcı müştəri (sürətli qeydiyyatla yaradılır).</summary>
+    /// <summary>Müştəri (avadanlıq satışı bu şəxsə bağlanır).</summary>
     public Guid AthleteId { get; set; }
 
     /// <summary>Satış / qaytarma.</summary>
@@ -22,6 +22,9 @@ public sealed class EquipmentSaleReceipt
 
     public Guid? CreatedByStaffId { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Satış zamanı müştəriyə çek verilib.</summary>
+    public bool ReceiptIssued { get; set; }
 
     public decimal AmountPaid => AmountPaidCash + AmountPaidCard;
     public decimal AmountPayable => Math.Max(0m, TotalAmount - DiscountAmount);

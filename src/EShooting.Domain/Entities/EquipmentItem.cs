@@ -9,16 +9,20 @@ public sealed class EquipmentItem
     public string Name { get; set; } = string.Empty;
     public string? Category { get; set; }
     public EquipmentUsageMode UsageMode { get; set; } = EquipmentUsageMode.Both;
-    /// <summary>Zalda icarə üçün işlək stok.</summary>
+    /// <summary>Əsas anbarda saxlanan miqdar.</summary>
+    public int WarehouseQuantity { get; set; }
+    /// <summary>Zal — icarə üçün işlək stok.</summary>
     public int RentalQuantity { get; set; }
     /// <summary>Resepsiyada satış üçün stok.</summary>
     public int SaleQuantity { get; set; }
-    /// <summary>Cəmi işlək stok (zal + satış).</summary>
+    /// <summary>Cəmi stok (anbar + zal + satış).</summary>
     public int Quantity { get; set; }
     /// <summary>İşlək stokdan çıxarılmış — sıradan çıxan / xarab (zaldan).</summary>
     public int DamagedQuantity { get; set; }
     /// <summary>1 ədəd satış qiyməti (vahid).</summary>
     public decimal? Price { get; set; }
+    /// <summary>1 ədəd alış qiyməti (vahid).</summary>
+    public decimal? PurchasePrice { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

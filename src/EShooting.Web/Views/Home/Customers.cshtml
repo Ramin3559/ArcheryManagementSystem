@@ -63,12 +63,13 @@
         .section-hint { margin: 0 0 14px; font-size: 13px; color: var(--text-muted); }
         .filter-grid {
             display: grid;
-            grid-template-columns: 2fr repeat(5, minmax(120px, 1fr)) repeat(2, minmax(140px, 1fr));
+            grid-template-columns: 2fr repeat(2, minmax(120px, 1fr)) repeat(2, minmax(140px, 1fr)) minmax(420px, auto);
             gap: 12px;
             align-items: end;
         }
         @@media (max-width: 1100px) {
             .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .field--presets { grid-column: 1 / -1; min-width: 0; }
         }
         @@media (max-width: 700px) {
             .filter-grid { grid-template-columns: 1fr 1fr; }
@@ -138,6 +139,24 @@
             background: linear-gradient(120deg, #16a34a, #0f9d77);
             box-shadow: 0 8px 18px rgba(15, 157, 119, 0.25);
         }
+        .preset-btn {
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #fff;
+            padding: 6px 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 13px;
+            color: #253060;
+        }
+        .preset-btn:hover { background: rgba(108, 92, 255, 0.08); border-color: rgba(108, 92, 255, 0.22); }
+        .preset-btn.active {
+            background: rgba(108, 92, 255, 0.14);
+            border-color: rgba(108, 92, 255, 0.32);
+            color: #4338ca;
+        }
+        .field--presets { min-width: 420px; }
+        .preset-inline { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; min-height: 38px; }
         .table-toolbar {
             display: flex;
             justify-content: space-between;
@@ -223,14 +242,6 @@
                     <input name="search" id="search" type="search" placeholder="Ad, telefon, qeydiyyata alan…" autocomplete="off" />
                 </label>
                 <label class="field">
-                    <span class="field__label">VIP</span>
-                    <select name="vip" id="vip">
-                        <option value="">Hamısı</option>
-                        <option value="yes">VIP</option>
-                        <option value="no">VIP deyil</option>
-                    </select>
-                </label>
-                <label class="field">
                     <span class="field__label">Paket</span>
                     <select name="packageType" id="packageType">
                         <option value="">Hamısı</option>
@@ -240,30 +251,11 @@
                     </select>
                 </label>
                 <label class="field">
-                    <span class="field__label">Müştəri tipi</span>
-                    <select name="customerType" id="customerType">
-                        <option value="">Hamısı</option>
-                        <option value="zolaq">Müştəri</option>
-                        <option value="alici">Alıcı</option>
-                        <option value="her-ikisi">Alıcı müştəri</option>
-                        <option value="hec-biri">Heç bir əməliyyat yoxdur</option>
-                    </select>
-                </label>
-                <label class="field">
-                    <span class="field__label">Oyun icarəsi</span>
-                    <select name="sessionRental" id="sessionRental">
-                        <option value="">Hamısı</option>
-                        <option value="any">Oyun icarəsi olub</option>
-                        <option value="pending">Qaytarılmamış icarə</option>
-                        <option value="none">Oyun icarəsi olmayıb</option>
-                    </select>
-                </label>
-                <label class="field">
                     <span class="field__label">Status</span>
                     <select name="active" id="active">
-                        <option value="">Hamısı</option>
                         <option value="active">Aktiv</option>
-                        <option value="inactive">Deaktiv</option>
+                        <option value="inactive">Silinmiş</option>
+                        <option value="">Hamısı</option>
                     </select>
                 </label>
                 <label class="field">
@@ -274,11 +266,18 @@
                     <span class="field__label">Qeydiyyata alınma (son)</span>
                     <input type="date" name="registeredTo" id="registeredTo" value="@today" />
                 </label>
+                <div class="field field--presets">
+                    <span class="field__label" style="visibility:hidden;">Tarix</span>
+                    <div class="preset-inline">
+                        <button type="button" class="preset-btn active" data-preset="today">Bu gün</button>
+                        <button type="button" class="preset-btn" data-preset="yesterday">Dünən</button>
+                        <button type="button" class="preset-btn" data-preset="last7">Son 7 gün</button>
+                        <button type="button" class="preset-btn" data-preset="month">Cari ay</button>
+                    </div>
+                </div>
             </div>
             <div class="filter-actions">
-                <button type="submit" class="btn btn-primary">Filtrlə</button>
-                <button type="button" class="btn btn-ghost" id="resetTodayBtn">Bugün</button>
-                <button type="button" class="btn btn-ghost" id="clearDatesBtn">Bütün tarixlər</button>
+                <button type="submit" class="btn btn-primary">Axtar</button>
             </div>
         </form>
     </section>
@@ -299,7 +298,6 @@
                     <th>Qeydiyyata alınma</th>
                     <th>Qeydiyyata alan</th>
                     <th>Son zolağa yazılma</th>
-                    <th>Tip</th>
                     <th>Oyun icarəsi</th>
                 </tr>
                 </thead>
@@ -308,8 +306,31 @@
         </div>
     </section>
 </div>
+<link rel="stylesheet" href="/lib/flatpickr/flatpickr.min.css" />
+<script src="/lib/flatpickr/flatpickr.min.js"></script>
+<script src="/lib/flatpickr/l10n-az.js"></script>
 <script src="/js/admin-filter-state.js"></script>
 <script>
+    (function () {
+        try {
+            if (typeof window.flatpickr !== "function") return;
+            if (window.flatpickr.l10ns && window.flatpickr.l10ns.az) {
+                window.flatpickr.localize(window.flatpickr.l10ns.az);
+            }
+            document.querySelectorAll('input[type="date"]').forEach(function (el) {
+                if (!(el instanceof HTMLInputElement) || el.dataset.fpBound === "1") return;
+                window.flatpickr(el, {
+                    locale: "az",
+                    allowInput: true,
+                    altInput: true,
+                    altFormat: "d.m.Y",
+                    dateFormat: "Y-m-d"
+                });
+                el.dataset.fpBound = "1";
+            });
+        } catch (e) { /* ignore */ }
+    })();
+
     const STORAGE_KEY = "reception-customers";
     const AFS = window.AdminFilterState;
     const todayIso = "@today";
@@ -325,14 +346,51 @@
         return qs;
     }
 
+    function isoDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+    }
+
     function setTodayDates() {
         document.getElementById("registeredFrom").value = todayIso;
         document.getElementById("registeredTo").value = todayIso;
     }
 
-    function clearDateFilters() {
-        document.getElementById("registeredFrom").value = "";
-        document.getElementById("registeredTo").value = "";
+    function setDateInput(el, iso) {
+        if (!(el instanceof HTMLInputElement)) return;
+        el.value = iso;
+        if (el._flatpickr) el._flatpickr.setDate(iso, false);
+    }
+
+    function markPresetActive(preset) {
+        document.querySelectorAll(".preset-btn[data-preset]").forEach((btn) => {
+            btn.classList.toggle("active", (btn.getAttribute("data-preset") || "") === preset);
+        });
+    }
+
+    function applyPreset(preset) {
+        const fromEl = document.getElementById("registeredFrom");
+        const toEl = document.getElementById("registeredTo");
+        if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement)) return;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let from = new Date(today);
+        let to = new Date(today);
+        if (preset === "yesterday") {
+            from.setDate(from.getDate() - 1);
+            to = new Date(from);
+        } else if (preset === "last7") {
+            from.setDate(from.getDate() - 6);
+        } else if (preset === "month") {
+            from = new Date(today.getFullYear(), today.getMonth(), 1);
+            to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        }
+        setDateInput(fromEl, isoDate(from));
+        setDateInput(toEl, isoDate(to));
+        markPresetActive(preset || "today");
+        void loadList();
     }
 
     function escapeHtml(s) {
@@ -357,7 +415,7 @@
             const tbody = document.getElementById("tbody");
             tbody.innerHTML = "";
             if (items.length === 0) {
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
             } else {
                 for (const x of items) {
                     const tr = document.createElement("tr");
@@ -379,7 +437,6 @@
                         <td>${escapeHtml(x.registeredAtLocal)}</td>
                         <td>${escapeHtml(x.registeredByStaffName)}</td>
                         <td>${escapeHtml(lastLane)}</td>
-                        <td>${escapeHtml(x.customerTypeLabel || "—")}</td>
                         <td>${escapeHtml(sessionRental)}</td>`;
                     tr.addEventListener("click", () => {
                         try {
@@ -401,13 +458,8 @@
     document.getElementById("exportBtn").addEventListener("click", () => {
         window.location.href = "/athletes/list/export.xlsx?" + qsFromForm().toString();
     });
-    document.getElementById("resetTodayBtn").addEventListener("click", () => {
-        setTodayDates();
-        void loadList();
-    });
-    document.getElementById("clearDatesBtn").addEventListener("click", () => {
-        clearDateFilters();
-        void loadList();
+    document.querySelectorAll(".preset-btn[data-preset]").forEach((btn) => {
+        btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset") || "today"));
     });
 
     let filterDebounceTimer = null;
@@ -419,10 +471,11 @@
     const filterForm = document.getElementById("filterForm");
     if (filterForm && AFS) {
         AFS.initForm(STORAGE_KEY, filterForm, {
-            applyDefaults: function () { setTodayDates(); }
+            applyDefaults: function () { setTodayDates(); markPresetActive("today"); }
         });
     } else {
         setTodayDates();
+        markPresetActive("today");
     }
 
     const searchInput = document.getElementById("search");
@@ -433,7 +486,10 @@
         for (const el of filterForm.elements) {
             if (!el.name || el === searchInput) continue;
             if (el.tagName === "SELECT" || el.type === "date") {
-                el.addEventListener("change", () => scheduleFilterLoad(0));
+                el.addEventListener("change", () => {
+                    if (el.name === "registeredFrom" || el.name === "registeredTo") markPresetActive("");
+                    scheduleFilterLoad(0);
+                });
             }
         }
     }

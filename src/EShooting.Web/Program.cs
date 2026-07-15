@@ -17,7 +17,16 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-CultureInfo.DefaultThreadCurrentCulture = CultureInfo.GetCultureInfo("az-Latn-AZ");
+// UI mətnləri AZ; HTML number input '.' istifadə edir. Az mədəniyyətində '.' minlik ayırıcısı
+// olduğu üçün qiymət 10.5 → 105 kimi bağlanırdı — decimal separator-u nöqtə saxlayırıq.
+var culture = (CultureInfo)CultureInfo.GetCultureInfo("az-Latn-AZ").Clone();
+culture.NumberFormat.NumberDecimalSeparator = ".";
+culture.NumberFormat.CurrencyDecimalSeparator = ".";
+culture.NumberFormat.PercentDecimalSeparator = ".";
+culture.NumberFormat.NumberGroupSeparator = "\u00A0";
+culture.NumberFormat.CurrencyGroupSeparator = "\u00A0";
+culture.NumberFormat.PercentGroupSeparator = "\u00A0";
+CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("az-AZ");
 
 builder.Services.Configure<ReceptionAuthOptions>(builder.Configuration.GetSection(ReceptionAuthOptions.SectionName));

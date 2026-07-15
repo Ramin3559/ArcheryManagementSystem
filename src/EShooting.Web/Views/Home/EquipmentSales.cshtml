@@ -192,21 +192,17 @@
     </div>
 
     <section id="saleSection" class="card">
-        <div class="grid">
-            <label class="field">
-                <span>Ad</span>
-                <input id="saleFirstName" placeholder="Ad" autocomplete="off" required />
-            </label>
-            <label class="field">
-                <span>Soyad</span>
-                <input id="saleLastName" placeholder="Soyad" autocomplete="off" required />
-            </label>
-            <label class="field" style="grid-column: 1 / -1;">
-                <span>Telefon</span>
-                <input id="salePhone" placeholder="Telefon" inputmode="tel" autocomplete="off" required />
-            </label>
-        </div>
+        <label class="field">
+            <span>Müştəri axtarışı</span>
+            <input id="saleCustomerSearch" placeholder="Ad, soyad və ya telefon…" autocomplete="off" />
+        </label>
         <div id="saleCustomerMatches" class="customer-matches" aria-live="polite"></div>
+        <div id="saleSelectedCustomer" class="notice" style="margin-top:10px; display:none;"></div>
+        <p class="header__sub" style="margin:10px 0 0;">
+            Yeni müştəri lazımdırsa əvvəl
+            <a href="/qeydiyyat" style="font-weight:900; color:#2a4ab8;">Qeydiyyat</a>
+            səhifəsindən əlavə edin.
+        </p>
 
         <label class="field" style="margin-top:12px;">
             <span>Avadanlıq axtar</span>
@@ -225,6 +221,11 @@
                 <input id="saleCard" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal" />
             </label>
         </div>
+
+        <label class="checkbox-chip" style="display:inline-flex; align-items:center; gap:8px; margin-top:12px; font-weight:800; cursor:pointer;">
+            <input id="saleReceiptIssued" type="checkbox" />
+            Çek Verildi
+        </label>
 
         <div id="saleNotice" style="margin-top:12px; display:none;" class="notice"></div>
 
@@ -313,14 +314,14 @@
     }
 
     // --- SALE ---
-    const saleFirstName = document.getElementById("saleFirstName");
-    const saleLastName = document.getElementById("saleLastName");
-    const salePhone = document.getElementById("salePhone");
+    const saleCustomerSearch = document.getElementById("saleCustomerSearch");
     const saleCustomerMatches = document.getElementById("saleCustomerMatches");
+    const saleSelectedCustomer = document.getElementById("saleSelectedCustomer");
     const saleEquipmentList = document.getElementById("saleEquipmentList");
     const saleEquipmentSearch = document.getElementById("saleEquipmentSearch");
     const saleCash = document.getElementById("saleCash");
     const saleCard = document.getElementById("saleCard");
+    const saleReceiptIssued = document.getElementById("saleReceiptIssued");
     const saleTotalLabel = document.getElementById("saleTotalLabel");
     const saleSubmitBtn = document.getElementById("saleSubmitBtn");
     const saleNotice = document.getElementById("saleNotice");
@@ -329,8 +330,8 @@
     let saleDraft = []; // {equipmentItemId, quantity, discountAmount}
     let saleEquipmentFilter = "";
     let selectedSaleAthleteId = "";
+    let selectedSaleCustomerName = "";
     let saleCustomerSearchTimer = null;
-    let fillingSaleCustomerFields = false;
 
     function clearSaleCustomerMatches() {
         if (!(saleCustomerMatches instanceof HTMLElement)) return;
@@ -338,15 +339,27 @@
         saleCustomerMatches.classList.remove("is-open");
     }
 
+    function renderSaleSelectedCustomer() {
+        if (!(saleSelectedCustomer instanceof HTMLElement)) return;
+        if (!selectedSaleAthleteId) {
+            saleSelectedCustomer.style.display = "none";
+            saleSelectedCustomer.textContent = "";
+            return;
+        }
+        saleSelectedCustomer.style.display = "";
+        saleSelectedCustomer.className = "notice ok";
+        saleSelectedCustomer.textContent = "Seçilmiş müştəri: " + (selectedSaleCustomerName || "—");
+    }
+
     function applySaleCustomerPick(athlete) {
         if (!athlete) return;
-        fillingSaleCustomerFields = true;
         selectedSaleAthleteId = String(athlete.id || "");
-        if (saleFirstName instanceof HTMLInputElement) saleFirstName.value = athlete.firstName || "";
-        if (saleLastName instanceof HTMLInputElement) saleLastName.value = athlete.lastName || "";
-        if (salePhone instanceof HTMLInputElement) salePhone.value = athlete.phoneNumber || "";
-        fillingSaleCustomerFields = false;
+        selectedSaleCustomerName = `${athlete.fullName || ""}${athlete.phoneNumber ? " · " + athlete.phoneNumber : ""}`.trim();
+        if (saleCustomerSearch instanceof HTMLInputElement) {
+            saleCustomerSearch.value = selectedSaleCustomerName;
+        }
         clearSaleCustomerMatches();
+        renderSaleSelectedCustomer();
     }
 
     function renderSaleCustomerMatches(list) {
@@ -392,13 +405,12 @@
         }, 250);
     }
 
-    function onSaleCustomerFieldInput(query) {
-        if (fillingSaleCustomerFields) return;
+    saleCustomerSearch?.addEventListener("input", function () {
         selectedSaleAthleteId = "";
-        scheduleSaleCustomerSearch(query);
-    }
-
-    function normalizeDigits(s) { return String(s || "").replaceAll(/[^\d]/g, ""); }
+        selectedSaleCustomerName = "";
+        renderSaleSelectedCustomer();
+        scheduleSaleCustomerSearch(saleCustomerSearch.value);
+    });
 
     function matchesEquipmentFilter(item) {
         const q = String(saleEquipmentFilter || "").trim().toLocaleLowerCase("az");
@@ -649,22 +661,11 @@
 
     function syncSaleTotal() {
         const totals = updateSaleTotalsDisplay();
-        const payable = totals.payable;
-        if (payable <= PaymentSplit.Tolerance) {
+        if (totals.payable <= PaymentSplit.Tolerance) {
             if (saleCash instanceof HTMLInputElement) saleCash.value = "";
             if (saleCard instanceof HTMLInputElement) saleCard.value = "";
         } else {
-            let cash = PaymentSplit.parseAmount(saleCash);
-            if (cash > payable) cash = payable;
-            const card = PaymentSplit.roundMoney(Math.max(0, payable - cash));
-            if (saleCash instanceof HTMLInputElement && cash > 0) {
-                saleCash.value = cash.toFixed(2);
-            } else if (saleCash instanceof HTMLInputElement && PaymentSplit.parseAmount(saleCard) <= 0) {
-                saleCash.value = payable.toFixed(2);
-            }
-            if (saleCard instanceof HTMLInputElement) {
-                saleCard.value = card > 0 ? card.toFixed(2) : "";
-            }
+            salePaymentBinder?.rebalance();
         }
         updateSaleTotalsDisplay();
         return totals.listTotal;
@@ -682,16 +683,6 @@
     saleEquipmentSearch?.addEventListener("input", () => {
         saleEquipmentFilter = saleEquipmentSearch?.value || "";
         renderSaleList();
-    });
-
-    saleFirstName?.addEventListener("input", function () {
-        onSaleCustomerFieldInput(saleFirstName.value);
-    });
-    saleLastName?.addEventListener("input", function () {
-        onSaleCustomerFieldInput(saleLastName.value);
-    });
-    salePhone?.addEventListener("input", function () {
-        onSaleCustomerFieldInput(salePhone.value);
     });
 
     function setSaleNotice(text, kind) {
@@ -734,11 +725,8 @@
         }
 
         const athleteId = selectedSaleAthleteId || "";
-        const first = String(saleFirstName?.value || "").trim();
-        const last = String(saleLastName?.value || "").trim();
-        const phone = String(salePhone?.value || "").trim();
-        if (!athleteId && (!first || !last || !phone)) {
-            showSaleError("Ad, Soyad və Telefon daxil edin.");
+        if (!athleteId) {
+            showSaleError("Müştəri seçin. Yeni müştəri üçün əvvəl Qeydiyyat səhifəsindən əlavə edin.");
             return;
         }
 
@@ -762,13 +750,11 @@
         }
 
         const payload = {
-            athleteId: athleteId || null,
-            firstName: first,
-            lastName: last,
-            phoneNumber: phone,
+            athleteId,
             discountAmount: 0,
             amountPaidCash: cash,
             amountPaidCard: card,
+            receiptIssued: saleReceiptIssued instanceof HTMLInputElement && saleReceiptIssued.checked,
             lines: saleDraft.map(x => ({
                 equipmentItemId: x.equipmentItemId,
                 quantity: Math.max(1, Number(x.quantity) || 1),
@@ -791,7 +777,7 @@
                 return;
             }
             const data = await res.json().catch(() => ({}));
-            redirectAfterSaleSuccess(data, `${first} ${last}`.trim(), payable);
+            redirectAfterSaleSuccess(data, selectedSaleCustomerName, payable);
         } catch (err) {
             const msg = err instanceof Error && err.message ? err.message : "Satış qeydə alınmadı.";
             showSaleError(msg);
@@ -943,7 +929,7 @@
 
         const returnHead = document.createElement("div");
         returnHead.className = "row row--return row--sale-head";
-        returnHead.innerHTML = '<div></div><label class="field-mini"><span>Say</span></label><label class="field-mini"><span>Geri ödəniş (AZN)</span></label><div></div>';
+        returnHead.innerHTML = '<div></div><label class="field-mini"><span>Say</span></label><label class="field-mini"><span>Geri ödəniş</span></label><div></div>';
         returnItemsList.appendChild(returnHead);
 
         for (const item of items) {
@@ -951,12 +937,28 @@
             const purchasedQty = Math.max(maxQty, Number(item.purchasedQuantity) || maxQty);
             if (maxQty <= 0) continue;
             const refundUnit = Number(item.refundUnitPrice ?? item.unitPrice) || 0;
+            const canReturn = item.canReturn !== false && item.isWithinReturnWindow !== false;
+            const receiptIssued = Boolean(item.receiptIssued);
+            const blockReason = String(item.blockReason || "").trim();
+            const saleDateLocal = String(item.saleDateLocal || "").trim();
 
             const row = document.createElement("div");
             row.className = "row row--return";
+            if (!canReturn) row.style.opacity = "0.78";
 
             const body = document.createElement("div");
-            body.innerHTML = `<strong>${item.equipmentName}</strong> <span class="muted">· alınıb: ${purchasedQty} · qaytarıla bilər: ${maxQty} · ödəniş: ${formatReturnPriceLabel(item)}</span>`;
+            let meta = `· alınıb: ${purchasedQty} · qalıq: ${maxQty}`;
+            if (saleDateLocal) meta += ` · ${saleDateLocal}`;
+            meta += ` · ödəniş: ${formatReturnPriceLabel(item)}`;
+            if (receiptIssued) meta += " · çek verilib";
+            body.innerHTML = `<strong>${item.equipmentName}</strong> <span class="muted">${meta}</span>`;
+            if (blockReason) {
+                const warn = document.createElement("div");
+                warn.className = "notice bad";
+                warn.style.marginTop = "8px";
+                warn.textContent = blockReason;
+                body.appendChild(warn);
+            }
 
             const qtyWrap = document.createElement("label");
             qtyWrap.className = "field-mini";
@@ -968,46 +970,120 @@
             qtyInput.step = "1";
             qtyInput.max = String(maxQty);
             qtyInput.value = "1";
+            qtyInput.disabled = !canReturn;
             qtyWrap.appendChild(qtyInput);
 
-            const refundWrap = document.createElement("label");
-            refundWrap.className = "field-mini";
-            refundWrap.innerHTML = "<span>Geri ödəniş (AZN)</span>";
-            const refundInput = document.createElement("input");
-            refundInput.className = "amount-input refund-input";
-            refundInput.type = "text";
-            refundInput.readOnly = true;
-            refundInput.value = refundUnit.toFixed(2);
-            refundWrap.appendChild(refundInput);
+            const payWrap = document.createElement("div");
+            payWrap.className = "field-mini";
+            payWrap.style.display = "flex";
+            payWrap.style.flexDirection = "column";
+            payWrap.style.gap = "6px";
+
+            const refundLabel = document.createElement("div");
+            refundLabel.className = "muted";
+            refundLabel.style.fontWeight = "800";
+            refundLabel.style.fontSize = "12px";
+
+            const cashInput = document.createElement("input");
+            cashInput.type = "number";
+            cashInput.min = "0";
+            cashInput.step = "0.01";
+            cashInput.placeholder = "Nağd";
+            cashInput.inputMode = "decimal";
+            cashInput.disabled = !canReturn;
+            cashInput.title = "Nağd geri ödəniş (AZN)";
+
+            const cardInput = document.createElement("input");
+            cardInput.type = "number";
+            cardInput.min = "0";
+            cardInput.step = "0.01";
+            cardInput.placeholder = "Kart";
+            cardInput.inputMode = "decimal";
+            cardInput.disabled = !canReturn;
+            cardInput.title = "Kart geri ödəniş (AZN)";
 
             function syncRow() {
-                syncReturnRowRefund(qtyInput, refundInput, refundUnit, maxQty);
+                const refundTotal = syncReturnRowRefund(qtyInput, null, refundUnit, maxQty);
+                refundLabel.textContent = `Cəm: ${refundTotal.toFixed(2)} AZN`;
+                return refundTotal;
             }
 
             qtyInput.addEventListener("input", syncRow);
             qtyInput.addEventListener("change", syncRow);
             syncRow();
 
+            payWrap.appendChild(refundLabel);
+            payWrap.appendChild(cashInput);
+            payWrap.appendChild(cardInput);
+
+            const actions = document.createElement("div");
+            actions.style.display = "flex";
+            actions.style.flexDirection = "column";
+            actions.style.gap = "8px";
+            actions.style.alignSelf = "end";
+
+            let receiptCheck = null;
+            if (canReturn && receiptIssued) {
+                const receiptLabel = document.createElement("label");
+                receiptLabel.style.display = "flex";
+                receiptLabel.style.alignItems = "center";
+                receiptLabel.style.gap = "6px";
+                receiptLabel.style.fontWeight = "800";
+                receiptLabel.style.fontSize = "12px";
+                receiptCheck = document.createElement("input");
+                receiptCheck.type = "checkbox";
+                receiptLabel.appendChild(receiptCheck);
+                receiptLabel.appendChild(document.createTextNode("Çek təqdim olundu"));
+                actions.appendChild(receiptLabel);
+            }
+
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "btn btn-danger";
-            btn.textContent = "Qaytar";
-            btn.style.alignSelf = "end";
-            btn.addEventListener("click", async () => {
-                const qty = Math.max(1, Math.min(Number(qtyInput.value) || 1, maxQty));
-                const expectedRefund = syncReturnRowRefund(qtyInput, refundInput, refundUnit, maxQty);
-                await submitCustomerReturn(item.equipmentItemId, qty, expectedRefund, btn);
-            });
+            btn.textContent = canReturn ? "Qaytar" : "Qaytarıla bilməz";
+            btn.disabled = !canReturn;
+            if (canReturn) {
+                btn.addEventListener("click", async () => {
+                    if (receiptIssued && !(receiptCheck instanceof HTMLInputElement && receiptCheck.checked)) {
+                        setReturnNotice("Bu satışda çek verilib. Qaytarmaq üçün «Çek təqdim olundu» işarələyin.", "bad");
+                        return;
+                    }
+                    const qty = Math.max(1, Math.min(Number(qtyInput.value) || 1, maxQty));
+                    const expectedRefund = syncRow();
+                    const cash = PaymentSplit.parseAmount(cashInput);
+                    const card = PaymentSplit.parseAmount(cardInput);
+                    const paid = PaymentSplit.roundMoney(cash + card);
+                    if (expectedRefund > PaymentSplit.Tolerance && Math.abs(paid - expectedRefund) > PaymentSplit.Tolerance) {
+                        const cashEmpty = cashInput.value.trim() === "";
+                        const cardEmpty = cardInput.value.trim() === "";
+                        if (paid <= PaymentSplit.Tolerance || (cashEmpty && cardEmpty)) {
+                            setReturnNotice("Geri ödəniş daxil etmədiniz. Nağd və/və ya kart məbləğini yazın.", "bad");
+                        } else {
+                            setReturnNotice(`Geri ödəniş cəmi ${expectedRefund.toFixed(2)} AZN olmalıdır (nağd + kart).`, "bad");
+                        }
+                        return;
+                    }
+                    await submitCustomerReturn(
+                        item.equipmentItemId,
+                        qty,
+                        expectedRefund,
+                        btn,
+                        receiptIssued && receiptCheck instanceof HTMLInputElement && receiptCheck.checked,
+                        cash,
+                        card);
+                });
+            }
 
+            actions.appendChild(btn);
             row.appendChild(body);
             row.appendChild(qtyWrap);
-            row.appendChild(refundWrap);
-            row.appendChild(btn);
+            row.appendChild(payWrap);
+            row.appendChild(actions);
             returnItemsList.appendChild(row);
         }
     }
 
-    async function submitCustomerReturn(equipmentItemId, quantity, expectedRefund, btn) {
+    async function submitCustomerReturn(equipmentItemId, quantity, expectedRefund, btn, receiptPresented, amountPaidCash, amountPaidCard) {
         if (!returnAthleteId) {
             setReturnNotice("Müştəri seçin.", "bad");
             return;
@@ -1023,6 +1099,9 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     athleteId: returnAthleteId,
+                    receiptPresented: Boolean(receiptPresented),
+                    amountPaidCash: Number(amountPaidCash) || 0,
+                    amountPaidCard: Number(amountPaidCard) || 0,
                     lines: [{ equipmentItemId, quantity }]
                 })
             });

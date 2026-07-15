@@ -1,14 +1,13 @@
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Customers;
-using EShooting.Application.Athletes.Commands;
+using EShooting.Application.Athletes;
 using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Web.Auth;
 using EShooting.Web.Contracts.EquipmentSales;
 using EShooting.Web.Extensions;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +17,7 @@ namespace EShooting.Web.Controllers;
 [ApiController]
 [Authorize(Policy = "ReceptionPanel")]
 [Route("equipment-sales")]
-public sealed class EquipmentSalesController(ITrainingCenterRepository repository, IMediator mediator) : ControllerBase
+public sealed class EquipmentSalesController(ITrainingCenterRepository repository) : ControllerBase
 {
     [HttpPost("sale")]
     public async Task<IActionResult> CreateSale([FromBody] CreateEquipmentSaleRequest request, CancellationToken cancellationToken)
@@ -45,37 +44,19 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
                 return BadRequest(new { error = "Avadanlıq seçilməyib." });
             }
 
-            Guid athleteId;
-            var isNewCustomer = false;
-            if (request.AthleteId is Guid existingId && existingId != Guid.Empty)
+            var athleteId = request.AthleteId;
+            if (athleteId == Guid.Empty)
             {
-                var ath = await repository.GetAthleteByIdAsync(existingId, cancellationToken);
-                if (ath is null)
-                {
-                    return BadRequest(new { error = "Müştəri tapılmadı." });
-                }
-
-                athleteId = existingId;
-            }
-            else
-            {
-                var first = (request.FirstName ?? "").Trim();
-                var last = (request.LastName ?? "").Trim();
-                var phone = (request.PhoneNumber ?? "").Trim();
-                if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(last) || string.IsNullOrWhiteSpace(phone))
-                {
-                    return BadRequest(new { error = "Ad, Soyad və Telefon mütləqdir." });
-                }
-
-                var registered = await mediator.Send(
-                    new QuickRegisterAthleteCommand(first, last, phone, User.GetStaffMemberId()),
-                    cancellationToken);
-                athleteId = registered.AthleteId;
-                isNewCustomer = registered.IsNewCustomer;
+                return BadRequest(new { error = "Müştəri seçin. Yeni müştəri üçün əvvəl qeydiyyatdan keçirin." });
             }
 
             var athlete = await repository.GetAthleteByIdAsync(athleteId, cancellationToken);
-            var customerName = athlete?.FullName ?? "—";
+            if (athlete is null || !AthleteSearchRules.IsSearchable(athlete))
+            {
+                return BadRequest(new { error = "Müştəri tapılmadı." });
+            }
+
+            var customerName = athlete.FullName;
 
             var catalog = await repository.GetEquipmentItemsAsync(activeOnly: true, cancellationToken);
             var byId = catalog.ToDictionary(x => x.Id);
@@ -141,7 +122,8 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
                 totalDiscount,
                 request.AmountPaidCash,
                 request.AmountPaidCard,
-                User.GetStaffMemberId());
+                User.GetStaffMemberId(),
+                request.ReceiptIssued);
             foreach (var rl in receiptLines)
             {
                 rl.ReceiptId = receipt.Id;
@@ -154,7 +136,6 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
                 totalAmount = total,
                 athleteId,
                 customerName,
-                isNewCustomer,
                 soldByStaffId = receipt.CreatedByStaffId
             });
         }
@@ -299,29 +280,35 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
             phoneNumber = athlete.PhoneNumber,
             totalDiscountAmount = totalDiscount,
             latestPurchaseDateLocal = latestPurchaseUtc is DateTime latest
-                ? AzerbaijanTime.UtcToLocalDateTime(latest).ToString("dd.MM.yyyy HH:mm")
+                ? AzerbaijanTime.UtcToLocalDateTime(latest).ToString(DateDisplayFormats.DateTime)
                 : null,
             purchases = purchases.Select(x => new
             {
                 receiptId = x.ReceiptId,
                 saleDateUtc = x.SaleDateUtc,
-                saleDateLocal = AzerbaijanTime.UtcToLocalDateTime(x.SaleDateUtc).ToString("dd.MM.yyyy HH:mm"),
+                saleDateLocal = AzerbaijanTime.UtcToLocalDateTime(x.SaleDateUtc).ToString(DateDisplayFormats.DateTime),
                 listTotal = x.ListTotal,
                 discountAmount = x.DiscountAmount,
-                paidAmount = x.PaidAmount
+                paidAmount = x.PaidAmount,
+                receiptIssued = x.ReceiptIssued,
+                isWithinReturnWindow = x.IsWithinReturnWindow
             }),
             items = items.Select(x => new
             {
                 equipmentItemId = x.EquipmentItemId,
                 equipmentName = x.EquipmentName,
                 saleDateUtc = x.SaleDateUtc,
-                saleDateLocal = AzerbaijanTime.UtcToLocalDateTime(x.SaleDateUtc).ToString("dd.MM.yyyy HH:mm"),
+                saleDateLocal = AzerbaijanTime.UtcToLocalDateTime(x.SaleDateUtc).ToString(DateDisplayFormats.DateTime),
                 purchasedQuantity = x.PurchasedQuantity,
                 returnableQuantity = x.ReturnableQuantity,
                 unitListPrice = x.UnitListPrice,
                 unitDiscountAmount = x.UnitDiscountAmount,
                 refundUnitPrice = x.RefundUnitPrice,
-                unitPrice = x.RefundUnitPrice
+                unitPrice = x.RefundUnitPrice,
+                receiptIssued = x.ReceiptIssued,
+                isWithinReturnWindow = x.IsWithinReturnWindow,
+                canReturn = x.CanReturn,
+                blockReason = x.BlockReason
             })
         });
     }
@@ -345,7 +332,13 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
 
         if (request.AthleteId != Guid.Empty)
         {
-            return await CreateCustomerReturnAsync(request.AthleteId, linesReq, cancellationToken);
+            return await CreateCustomerReturnAsync(
+                request.AthleteId,
+                linesReq,
+                request.ReceiptPresented,
+                request.AmountPaidCash,
+                request.AmountPaidCard,
+                cancellationToken);
         }
 
         if (request.OriginalReceiptId == Guid.Empty)
@@ -353,12 +346,21 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
             return BadRequest(new { error = "Müştəri seçilməyib." });
         }
 
-        return await CreateReceiptReturnAsync(request.OriginalReceiptId, linesReq, cancellationToken);
+        return await CreateReceiptReturnAsync(
+            request.OriginalReceiptId,
+            linesReq,
+            request.ReceiptPresented,
+            request.AmountPaidCash,
+            request.AmountPaidCard,
+            cancellationToken);
     }
 
     async Task<IActionResult> CreateCustomerReturnAsync(
         Guid athleteId,
         List<(Guid EquipmentItemId, int Quantity)> linesReq,
+        bool receiptPresented,
+        decimal amountPaidCash,
+        decimal amountPaidCard,
         CancellationToken cancellationToken)
     {
         var athlete = await repository.GetAthleteByIdAsync(athleteId, cancellationToken);
@@ -370,7 +372,10 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
         var receipts = await repository.GetEquipmentSaleReceiptsAsync(cancellationToken);
         var allLines = await repository.GetEquipmentSaleReceiptLinesAsync(cancellationToken);
         var lots = EquipmentCustomerReturnRules.BuildActiveReturnableLots(athleteId, receipts, allLines);
-        var (allocations, error) = EquipmentCustomerReturnRules.AllocateCustomerReturn(lots, linesReq);
+        var (allocations, error) = EquipmentCustomerReturnRules.AllocateCustomerReturn(
+            lots,
+            linesReq,
+            receiptPresented);
         if (error is not null)
         {
             return BadRequest(new { error });
@@ -381,10 +386,23 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
             return BadRequest(new { error = "Qaytarıla bilən avadanlıq tapılmadı." });
         }
 
-        decimal totalRefund = 0m;
-        var receiptIds = new List<Guid>();
-        foreach (var group in allocations.GroupBy(x => x.SaleReceiptId))
+        decimal totalRefund = allocations.Sum(x => x.RefundUnitPrice * x.Quantity);
+        try
         {
+            PaymentSettlementRules.EnsureRefundSplitMatches(totalRefund, amountPaidCash, amountPaidCard);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        var cashLeft = Math.Max(0m, amountPaidCash);
+        var cardLeft = Math.Max(0m, amountPaidCard);
+        var receiptIds = new List<Guid>();
+        var groups = allocations.GroupBy(x => x.SaleReceiptId).ToList();
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var group = groups[i];
             decimal groupRefund = 0m;
             var returnLines = new List<EquipmentSaleReceiptLine>();
             foreach (var alloc in group)
@@ -409,14 +427,37 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
                 }
             }
 
+            decimal groupCash;
+            decimal groupCard;
+            if (i == groups.Count - 1)
+            {
+                groupCash = cashLeft;
+                groupCard = cardLeft;
+            }
+            else
+            {
+                groupCash = totalRefund > 0m
+                    ? Math.Round(amountPaidCash * (groupRefund / totalRefund), 2, MidpointRounding.AwayFromZero)
+                    : 0m;
+                groupCard = Math.Round(groupRefund - groupCash, 2, MidpointRounding.AwayFromZero);
+                if (groupCard < 0m)
+                {
+                    groupCard = 0m;
+                    groupCash = groupRefund;
+                }
+
+                cashLeft = Math.Max(0m, cashLeft - groupCash);
+                cardLeft = Math.Max(0m, cardLeft - groupCard);
+            }
+
             var retReceipt = new EquipmentSaleReceipt
             {
                 AthleteId = athleteId,
                 Type = EquipmentSaleReceiptType.Return,
                 OriginalReceiptId = group.Key,
                 TotalAmount = groupRefund,
-                AmountPaidCash = groupRefund,
-                AmountPaidCard = 0m,
+                AmountPaidCash = groupCash,
+                AmountPaidCard = groupCard,
                 CreatedByStaffId = User.GetStaffMemberId(),
                 CreatedAtUtc = DateTime.UtcNow
             };
@@ -426,7 +467,6 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
             }
 
             await repository.AddEquipmentSaleReceiptAsync(retReceipt, returnLines, cancellationToken);
-            totalRefund += groupRefund;
             receiptIds.Add(retReceipt.Id);
         }
 
@@ -436,12 +476,28 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
     async Task<IActionResult> CreateReceiptReturnAsync(
         Guid originalReceiptId,
         List<(Guid EquipmentItemId, int Quantity)> linesReq,
+        bool receiptPresented,
+        decimal amountPaidCash,
+        decimal amountPaidCard,
         CancellationToken cancellationToken)
     {
         var original = await repository.GetEquipmentSaleReceiptByIdAsync(originalReceiptId, cancellationToken);
         if (original is null || original.Type != EquipmentSaleReceiptType.Sale)
         {
             return BadRequest(new { error = "Satış qaiməsi tapılmadı." });
+        }
+
+        if (!EquipmentCustomerReturnRules.IsWithinReturnWindow(original.CreatedAtUtc))
+        {
+            return BadRequest(new
+            {
+                error = $"{EquipmentCustomerReturnRules.ReturnWindowDays} gün keçib — bu məhsul qaytarıla bilməz."
+            });
+        }
+
+        if (original.ReceiptIssued && !receiptPresented)
+        {
+            return BadRequest(new { error = "Bu satışda çek verilib. Qaytarmaq üçün çek tələb olunur." });
         }
 
         var originalLines = (await repository.GetEquipmentSaleReceiptLinesAsync(cancellationToken))
@@ -483,14 +539,23 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
             }
         }
 
+        try
+        {
+            PaymentSettlementRules.EnsureRefundSplitMatches(refund, amountPaidCash, amountPaidCard);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
         var retReceipt = new EquipmentSaleReceipt
         {
             AthleteId = original.AthleteId,
             Type = EquipmentSaleReceiptType.Return,
             OriginalReceiptId = original.Id,
             TotalAmount = refund,
-            AmountPaidCash = refund,
-            AmountPaidCard = 0m,
+            AmountPaidCash = Math.Max(0m, amountPaidCash),
+            AmountPaidCard = Math.Max(0m, amountPaidCard),
             CreatedByStaffId = User.GetStaffMemberId(),
             CreatedAtUtc = DateTime.UtcNow
         };

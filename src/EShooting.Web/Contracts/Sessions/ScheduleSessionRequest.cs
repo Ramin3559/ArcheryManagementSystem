@@ -41,6 +41,8 @@ public sealed class ScheduleSessionRequest
     public decimal AmountPaidCard { get; set; }
     public bool IsComplimentary { get; set; }
 
+    public bool ActivateImmediately { get; set; }
+
     public bool IsEquipmentIssued { get; set; }
 
     public List<SessionEquipmentIssueDto> EquipmentIssues { get; set; } = [];

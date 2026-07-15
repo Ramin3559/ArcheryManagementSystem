@@ -82,10 +82,11 @@ public static class CustomerBillingService
         decimal amountPaidCard,
         bool isComplimentary,
         Guid? createdByStaffId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int packageQuantity = 1)
     {
         var pkg = await repository.GetServicePackageByIdAsync(servicePackageId, cancellationToken);
-        var packageListPrice = pkg?.Price ?? 0m;
+        var packageListPrice = (pkg?.Price ?? 0m) * Math.Max(1, packageQuantity);
         var sessionIssues = (await repository.GetSessionEquipmentIssuesAsync(cancellationToken))
             .Where(i => i.SessionId == sessionId)
             .ToList();
@@ -188,7 +189,8 @@ public static class CustomerBillingService
         decimal discountAmount,
         decimal amountPaidCash,
         decimal amountPaidCard,
-        Guid? createdByStaffId)
+        Guid? createdByStaffId,
+        bool receiptIssued = false)
     {
         var settlement = PaymentSettlementRules.Resolve(
             totalListPrice,
@@ -206,7 +208,8 @@ public static class CustomerBillingService
             AmountPaidCash = settlement.Cash,
             AmountPaidCard = settlement.Card,
             CreatedByStaffId = createdByStaffId,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            ReceiptIssued = receiptIssued
         };
     }
 

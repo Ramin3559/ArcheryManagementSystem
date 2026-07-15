@@ -75,6 +75,35 @@ public static class PaymentSettlementRules
         }
     }
 
+    /// <summary>Qaytarma zamanı nağd + kart cəmi geri ödənişə bərabər olmalıdır.</summary>
+    public static void EnsureRefundSplitMatches(decimal refundAmount, decimal amountPaidCash, decimal amountPaidCard)
+    {
+        refundAmount = Math.Max(0m, refundAmount);
+        var cash = Math.Max(0m, amountPaidCash);
+        var card = Math.Max(0m, amountPaidCard);
+        var total = cash + card;
+
+        if (refundAmount <= Tolerance)
+        {
+            if (total > Tolerance)
+            {
+                throw new InvalidOperationException("Geri ödəniş sıfırdır; nağd/kart məbləği daxil edilə bilməz.");
+            }
+
+            return;
+        }
+
+        if (Math.Abs(total - refundAmount) > Tolerance)
+        {
+            if (total <= Tolerance)
+            {
+                throw new InvalidOperationException("Geri ödəniş daxil etmədiniz. Nağd və/və ya kart məbləğini yazın.");
+            }
+
+            throw new InvalidOperationException($"Geri ödəniş cəmi {refundAmount:0.##} AZN olmalıdır (nağd + kart).");
+        }
+    }
+
     /// <summary>Endirim və nağd/kart ödənişini zolaq və avadanlıq paylarına bölür.</summary>
     public static (LineShare Package, LineShare Equipment) SplitCombinedCheckout(
         decimal packageListPrice,

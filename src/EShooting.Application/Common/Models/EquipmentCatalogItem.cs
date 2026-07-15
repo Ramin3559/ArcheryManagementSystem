@@ -8,6 +8,7 @@ public sealed class EquipmentCatalogItem
     public string Name { get; init; } = string.Empty;
     public string? Category { get; init; }
     public EquipmentUsageMode UsageMode { get; init; }
+    public int WarehouseQuantity { get; init; }
     public int RentalQuantity { get; init; }
     public int SaleQuantity { get; init; }
     public int Quantity { get; init; }
@@ -15,5 +16,7 @@ public sealed class EquipmentCatalogItem
     public decimal? Price { get; init; }
     /// <summary>1 ədəd satış qiyməti (vahid).</summary>
     public decimal? UnitPrice { get; init; }
+    /// <summary>1 ədəd alış qiyməti (vahid).</summary>
+    public decimal? PurchasePrice { get; init; }
     public bool IsActive { get; init; }
 }

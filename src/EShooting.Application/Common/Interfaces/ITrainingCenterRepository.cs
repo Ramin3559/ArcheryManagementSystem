@@ -84,4 +84,18 @@ public interface ITrainingCenterRepository
     Task<CustomerPackageRecord?> GetCustomerPackageRecordByIdAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken);
+
+    Task<Athlete?> FindAthleteByClubCardNumberAsync(
+        string cardNumber,
+        Guid? excludeAthleteId,
+        CancellationToken cancellationToken);
+    Task AddClubCardAssignmentAsync(ClubCardAssignment assignment, CancellationToken cancellationToken);
+    Task CloseOpenClubCardAssignmentAsync(
+        Guid athleteId,
+        string cardNumber,
+        Guid? returnedByStaffId,
+        CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ClubCardAssignment>> GetClubCardAssignmentsForAthleteAsync(
+        Guid athleteId,
+        CancellationToken cancellationToken);
 }

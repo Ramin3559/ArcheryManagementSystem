@@ -261,27 +261,27 @@
             var start = ringEl.dataset.start || "";
             var end = ringEl.dataset.end || "";
             if (isOpenEndedRing(ringEl)) {
-                if (!start || status === "Completed" || status === "Idle") return false;
+                if (!start || status === "Completed" || status === "Idle" || status === "Scheduled" || ringEl.dataset.activated === "0") return false;
                 if (ringEl.classList.contains("is-live")) return true;
                 var openStartMs = parseApiDate(start).getTime();
                 if (isNaN(openStartMs)) return false;
                 return Date.now() >= openStartMs && status === "Active";
             }
             if (isVipModeRing(ringEl)) {
-                if (!start || status === "Completed" || status === "Idle") return false;
+                if (!start || status === "Completed" || status === "Idle" || status === "Scheduled" || ringEl.dataset.activated === "0") return false;
                 if (ringEl.classList.contains("is-live")) return true;
                 var startMs = parseApiDate(start).getTime();
                 if (isNaN(startMs)) return false;
                 return Date.now() >= startMs && status === "Active";
             }
             if (!start || !end) return false;
-            if (status === "Completed" || status === "Idle" || status === "Scheduled") return false;
+            if (status === "Completed" || status === "Idle" || status === "Scheduled" || ringEl.dataset.activated === "0") return false;
             if (ringEl.classList.contains("is-live")) return true;
             var nowMs = Date.now();
             var startMs = parseApiDate(start).getTime();
             var endMs = parseApiDate(end).getTime();
             if (isNaN(startMs) || isNaN(endMs)) return false;
-            return nowMs >= startMs && nowMs < endMs;
+            return nowMs >= startMs && nowMs < endMs && status === "Active" && ringEl.dataset.activated !== "0";
         }
 
         function shouldShowLaneTvLogo(ringEl) {
@@ -706,6 +706,22 @@
             setTimeout(run, 800);
         }
 
+        function isRingSessionActivated(ringEl) {
+            if (!(ringEl instanceof HTMLElement)) return true;
+            return ringEl.dataset.activated !== "0";
+        }
+
+        function isPlannedLaneRing(ringEl, status) {
+            return status === "Scheduled" || !isRingSessionActivated(ringEl);
+        }
+
+        function showPlannedLaneRing(el, startMs, timerEl, captionEl, progressEl, openEnded) {
+            el.classList.add("is-pending", openEnded ? "is-open-ended" : "");
+            timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
+            if (captionEl) captionEl.textContent = "";
+            applyRingRemaining(el, 1);
+        }
+
         function updateCountdownRings() {
             document.querySelectorAll("[data-countdown-ring]").forEach(function (el) {
                 if (!(el instanceof HTMLElement)) return;
@@ -746,6 +762,16 @@
                 if (vipMode && start) {
                     const startMs = parseApiDate(start).getTime();
                     const nowMs = Date.now();
+
+                    if (isPlannedLaneRing(el, status)) {
+                        el.classList.add("is-pending", "is-open-ended");
+                        timerEl.textContent = !isNaN(startMs) ? BakuTime.formatBakuFromUtcMs(startMs, false) : "—";
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 1);
+                        return;
+                    }
 
                     if (status === "Completed") {
                         if (!isNaN(startMs) && nowMs < startMs) {
@@ -815,6 +841,16 @@
                 const totalMs = openEndedWindow ? 0 : endMs - startMs;
 
                 if (openEndedWindow) {
+                    if (isPlannedLaneRing(el, status)) {
+                        el.classList.add("is-pending", "is-open-ended");
+                        timerEl.textContent = !isNaN(startMs) ? BakuTime.formatBakuFromUtcMs(startMs, false) : "—";
+                        if (captionEl) captionEl.textContent = "";
+                        setBottomHint("", "");
+                        setCleanupMode(false);
+                        applyRingRemaining(el, 1);
+                        return;
+                    }
+
                     if (status === "Completed") {
                         if (!isNaN(startMs) && nowMs < startMs) {
                             el.classList.add("is-pending", "is-open-ended");
@@ -854,6 +890,16 @@
                     return;
                 }
 
+                if (isPlannedLaneRing(el, status)) {
+                    el.classList.add("is-pending");
+                    timerEl.textContent = !isNaN(startMs) ? BakuTime.formatBakuFromUtcMs(startMs, false) : "—";
+                    if (captionEl) captionEl.textContent = "";
+                    setBottomHint("", "");
+                    setCleanupMode(false);
+                    applyRingRemaining(el, 1);
+                    return;
+                }
+
                 if (status === "Completed") {
                     if (!isNaN(startMs) && nowMs < startMs) {
                         el.classList.add("is-pending");
@@ -872,16 +918,6 @@
                     setCleanupMode(true);
                     applyRingRemaining(el, 0);
                     resetRingCompactSize(el);
-                    return;
-                }
-
-                if (status === "Scheduled") {
-                    el.classList.add("is-pending");
-                    timerEl.textContent = BakuTime.formatBakuFromUtcMs(startMs, false);
-                    if (captionEl) captionEl.textContent = "";
-                    setBottomHint("", "");
-                    setCleanupMode(false);
-                    applyRingRemaining(el, 1);
                     return;
                 }
 
@@ -1178,7 +1214,7 @@
             var liveRing = live.querySelector("[data-countdown-ring]");
             var freshRing = fresh.querySelector("[data-countdown-ring]");
             if (liveRing && freshRing) {
-                var attrs = ["data-start", "data-end", "data-status", "data-vip-mode"];
+                var attrs = ["data-start", "data-end", "data-status", "data-vip-mode", "data-activated"];
                 for (var k = 0; k < attrs.length; k++) {
                     var a = attrs[k];
                     var nv = freshRing.getAttribute(a) || "";

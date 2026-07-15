@@ -120,7 +120,6 @@
             <a href="/admin/access-profiles">İcazə profilləri</a>
             <a href="/admin/employees">İşçilər</a>
             <a href="/admin/customers">Müştərilər</a>
-            <a href="/admin/history">Tarixçə</a>
             <a href="/Account/Logout">Çıxış</a>
         </div>
     </aside>
@@ -162,16 +161,19 @@
                     if (!(el instanceof HTMLInputElement)) return;
                     if (el.dataset.fpBound === "1") return;
                     var t = (el.getAttribute("type") || "").toLowerCase();
-                    var opts = { locale: "az", allowInput: true, time_24hr: true };
+                    var opts = { locale: "az", allowInput: true, time_24hr: true, altInput: true };
                     if (t === "time") {
                         opts.enableTime = true;
                         opts.noCalendar = true;
                         opts.dateFormat = "H:i";
+                        opts.altFormat = "H:i";
                     } else if (t === "datetime-local") {
                         opts.enableTime = true;
                         opts.dateFormat = "Y-m-d H:i";
+                        opts.altFormat = "d.m.Y H:i";
                     } else {
                         opts.dateFormat = "Y-m-d";
+                        opts.altFormat = "d.m.Y";
                     }
                     try { window.flatpickr(el, opts); el.dataset.fpBound = "1"; } catch (e) { /* ignore */ }
                 });

@@ -24,4 +24,6 @@ public static class AzerbaijanTime
         UtcToLocalDateTime(utc).Date;
 
     public static DateTime TodayLocal => UtcToLocalDate(DateTime.UtcNow);
+
+    public static DateTime NowLocal => UtcToLocalDateTime(DateTime.UtcNow);
 }

@@ -13,9 +13,7 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
     : IRequestHandler<GetLaneDashboardQuery, IReadOnlyCollection<LaneDashboardItem>>
 {
     private static bool HasActivation(EShooting.Domain.Entities.TrainingSession session)
-    {
-        return session.ActivatedAtUtc is not null || session.Status == SessionStatus.Active;
-    }
+        => SessionActivationRules.HasActivation(session);
 
     private static DateTime ResolveEffectiveStartUtc(EShooting.Domain.Entities.TrainingSession session)
     {
@@ -39,9 +37,12 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
     {
         var nowUtc = DateTime.UtcNow;
 
-        // Yalnız bu günün (yerli vaxtla) planlı sessiyalarını göstəririk.
+        // Yalnız bu günün (Bakı vaxtı) planlı sessiyalarını göstəririk.
         // Sabahkı və ya gələcək günün planları "Planlaşdırılıb" kimi görünməyəcək.
-        var localNow = nowUtc.ToLocalTime();
+        var localNow = AzerbaijanTime.NowLocal;
+
+        // Abunə təqvimi var, TrainingSession yoxdursa — bu gün üçün yaradılır.
+        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, localNow.Date, cancellationToken);
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
@@ -83,8 +84,8 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     .ToList();
 
                 // 1) Hazırda canlı pəncərədə olan sessiya.
-                // 2) Yoxdursa: ən yaxın gələcək planlı sessiya (bugün və ya sonrakı günlər).
-                // 3) Yoxdursa: bu günün gecikmiş, hələ bağlanmamış sessiyası.
+                // 2) Yoxdursa: bu günün ən yaxın gələcək planlı sessiyası.
+                // 3) Yoxdursa: bu günün gecikmiş / aktivasiya gözləyən sessiyası.
                 var activeSession = laneSessions
                         .Where(x => IsInLiveWindow(x, nowUtc))
                         .OrderByDescending(x => DateTimeAssumedUtc.AsUtc(x.StartTimeUtc))
@@ -203,6 +204,7 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                         ? null
                         : string.Join(", ", pendingRental.EquipmentLabels),
                     IsSessionOpen = activeSession?.Status != SessionStatus.Completed,
+                    IsSessionActivated = activeSession is not null && HasActivation(activeSession),
                     IsOpenEndedSession = isOpenEndedSession,
                     IsAthleteVip = isAthleteVip
                 };
@@ -235,7 +237,8 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         DateTime localNow)
     {
         var start = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        if (start.ToLocalTime().Date >= localNow.Date)
+        // Gələcək günlərin planları zolaq kartında görünməsin — yalnız cari (Bakı) gün.
+        if (AzerbaijanTime.UtcToLocalDate(start) == localNow.Date)
         {
             return true;
         }
@@ -284,7 +287,7 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             }
 
             // Köhnə günlərin açıq VIP sessiyalarını TV-də aktiv sayma.
-            if (start.ToLocalTime().Date < nowUtc.ToLocalTime().Date)
+            if (AzerbaijanTime.UtcToLocalDate(start) < AzerbaijanTime.UtcToLocalDate(nowUtc))
             {
                 return false;
             }

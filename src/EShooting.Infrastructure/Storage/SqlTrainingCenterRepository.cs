@@ -39,6 +39,9 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.IsVip = athlete.IsVip;
         existing.IsGroupPlaceholder = athlete.IsGroupPlaceholder;
         existing.IsActive = athlete.IsActive;
+        existing.DeletedAtUtc = athlete.DeletedAtUtc;
+        existing.DeletedByStaffId = athlete.DeletedByStaffId;
+        existing.DeletedByAdminUserName = athlete.DeletedByAdminUserName;
         existing.RegisteredByStaffId = athlete.RegisteredByStaffId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -433,11 +436,13 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.Name = item.Name;
         existing.Category = item.Category;
         existing.UsageMode = item.UsageMode;
+        existing.WarehouseQuantity = item.WarehouseQuantity;
         existing.RentalQuantity = item.RentalQuantity;
         existing.SaleQuantity = item.SaleQuantity;
         existing.Quantity = item.Quantity;
         existing.DamagedQuantity = item.DamagedQuantity;
         existing.Price = item.Price;
+        existing.PurchasePrice = item.PurchasePrice;
         existing.IsActive = item.IsActive;
         existing.IsDeleted = item.IsDeleted;
         existing.UpdatedAtUtc = item.UpdatedAtUtc;
@@ -749,4 +754,83 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
     public async Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
         => await dbContext.CustomerPackageRecords.AsNoTracking().ToListAsync(cancellationToken);
+
+    public async Task<Athlete?> FindAthleteByClubCardNumberAsync(
+        string cardNumber,
+        Guid? excludeAthleteId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = AthleteRegistrationRules.NormalizeText(cardNumber);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var candidates = await dbContext.Athletes
+            .AsNoTracking()
+            .Where(a => a.ClubCardNumber != null && a.ClubCardNumber != "")
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(a => string.Equals(
+                AthleteRegistrationRules.NormalizeText(a.ClubCardNumber),
+                normalized,
+                StringComparison.OrdinalIgnoreCase))
+            .Where(a => excludeAthleteId is null || a.Id != excludeAthleteId.Value)
+            .OrderByDescending(a => a.IsActive)
+            .ThenByDescending(a => a.CreatedAtUtc)
+            .FirstOrDefault();
+    }
+
+    public async Task AddClubCardAssignmentAsync(ClubCardAssignment assignment, CancellationToken cancellationToken)
+    {
+        await dbContext.ClubCardAssignments.AddAsync(assignment, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task CloseOpenClubCardAssignmentAsync(
+        Guid athleteId,
+        string cardNumber,
+        Guid? returnedByStaffId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = AthleteRegistrationRules.NormalizeText(cardNumber);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        var open = await dbContext.ClubCardAssignments
+            .Where(x => x.AthleteId == athleteId && x.ReturnedAtUtc == null)
+            .ToListAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        foreach (var row in open)
+        {
+            if (!string.Equals(
+                    AthleteRegistrationRules.NormalizeText(row.CardNumber),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            row.ReturnedAtUtc = now;
+            row.ReturnedByStaffId = returnedByStaffId;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ClubCardAssignment>> GetClubCardAssignmentsForAthleteAsync(
+        Guid athleteId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.ClubCardAssignments
+            .AsNoTracking()
+            .Where(x => x.AthleteId == athleteId)
+            .OrderByDescending(x => x.IssuedAtUtc)
+            .ToListAsync(cancellationToken);
+    }
 }
+

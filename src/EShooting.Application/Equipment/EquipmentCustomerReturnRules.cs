@@ -1,3 +1,4 @@
+using EShooting.Application.Common;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 
@@ -5,6 +6,8 @@ namespace EShooting.Application.Equipment;
 
 public static class EquipmentCustomerReturnRules
 {
+    public const int ReturnWindowDays = 14;
+
     public sealed class ReturnableLot
     {
         public Guid SaleReceiptId { get; init; }
@@ -18,6 +21,7 @@ public static class EquipmentCustomerReturnRules
         /// <summary>1 ədəd üçün geri ödəniş (endirim nəzərə alınır).</summary>
         public decimal RefundUnitPrice { get; init; }
         public DateTime SaleDateUtc { get; init; }
+        public bool ReceiptIssued { get; init; }
     }
 
     public sealed class ReturnableItemSummary
@@ -30,6 +34,10 @@ public static class EquipmentCustomerReturnRules
         public decimal? UnitListPrice { get; init; }
         public decimal? UnitDiscountAmount { get; init; }
         public decimal? RefundUnitPrice { get; init; }
+        public bool ReceiptIssued { get; init; }
+        public bool IsWithinReturnWindow { get; init; }
+        public bool CanReturn { get; init; }
+        public string? BlockReason { get; init; }
     }
 
     public sealed class ReturnablePurchaseSummary
@@ -39,6 +47,8 @@ public static class EquipmentCustomerReturnRules
         public decimal ListTotal { get; init; }
         public decimal DiscountAmount { get; init; }
         public decimal PaidAmount { get; init; }
+        public bool ReceiptIssued { get; init; }
+        public bool IsWithinReturnWindow { get; init; }
     }
 
     public sealed class ReturnAllocation
@@ -47,6 +57,14 @@ public static class EquipmentCustomerReturnRules
         public Guid EquipmentItemId { get; init; }
         public int Quantity { get; init; }
         public decimal RefundUnitPrice { get; init; }
+    }
+
+    public static bool IsWithinReturnWindow(DateTime saleDateUtc, DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        var saleLocal = AzerbaijanTime.UtcToLocalDate(saleDateUtc);
+        var todayLocal = AzerbaijanTime.UtcToLocalDate(now);
+        return todayLocal <= saleLocal.AddDays(ReturnWindowDays);
     }
 
     public static decimal ComputeRefundUnitPrice(
@@ -121,7 +139,6 @@ public static class EquipmentCustomerReturnRules
             .Select(r => r.Id)
             .ToHashSet();
 
-        var receiptById = receipts.ToDictionary(x => x.Id);
         var linesByReceipt = allLines
             .GroupBy(x => x.ReceiptId)
             .ToDictionary(g => g.Key, g => (IReadOnlyCollection<EquipmentSaleReceiptLine>)g.ToList());
@@ -145,7 +162,8 @@ public static class EquipmentCustomerReturnRules
                     UnitListPrice = l.UnitPrice,
                     UnitDiscountAmount = ComputeUnitDiscountAmount(r, l, receiptLines),
                     RefundUnitPrice = ComputeRefundUnitPrice(r, l, receiptLines),
-                    SaleDateUtc = r.CreatedAtUtc
+                    SaleDateUtc = r.CreatedAtUtc,
+                    ReceiptIssued = r.ReceiptIssued
                 });
             })
             .ToList();
@@ -205,8 +223,10 @@ public static class EquipmentCustomerReturnRules
 
     public static IReadOnlyList<ReturnableItemSummary> SummarizeReturnable(
         IReadOnlyCollection<ReturnableLot> lots,
-        IReadOnlyDictionary<Guid, string> equipmentNames)
+        IReadOnlyDictionary<Guid, string> equipmentNames,
+        DateTime? nowUtc = null)
     {
+        var now = nowUtc ?? DateTime.UtcNow;
         return lots
             .Where(x => x.RemainingQuantity > 0)
             .GroupBy(x => x.EquipmentItemId)
@@ -222,17 +242,29 @@ public static class EquipmentCustomerReturnRules
                 var weightedDiscount = totalQty > 0
                     ? Math.Round(g.Sum(x => x.UnitDiscountAmount * x.RemainingQuantity) / totalQty, 2, MidpointRounding.AwayFromZero)
                     : 0m;
+                var saleDateUtc = g.Max(x => x.SaleDateUtc);
+                var receiptIssued = g.Any(x => x.ReceiptIssued);
+                var withinWindow = IsWithinReturnWindow(saleDateUtc, now);
+                string? blockReason = null;
+                if (!withinWindow)
+                {
+                    blockReason = $"{ReturnWindowDays} gün keçib — qaytarıla bilməz.";
+                }
 
                 return new ReturnableItemSummary
                 {
                     EquipmentItemId = g.Key,
                     EquipmentName = equipmentNames.GetValueOrDefault(g.Key) ?? "Avadanlıq",
-                    SaleDateUtc = g.Max(x => x.SaleDateUtc),
+                    SaleDateUtc = saleDateUtc,
                     PurchasedQuantity = g.Sum(x => x.OriginalQuantity),
                     ReturnableQuantity = totalQty,
                     UnitListPrice = listPrices.Count == 1 ? listPrices[0] : null,
                     UnitDiscountAmount = discountPrices.Count == 1 ? discountPrices[0] : weightedDiscount,
-                    RefundUnitPrice = refundPrices.Count == 1 ? refundPrices[0] : weightedRefund
+                    RefundUnitPrice = refundPrices.Count == 1 ? refundPrices[0] : weightedRefund,
+                    ReceiptIssued = receiptIssued,
+                    IsWithinReturnWindow = withinWindow,
+                    CanReturn = withinWindow,
+                    BlockReason = blockReason
                 };
             })
             .OrderByDescending(x => x.SaleDateUtc)
@@ -242,8 +274,11 @@ public static class EquipmentCustomerReturnRules
 
     public static (List<ReturnAllocation> Allocations, string? Error) AllocateCustomerReturn(
         IReadOnlyCollection<ReturnableLot> lots,
-        IReadOnlyList<(Guid EquipmentItemId, int Quantity)> requested)
+        IReadOnlyList<(Guid EquipmentItemId, int Quantity)> requested,
+        bool receiptPresented,
+        DateTime? nowUtc = null)
     {
+        var now = nowUtc ?? DateTime.UtcNow;
         var working = lots
             .Where(x => x.RemainingQuantity > 0)
             .Select(x => new ReturnableLot
@@ -255,7 +290,8 @@ public static class EquipmentCustomerReturnRules
                 UnitListPrice = x.UnitListPrice,
                 UnitDiscountAmount = x.UnitDiscountAmount,
                 RefundUnitPrice = x.RefundUnitPrice,
-                SaleDateUtc = x.SaleDateUtc
+                SaleDateUtc = x.SaleDateUtc,
+                ReceiptIssued = x.ReceiptIssued
             })
             .OrderBy(x => x.SaleDateUtc)
             .ToList();
@@ -265,16 +301,32 @@ public static class EquipmentCustomerReturnRules
         {
             if (req.Quantity <= 0) continue;
 
-            var available = working
+            var candidateLots = working
                 .Where(x => x.EquipmentItemId == req.EquipmentItemId && x.RemainingQuantity > 0)
-                .Sum(x => x.RemainingQuantity);
+                .ToList();
+            if (candidateLots.Count == 0)
+            {
+                return ([], "Qaytarma sayı qalan alınmış saydan çox ola bilməz.");
+            }
+
+            if (candidateLots.Any(x => !IsWithinReturnWindow(x.SaleDateUtc, now)))
+            {
+                return ([], $"{ReturnWindowDays} gün keçib — bu məhsul qaytarıla bilməz.");
+            }
+
+            if (candidateLots.Any(x => x.ReceiptIssued) && !receiptPresented)
+            {
+                return ([], "Bu satışda çek verilib. Qaytarmaq üçün çek tələb olunur.");
+            }
+
+            var available = candidateLots.Sum(x => x.RemainingQuantity);
             if (available < req.Quantity)
             {
                 return ([], "Qaytarma sayı qalan alınmış saydan çox ola bilməz.");
             }
 
             var remaining = req.Quantity;
-            foreach (var lot in working.Where(x => x.EquipmentItemId == req.EquipmentItemId && x.RemainingQuantity > 0))
+            foreach (var lot in candidateLots)
             {
                 if (remaining <= 0) break;
                 var take = Math.Min(remaining, lot.RemainingQuantity);
@@ -296,8 +348,10 @@ public static class EquipmentCustomerReturnRules
     public static List<ReturnablePurchaseSummary> BuildReturnablePurchaseSummaries(
         IReadOnlyCollection<ReturnableLot> lots,
         IReadOnlyCollection<EquipmentSaleReceipt> receipts,
-        IReadOnlyCollection<EquipmentSaleReceiptLine> allLines)
+        IReadOnlyCollection<EquipmentSaleReceiptLine> allLines,
+        DateTime? nowUtc = null)
     {
+        var now = nowUtc ?? DateTime.UtcNow;
         var receiptIds = lots
             .Where(x => x.RemainingQuantity > 0)
             .Select(x => x.SaleReceiptId)
@@ -331,7 +385,9 @@ public static class EquipmentCustomerReturnRules
                     SaleDateUtc = receipt.CreatedAtUtc,
                     ListTotal = listTotal,
                     DiscountAmount = discountAmount,
-                    PaidAmount = receipt.AmountPaid
+                    PaidAmount = receipt.AmountPaid,
+                    ReceiptIssued = receipt.ReceiptIssued,
+                    IsWithinReturnWindow = IsWithinReturnWindow(receipt.CreatedAtUtc, now)
                 };
             })
             .Where(x => x is not null)

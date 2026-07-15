@@ -44,6 +44,18 @@ public sealed class CreateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             throw new InvalidOperationException("ActiveToDateLocal must be after ActiveFromDateLocal.");
         }
 
+        var nowLocal = AzerbaijanTime.NowLocal;
+        var firstOccurrence = SubscriptionOccurrenceRules.ResolveFirstOccurrenceDateLocal(
+            request.ActiveFromDateLocal.Date,
+            request.DayOfWeek,
+            request.StartTimeLocal,
+            nowLocal);
+        if (firstOccurrence > request.ActiveToDateLocal.Date)
+        {
+            throw new InvalidOperationException(
+                "Seçilmiş həftə günü/saat üçün abunə müddətində cari vaxtdan sonra keçərli tarix qalmayıb.");
+        }
+
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var athlete = request.AthleteId is not null
             ? athletes.FirstOrDefault(x => x.Id == request.AthleteId.Value)
@@ -84,7 +96,7 @@ public sealed class CreateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             DayOfWeek = request.DayOfWeek,
             StartTimeLocal = request.StartTimeLocal,
             DurationMinutes = request.DurationMinutes,
-            ActiveFromDateLocal = request.ActiveFromDateLocal.Date,
+            ActiveFromDateLocal = firstOccurrence,
             ActiveToDateLocal = request.ActiveToDateLocal.Date,
             IsEnabled = true
             ,
@@ -106,142 +118,99 @@ public sealed class CreateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             throw new InvalidOperationException($"DUPLICATE_SUBSCRIPTION_SCHEDULE:{dup.Id}");
         }
 
-        static bool DateRangesOverlap(DateTime aFrom, DateTime aTo, DateTime bFrom, DateTime bTo)
-            => aFrom.Date <= bTo.Date && bFrom.Date <= aTo.Date;
-
-        static bool TimeRangesOverlap(TimeSpan aStart, TimeSpan aEnd, TimeSpan bStart, TimeSpan bEnd)
-            => aStart < bEnd && bStart < aEnd;
-
-        // Global reservation protection for subscription schedules on a specific lane.
-        // If the operator picks a concrete lane, we must ensure it isn't already reserved by another enabled schedule.
+        // Per-occurrence slot conflict (Bakı vaxtı + digər abunə override-ları).
         if (!request.IsFullPackage && request.LaneNumber > 0 && request.DurationMinutes > 0)
-        {
-            var requestedStart = request.StartTimeLocal;
-            var requestedEnd = request.StartTimeLocal
-                .Add(TimeSpan.FromMinutes(request.DurationMinutes))
-                .Add(LaneReservationRules.SessionBuffer);
-
-            var conflicting = existingSchedules
-                .Where(s =>
-                    s.IsEnabled
-                    && s.LaneNumber == request.LaneNumber
-                    && s.DayOfWeek == request.DayOfWeek
-                    && DateRangesOverlap(s.ActiveFromDateLocal, s.ActiveToDateLocal, request.ActiveFromDateLocal, request.ActiveToDateLocal))
-                .FirstOrDefault(s =>
-                {
-                    var sEnd = s.StartTimeLocal
-                        .Add(TimeSpan.FromMinutes(s.DurationMinutes))
-                        .Add(LaneReservationRules.SessionBuffer);
-                    return TimeRangesOverlap(s.StartTimeLocal, sEnd, requestedStart, requestedEnd);
-                });
-
-            if (conflicting is not null)
-            {
-                var conflictingName = athletes.FirstOrDefault(a => a.Id == conflicting.AthleteId)?.FullName ?? "başqa müştəri";
-                throw new InvalidOperationException(
-                    $"Təəssüf ki, seçdiyiniz saatda Zolaq {request.LaneNumber} doludur (Müştəri {conflictingName} tərəfindən). Zəhmət olmasa başqa vaxt seçin");
-            }
-        }
-
-        // Collision check (selected lane type must have at least one free lane).
-        if (!request.IsFullPackage)
         {
             var lanes = await repository.GetLanesAsync(cancellationToken);
             var sessions = await repository.GetSessionsAsync(cancellationToken);
-            var candidates = request.LaneNumber > 0
-                ? lanes.Where(l => l.Number == request.LaneNumber)
-                : LaneReservationRules.FilterLanesByPreferredType(lanes, request.PreferredLaneType);
+            var nowUtc = DateTime.UtcNow;
 
-            // If a specific lane is chosen, ensure it isn't busy on ANY occurrence within the selected date range.
-            // (Availability UI is date-based; this protects against conflicts beyond just the first occurrence.)
-            if (request.LaneNumber > 0)
+            for (var day = firstOccurrence; day <= request.ActiveToDateLocal.Date; day = day.AddDays(1))
             {
-                var lane = candidates.FirstOrDefault();
-                if (lane is not null)
+                if ((int)day.DayOfWeek != request.DayOfWeek) continue;
+                if (SubscriptionOccurrenceRules.IsSlotInThePast(day, request.StartTimeLocal, nowLocal)) continue;
+
+                if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                        sessions,
+                        existingSchedules,
+                        lanes,
+                        request.LaneNumber,
+                        day,
+                        request.StartTimeLocal,
+                        request.DurationMinutes,
+                        nowUtc))
                 {
-                    var requestedStartLocal = request.StartTimeLocal;
-                    var requestedEndLocal = request.StartTimeLocal
-                        .Add(TimeSpan.FromMinutes(request.DurationMinutes))
-                        ;
-
-                    var laneSessions = sessions.Where(s => s.LaneId == lane.Id);
-                    foreach (var s in laneSessions)
-                    {
-                        var sStartUtc = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc);
-                        var sEndUtc = DateTimeAssumedUtc.AsUtc(s.EndTimeUtc);
-                        var sStartLocal = sStartUtc.ToLocalTime();
-                        var sEndLocal = sEndUtc.ToLocalTime();
-
-                        var sDate = sStartLocal.Date;
-                        if (sDate < request.ActiveFromDateLocal.Date || sDate > request.ActiveToDateLocal.Date) continue;
-                        if ((int)sDate.DayOfWeek != request.DayOfWeek) continue;
-
-                        var sStartTod = sStartLocal.TimeOfDay;
-                        var sEndTod = sEndLocal.TimeOfDay;
-                        if (sEndTod <= sStartTod) continue; // defensive (shouldn't happen)
-
-                        if (sStartTod < requestedEndLocal && requestedStartLocal < sEndTod)
-                        {
-                            var otherName = athletes.FirstOrDefault(a => a.Id == s.AthleteId)?.FullName ?? "başqa müştəri";
-                            throw new InvalidOperationException(
-                                $"Təəssüf ki, seçdiyiniz saatda Zolaq {request.LaneNumber} doludur (Müştəri {otherName} tərəfindən saat {sEndLocal:HH:mm}-a qədər). Zəhmət olmasa başqa vaxt seçin");
-                        }
-                    }
+                    throw new InvalidOperationException(
+                        $"Təəssüf ki, seçdiyiniz saatda Zolaq {request.LaneNumber} doludur ({day:yyyy-MM-dd}). Zəhmət olmasa başqa vaxt seçin");
                 }
             }
-
-            var nextLocal = request.ActiveFromDateLocal.Date;
-            for (var guard = 0; guard < 14 && (int)nextLocal.DayOfWeek != request.DayOfWeek; guard++)
-            {
-                nextLocal = nextLocal.AddDays(1);
-            }
+        }
+        else if (!request.IsFullPackage)
+        {
+            // LaneNumber == 0 (auto): first occurrence must have at least one free preferred-type lane.
+            var lanes = await repository.GetLanesAsync(cancellationToken);
+            var sessions = await repository.GetSessionsAsync(cancellationToken);
+            var candidates = LaneReservationRules.FilterLanesByPreferredType(lanes, request.PreferredLaneType);
+            var nextLocal = firstOccurrence;
             var slotLocal = nextLocal.Add(request.StartTimeLocal);
-            var startUtc = DateTime.SpecifyKind(slotLocal, DateTimeKind.Local).ToUniversalTime();
+            var startUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(slotLocal);
             var endUtc = startUtc.AddMinutes(request.DurationMinutes);
-
             var nowUtc = DateTime.UtcNow;
             var hasFree = candidates.Any(lane =>
                 sessions.Where(s => s.LaneId == lane.Id).All(s => !LaneReservationRules.OverlapsSession(s, startUtc, endUtc, nowUtc)));
 
             if (!hasFree)
             {
-                if (request.LaneNumber > 0)
-                {
-                    throw new InvalidOperationException($"Təəssüf ki, seçdiyiniz saatda Zolaq {request.LaneNumber} doludur. Zəhmət olmasa başqa vaxt seçin");
-                }
-
                 var label = request.PreferredLaneType == PreferredLaneType.Long ? "Uzun" : "Qısa";
                 throw new InvalidOperationException($"Təəssüf ki, seçdiyiniz saatda bütün {label} xətlər doludur. Zəhmət olmasa başqa vaxt seçin");
             }
         }
-
         var created = await repository.AddSubscriptionScheduleAsync(schedule, cancellationToken);
 
         // Auto-populate concrete future sessions only when a specific lane is chosen.
-        // (LaneNumber == 0 means "auto" and lane is decided later.)
         if (!request.IsFullPackage && request.LaneNumber > 0 && request.DurationMinutes > 0)
         {
             var lane = await repository.GetLaneByNumberAsync(request.LaneNumber, cancellationToken);
             if (lane is not null)
             {
-                var startDate = request.ActiveFromDateLocal.Date;
+                var sessionLanes = await repository.GetLanesAsync(cancellationToken);
+                var sessionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+                var sessions = (await repository.GetSessionsAsync(cancellationToken)).ToList();
+                var nowUtc = DateTime.UtcNow;
+                var startDate = firstOccurrence;
                 var endDate = request.ActiveToDateLocal.Date;
                 for (var day = startDate; day <= endDate; day = day.AddDays(1))
                 {
                     if ((int)day.DayOfWeek != request.DayOfWeek) continue;
+                    if (SubscriptionOccurrenceRules.IsSlotInThePast(day, request.StartTimeLocal, nowLocal)) continue;
+
+                    if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                            sessions,
+                            sessionSchedules,
+                            sessionLanes,
+                            request.LaneNumber,
+                            day,
+                            request.StartTimeLocal,
+                            request.DurationMinutes,
+                            nowUtc,
+                            excludeScheduleId: created.Id))
+                    {
+                        throw new InvalidOperationException(
+                            $"Təəssüf ki, seçdiyiniz saatda Zolaq {request.LaneNumber} doludur ({day:yyyy-MM-dd}). Zəhmət olmasa başqa vaxt seçin");
+                    }
+
                     var slotLocal = day.Add(request.StartTimeLocal);
-                    var startUtc = DateTime.SpecifyKind(slotLocal, DateTimeKind.Local).ToUniversalTime();
+                    var startUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(slotLocal);
                     var endUtc = startUtc.AddMinutes(request.DurationMinutes);
 
                     // Avoid duplicates if already created.
-                    var sessions = await repository.GetSessionsAsync(cancellationToken);
                     var exists = sessions.Any(s =>
                         s.SubscriptionScheduleId == created.Id
                         && s.LaneId == lane.Id
                         && DateTimeAssumedUtc.AsUtc(s.StartTimeUtc) == startUtc);
                     if (exists) continue;
 
-                    await repository.AddSessionAsync(new TrainingSession
+                    var createdSession = await repository.AddSessionAsync(new TrainingSession
                     {
                         AthleteId = athlete.Id,
                         LaneId = lane.Id,
@@ -250,6 +219,7 @@ public sealed class CreateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
                         EndTimeUtc = endUtc,
                         Status = SessionStatus.Scheduled
                     }, cancellationToken);
+                    sessions.Add(createdSession);
                 }
             }
         }

@@ -3,22 +3,30 @@ namespace EShooting.Application.Athletes;
 public static class AthleteRegistrationRules
 {
     public const string RequiredFieldsMessage =
-        "Ad, Soyad, Telefon, Email, Ş/V nömrəsi və Kart nömrəsi mütləqdir.";
+        "Ad, Soyad, Telefon və Ş/V nömrəsi mütləqdir.";
 
     public static bool HasRequiredContactFields(
         string? firstName,
         string? lastName,
         string? phoneNumber,
-        string? email,
-        string? idCardNumber,
-        string? clubCardNumber)
+        string? idCardNumber)
     {
         return !string.IsNullOrWhiteSpace(firstName)
             && !string.IsNullOrWhiteSpace(lastName)
             && !string.IsNullOrWhiteSpace(NormalizeDigits(phoneNumber))
-            && !string.IsNullOrWhiteSpace(NormalizeEmail(email))
-            && !string.IsNullOrWhiteSpace(NormalizeText(idCardNumber))
-            && !string.IsNullOrWhiteSpace(NormalizeText(clubCardNumber));
+            && !string.IsNullOrWhiteSpace(NormalizeText(idCardNumber));
+    }
+
+    public static string? NormalizeOptionalEmail(string? value)
+    {
+        var email = NormalizeEmail(value);
+        return string.IsNullOrWhiteSpace(email) ? null : email;
+    }
+
+    public static string? NormalizeOptionalText(string? value)
+    {
+        var text = NormalizeText(value);
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     public static string NormalizeDigits(string? value)

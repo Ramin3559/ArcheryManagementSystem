@@ -20,12 +20,13 @@ public sealed class CustomerListItem
     public string? SubscriptionToLocal { get; init; }
     public string RegisteredAtLocal { get; init; } = "";
     public string RegisteredByStaffName { get; init; } = "—";
+    public string? DeletedAtLocal { get; init; }
+    public string DeletedByName { get; init; } = "—";
     /// <summary>Zolağa heç vaxt yazılıbmı.</summary>
     public bool HasLaneHistory { get; init; }
-    /// <summary>Resepsiyadan ayrıca avadanlıq satışı (EquipmentSaleReceipt).</summary>
+    /// <summary>Resepsiyadan avadanlıq satışı (EquipmentSaleReceipt).</summary>
     public bool HasStandaloneEquipmentPurchase { get; init; }
-    /// <summary>Zolaq / alıcı / hər ikisi.</summary>
-    public string CustomerTypeLabel { get; init; } = "—";
+    public string CustomerTypeLabel { get; init; } = "Müştəri";
     /// <summary>Oyun müddətində sessiya avadanlığı verilib.</summary>
     public bool HasSessionEquipmentRental { get; init; }
     public bool HasPendingSessionRental { get; init; }

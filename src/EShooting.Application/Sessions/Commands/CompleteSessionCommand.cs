@@ -1,3 +1,4 @@
+using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Enums;
 using MediatR;
@@ -28,15 +29,23 @@ public sealed class CompleteSessionCommandHandler(
             throw new InvalidOperationException("İcarə avadanlığı təhvil alınmalıdır.");
         }
 
-        var startUtc = AsUtc(session.StartTimeUtc);
-        var endUtc = AsUtc(session.EndTimeUtc);
-        if (endUtc <= startUtc)
+        // Planlı (aktiv edilməmiş) abunə — Stop/ləğv təqvimi də silir ki, sync yenidən açmasın.
+        if (!SessionActivationRules.HasActivation(session) && session.SubscriptionScheduleId is not null)
         {
-            session.EndTimeUtc = DateTime.UtcNow;
+            await SubscriptionOccurrenceCancel.CancelScheduledSessionAsync(repository, session, cancellationToken);
         }
+        else
+        {
+            var startUtc = AsUtc(session.StartTimeUtc);
+            var endUtc = AsUtc(session.EndTimeUtc);
+            if (endUtc <= startUtc)
+            {
+                session.EndTimeUtc = DateTime.UtcNow;
+            }
 
-        session.Status = SessionStatus.Completed;
-        await repository.UpdateSessionAsync(session, cancellationToken);
+            session.Status = SessionStatus.Completed;
+            await repository.UpdateSessionAsync(session, cancellationToken);
+        }
 
         var lane = (await repository.GetLanesAsync(cancellationToken)).FirstOrDefault(x => x.Id == session.LaneId);
         if (lane is not null)

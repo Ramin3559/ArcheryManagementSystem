@@ -8,10 +8,12 @@ public sealed record UpsertEquipmentItemCommand(
     Guid? Id,
     string Name,
     string? Category,
+    int WarehouseQuantity,
     int RentalQuantity,
     int SaleQuantity,
     int DamagedQuantity,
-    decimal? Price) : IRequest<Guid>;
+    decimal? Price,
+    decimal? PurchasePrice) : IRequest<Guid>;
 
 public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository repository)
     : IRequestHandler<UpsertEquipmentItemCommand, Guid>
@@ -22,6 +24,7 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
 
         var name = request.Name.Trim();
         var category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim();
+        var warehouse = Math.Max(0, request.WarehouseQuantity);
         var rental = Math.Max(0, request.RentalQuantity);
         var sale = Math.Max(0, request.SaleQuantity);
         var damaged = Math.Max(0, request.DamagedQuantity);
@@ -32,10 +35,12 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
             {
                 Name = name,
                 Category = category,
+                WarehouseQuantity = warehouse,
                 RentalQuantity = rental,
                 SaleQuantity = sale,
                 DamagedQuantity = damaged,
                 Price = request.Price,
+                PurchasePrice = request.PurchasePrice,
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
@@ -56,10 +61,12 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
 
         existing.Name = name;
         existing.Category = category;
+        existing.WarehouseQuantity = warehouse;
         existing.RentalQuantity = rental;
         existing.SaleQuantity = sale;
         existing.DamagedQuantity = damaged;
         existing.Price = request.Price;
+        existing.PurchasePrice = request.PurchasePrice;
         existing.IsActive = true;
         EquipmentIssuanceRules.SyncDerivedFields(existing);
 
@@ -74,7 +81,7 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
             throw new InvalidOperationException("Avadanlıq adı mütləqdir.");
         }
 
-        if (request.RentalQuantity < 0 || request.SaleQuantity < 0)
+        if (request.WarehouseQuantity < 0 || request.RentalQuantity < 0 || request.SaleQuantity < 0)
         {
             throw new InvalidOperationException("Say mənfi ola bilməz.");
         }
@@ -84,7 +91,7 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
             throw new InvalidOperationException("Xarab say mənfi ola bilməz.");
         }
 
-        if (request.Price is < 0)
+        if (request.Price is < 0 || request.PurchasePrice is < 0)
         {
             throw new InvalidOperationException("Qiymət mənfi ola bilməz.");
         }

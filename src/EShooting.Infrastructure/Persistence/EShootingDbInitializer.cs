@@ -1,4 +1,5 @@
 using EShooting.Application.Common;
+using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -21,14 +22,18 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await NormalizeVipServicePackagesAsync(cancellationToken);
         await PurgeLegacyWalkInMonthlyPackageAsync(cancellationToken);
         await EnsureEquipmentItemsTableAsync(cancellationToken);
+        await EnsureEquipmentItemUsageModeColumnAsync(cancellationToken);
+        await EnsureEquipmentSplitStockColumnsSqlAsync(cancellationToken);
+        // Yeni sütunlar istənilən EquipmentItems EF sorğusundan əvvəl olmalıdır.
+        await EnsureEquipmentWarehouseAndPurchasePriceColumnsAsync(cancellationToken);
         await EnsureEquipmentItemSeedAsync(cancellationToken);
         await EnsureSessionEquipmentIssuesTableAsync(cancellationToken);
-        await EnsureEquipmentItemUsageModeColumnAsync(cancellationToken);
-        await EnsureEquipmentSplitStockColumnsAsync(cancellationToken);
+        await EnsureEquipmentSplitStockBackfillAsync(cancellationToken);
         await EnsureEquipmentPriceAsUnitAsync(cancellationToken);
         await EnsureSessionEquipmentIssueJournalColumnsAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptsTablesAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptLineDiscountColumnAsync(cancellationToken);
+        await EnsureEquipmentSaleReceiptIssuedColumnAsync(cancellationToken);
         await EnsureStaffPositionsTableAsync(cancellationToken);
         await EnsureStaffPositionSeedAsync(cancellationToken);
         await EnsureAccessProfilesTableAsync(cancellationToken);
@@ -40,6 +45,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureCustomerPackageRecordsTableAsync(cancellationToken);
         await EnsureBillingDiscountColumnsAsync(cancellationToken);
         await EnsureAthleteCreatedAtBackfillAsync(cancellationToken);
+        await EnsureClubCardAssignmentsTableAsync(cancellationToken);
 
         await EnsureShootingLanesSeedAsync(cancellationToken);
         await EnsureGymLaneAsync(cancellationToken);
@@ -156,6 +162,18 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             BEGIN
                 ALTER TABLE [dbo].[Athletes] ADD [RegisteredByStaffId] UNIQUEIDENTIFIER NULL;
             END
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'DeletedAtUtc') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Athletes] ADD [DeletedAtUtc] DATETIME2 NULL;
+            END
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'DeletedByStaffId') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Athletes] ADD [DeletedByStaffId] UNIQUEIDENTIFIER NULL;
+            END
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'DeletedByAdminUserName') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Athletes] ADD [DeletedByAdminUserName] NVARCHAR(100) NULL;
+            END
             """;
 
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
@@ -266,6 +284,11 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     ALTER TABLE [dbo].[TrainingSessions]
                     ADD [ActivatedAtUtc] DATETIME2 NULL;
                 END;
+
+                UPDATE [dbo].[TrainingSessions]
+                SET [ActivatedAtUtc] = [StartTimeUtc]
+                WHERE [ActivatedAtUtc] IS NULL
+                  AND ([Status] = N'Active' OR TRY_CONVERT(int, [Status]) = 2);
 
                 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_TrainingSessions_SubscriptionSchedules_SubscriptionScheduleId')
                 BEGIN
@@ -698,7 +721,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
-    private async Task EnsureEquipmentSplitStockColumnsAsync(CancellationToken cancellationToken)
+    private async Task EnsureEquipmentSplitStockColumnsSqlAsync(CancellationToken cancellationToken)
     {
         const string sql = """
             IF OBJECT_ID(N'[dbo].[EquipmentItems]', N'U') IS NOT NULL
@@ -718,7 +741,10 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             """;
 
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
 
+    private async Task EnsureEquipmentSplitStockBackfillAsync(CancellationToken cancellationToken)
+    {
         var items = await dbContext.EquipmentItems
             .Where(x => x.RentalQuantity == 0 && x.SaleQuantity == 0 && x.Quantity > 0)
             .ToListAsync(cancellationToken);
@@ -738,13 +764,37 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     break;
             }
 
-            item.Quantity = item.RentalQuantity + item.SaleQuantity;
+            EquipmentIssuanceRules.SyncDerivedFields(item);
         }
 
         if (items.Count > 0)
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private async Task EnsureEquipmentWarehouseAndPurchasePriceColumnsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'[dbo].[EquipmentItems]', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'[dbo].[EquipmentItems]', N'WarehouseQuantity') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[EquipmentItems]
+                    ADD [WarehouseQuantity] INT NOT NULL CONSTRAINT [DF_EquipmentItems_WarehouseQuantity] DEFAULT (0);
+                END
+
+                IF COL_LENGTH(N'[dbo].[EquipmentItems]', N'PurchasePrice') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[EquipmentItems]
+                    ADD [PurchasePrice] DECIMAL(18, 2) NULL;
+                END
+
+                UPDATE [dbo].[EquipmentItems]
+                SET [Quantity] = ISNULL([WarehouseQuantity], 0) + ISNULL([RentalQuantity], 0) + ISNULL([SaleQuantity], 0);
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
     private async Task EnsureEquipmentPriceAsUnitAsync(CancellationToken cancellationToken)
@@ -851,6 +901,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     [TotalAmount] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_EquipmentSaleReceipts_TotalAmount] DEFAULT (0),
                     [AmountPaidCash] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_EquipmentSaleReceipts_AmountPaidCash] DEFAULT (0),
                     [AmountPaidCard] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_EquipmentSaleReceipts_AmountPaidCard] DEFAULT (0),
+                    [ReceiptIssued] BIT NOT NULL CONSTRAINT [DF_EquipmentSaleReceipts_ReceiptIssued] DEFAULT (0),
                     [CreatedByStaffId] UNIQUEIDENTIFIER NULL,
                     [CreatedAtUtc] DATETIME2 NOT NULL
                 );
@@ -890,6 +941,20 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 ALTER TABLE [dbo].[EquipmentSaleReceiptLines]
                 ADD [DiscountAmount] DECIMAL(18, 2) NOT NULL
                     CONSTRAINT [DF_EquipmentSaleReceiptLines_DiscountAmount] DEFAULT (0);
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private async Task EnsureEquipmentSaleReceiptIssuedColumnAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'[dbo].[EquipmentSaleReceipts]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[EquipmentSaleReceipts]', N'ReceiptIssued') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[EquipmentSaleReceipts]
+                ADD [ReceiptIssued] BIT NOT NULL
+                    CONSTRAINT [DF_EquipmentSaleReceipts_ReceiptIssued] DEFAULT (0);
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
@@ -1047,7 +1112,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureAccessProfileBitColumnAsync(
             "CanApplyDiscount",
             "DF_AccessProfiles_CanApplyDiscount",
-            "CanRecordCreditPayments",
+            "CanRecordPayments",
             cancellationToken);
         await EnsureAccessProfileBitColumnAsync(
             "CanGrantComplimentarySession",
@@ -1418,6 +1483,58 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 ) src ON src.[Id] = a.[Id]
                 WHERE src.[BestUtc] IS NOT NULL
                   AND src.[BestUtc] < a.[CreatedAtUtc];
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private async Task EnsureClubCardAssignmentsTableAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [dbo].[ClubCardAssignments](
+                    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    [CardNumber] NVARCHAR(40) NOT NULL,
+                    [AthleteId] UNIQUEIDENTIFIER NOT NULL,
+                    [IssuedAtUtc] DATETIME2 NOT NULL,
+                    [ReturnedAtUtc] DATETIME2 NULL,
+                    [IssuedByStaffId] UNIQUEIDENTIFIER NULL,
+                    [ReturnedByStaffId] UNIQUEIDENTIFIER NULL,
+                    CONSTRAINT [FK_ClubCardAssignments_Athletes_AthleteId]
+                        FOREIGN KEY([AthleteId]) REFERENCES [dbo].[Athletes]([Id]) ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_ClubCardAssignments_AthleteId]
+                    ON [dbo].[ClubCardAssignments]([AthleteId]);
+                CREATE INDEX [IX_ClubCardAssignments_CardNumber]
+                    ON [dbo].[ClubCardAssignments]([CardNumber]);
+                CREATE INDEX [IX_ClubCardAssignments_CardNumber_Returned]
+                    ON [dbo].[ClubCardAssignments]([CardNumber], [ReturnedAtUtc]);
+            END
+
+            -- Mövcud açıq kartları tarixçəyə köçür (bir dəfəlik backfill).
+            IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NOT NULL
+            BEGIN
+                INSERT INTO [dbo].[ClubCardAssignments]
+                    ([Id], [CardNumber], [AthleteId], [IssuedAtUtc], [ReturnedAtUtc], [IssuedByStaffId], [ReturnedByStaffId])
+                SELECT
+                    NEWID(),
+                    LTRIM(RTRIM(a.[ClubCardNumber])),
+                    a.[Id],
+                    ISNULL(a.[CreatedAtUtc], GETUTCDATE()),
+                    NULL,
+                    a.[RegisteredByStaffId],
+                    NULL
+                FROM [dbo].[Athletes] a
+                WHERE a.[ClubCardNumber] IS NOT NULL
+                  AND LTRIM(RTRIM(a.[ClubCardNumber])) <> N''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM [dbo].[ClubCardAssignments] c
+                      WHERE c.[AthleteId] = a.[Id]
+                        AND c.[ReturnedAtUtc] IS NULL
+                        AND LOWER(LTRIM(RTRIM(c.[CardNumber]))) = LOWER(LTRIM(RTRIM(a.[ClubCardNumber])))
+                  );
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);

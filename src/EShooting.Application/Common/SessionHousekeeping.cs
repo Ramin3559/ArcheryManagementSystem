@@ -9,10 +9,7 @@ namespace EShooting.Application.Common;
 public static class SessionHousekeeping
 {
     private static bool HasActivation(TrainingSession session)
-    {
-        // Backward-compatible: older rows may have Status=Active without ActivatedAtUtc.
-        return session.ActivatedAtUtc is not null || session.Status == SessionStatus.Active;
-    }
+        => SessionActivationRules.HasActivation(session);
 
     private static DateTime ResolveEffectiveStartUtc(TrainingSession session)
     {

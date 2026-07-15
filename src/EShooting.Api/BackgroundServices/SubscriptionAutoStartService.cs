@@ -1,17 +1,12 @@
-using EShooting.Application.Common;
-using EShooting.Application.Common.Interfaces;
-using EShooting.Application.Sessions.Commands;
-using EShooting.Domain.Enums;
-using MediatR;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace EShooting.Web.BackgroundServices;
+namespace EShooting.Api.BackgroundServices;
 
 public sealed class SubscriptionAutoStartService(
-    IServiceProvider serviceProvider,
     ILogger<SubscriptionAutoStartService> logger) : BackgroundService
 {
     private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan EarlyTolerance = TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -34,95 +29,10 @@ public sealed class SubscriptionAutoStartService(
         }
     }
 
-    private async Task AutoStartDueSchedulesAsync(CancellationToken cancellationToken)
+    private Task AutoStartDueSchedulesAsync(CancellationToken cancellationToken)
     {
-        using var scope = serviceProvider.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<ITrainingCenterRepository>();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-
-        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-        var lanes = await repository.GetLanesAsync(cancellationToken);
-        var nowLocal = DateTime.Now;
-        var todayLocal = nowLocal.Date;
-
-        foreach (var schedule in schedules)
-        {
-            if (!schedule.IsEnabled)
-            {
-                continue;
-            }
-
-            if (schedule.ActiveFromDateLocal.Date > todayLocal || schedule.ActiveToDateLocal.Date < todayLocal)
-            {
-                continue;
-            }
-
-            if (schedule.DayOfWeek != (int)nowLocal.DayOfWeek)
-            {
-                continue;
-            }
-
-            var scheduledLocal = todayLocal.Add(schedule.StartTimeLocal);
-            var sinceScheduled = nowLocal - scheduledLocal;
-            if (sinceScheduled < -EarlyTolerance)
-            {
-                continue;
-            }
-
-            var scheduledUtc = DateTime.SpecifyKind(scheduledLocal, DateTimeKind.Local).ToUniversalTime();
-            if (WasAlreadyProcessed(schedule.LastAutoStartedAtUtc, scheduledUtc))
-            {
-                continue;
-            }
-
-            try
-            {
-                var sessions = await repository.GetSessionsAsync(cancellationToken);
-                var startUtc = scheduledUtc > DateTime.UtcNow ? scheduledUtc : DateTime.UtcNow;
-                var endUtc = startUtc.AddMinutes(schedule.DurationMinutes);
-                var selectedLane = LaneReservationRules.SelectAvailableLane(
-                    lanes,
-                    sessions,
-                    startUtc,
-                    endUtc,
-                    DateTime.UtcNow);
-                if (selectedLane is null)
-                {
-                    logger.LogWarning(
-                        "Auto-start skipped for subscription {ScheduleId}: no lane available at {ScheduledLocal}.",
-                        schedule.Id,
-                        scheduledLocal);
-                    continue;
-                }
-
-                await mediator.Send(
-                    new ScheduleSessionCommand(
-                        schedule.AthleteId,
-                        selectedLane.Number,
-                        startUtc,
-                        schedule.DurationMinutes,
-                        false,
-                        PreferredLaneType.Any),
-                    cancellationToken);
-
-                schedule.LastAssignedLaneNumber = selectedLane.Number;
-                schedule.LastAutoStartedAtUtc = DateTime.UtcNow;
-                await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
-            }
-            catch (InvalidOperationException ex)
-            {
-                logger.LogWarning(ex, "Auto-start skipped for subscription schedule {ScheduleId}.", schedule.Id);
-            }
-        }
-    }
-
-    private static bool WasAlreadyProcessed(DateTime? lastAutoStartedAtUtc, DateTime scheduledUtc)
-    {
-        if (lastAutoStartedAtUtc is null)
-        {
-            return false;
-        }
-
-        return Math.Abs((lastAutoStartedAtUtc.Value - scheduledUtc).TotalMinutes) <= 2;
+        // Disabled: planned sessions come from SubscriptionPlannedSessionSync;
+        // activation only via ActivateSession / "İndi başla".
+        return Task.CompletedTask;
     }
 }

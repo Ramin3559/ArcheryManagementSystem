@@ -44,18 +44,20 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
 
         var laneById = lanes.ToDictionary(x => x.Id, x => x.Number);
 
-        IEnumerable<Athlete> query = athletes;
-        if (!request.IncludeGroupPlaceholders)
+        IEnumerable<Athlete> query = athletes.Where(a => !AthleteSearchRules.IsGroupSessionPlaceholder(a));
+
+        var activeKey = (request.Active ?? "").Trim().ToLowerInvariant();
+        if (activeKey is "inactive" or "deleted" or "silinmis")
         {
-            query = query.Where(AthleteSearchRules.IsSearchable);
+            query = query.Where(x => !x.IsActive);
+        }
+        else if (activeKey is "active" or "aktiv")
+        {
+            query = query.Where(x => x.IsActive);
         }
         else if (!request.IncludeInactive)
         {
-            query = query.Where(x => x.IsActive && !x.IsGroupPlaceholder);
-        }
-
-        if (!request.IncludeInactive)
-        {
+            // Hamısı + includeInactive=false → yalnız aktiv (köhnə davranış).
             query = query.Where(x => x.IsActive);
         }
 
@@ -77,15 +79,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         else if (string.Equals(request.Vip, "no", StringComparison.OrdinalIgnoreCase))
         {
             query = query.Where(x => !x.IsVip);
-        }
-
-        if (string.Equals(request.Active, "inactive", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(x => !x.IsActive);
-        }
-        else if (string.Equals(request.Active, "active", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(x => x.IsActive);
         }
 
         var items = new List<CustomerListItem>();
@@ -113,11 +106,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 && i.IssueType == EquipmentIssueType.Rental
                 && i.ReturnedAtUtc is null);
 
-            if (!MatchesCustomerTypeFilter(request.CustomerType, hasLane, hasStandaloneSale))
-            {
-                continue;
-            }
-
             if (!MatchesSessionRentalFilter(request.SessionRental, hasSessionRental, hasPendingRental))
             {
                 continue;
@@ -131,14 +119,23 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 athleteRecords);
             var registeredLocal = AzerbaijanTime.UtcToLocalDateTime(registeredUtc);
             var registeredLocalDate = registeredLocal.Date;
-            if (request.RegisteredFrom is DateTime from && registeredLocalDate < from.Date)
+            // Filter tarixləri kalendar günü kimi (Kind-dan asılı olmadan) müqayisə olunur.
+            if (request.RegisteredFrom is DateTime from)
             {
-                continue;
+                var fromDate = DateTime.SpecifyKind(from.Date, DateTimeKind.Unspecified);
+                if (registeredLocalDate < fromDate)
+                {
+                    continue;
+                }
             }
 
-            if (request.RegisteredTo is DateTime to && registeredLocalDate > to.Date)
+            if (request.RegisteredTo is DateTime to)
             {
-                continue;
+                var toDate = DateTime.SpecifyKind(to.Date, DateTimeKind.Unspecified);
+                if (registeredLocalDate > toDate)
+                {
+                    continue;
+                }
             }
 
             var records = packageRecords.Where(r => r.AthleteId == athlete.Id && r.IsActive && !r.IsComplimentary).ToList();
@@ -150,9 +147,9 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             int? lastLaneNumber = null;
             if (lastSession is not null)
             {
-                lastLaneVisit = AzerbaijanTime.UtcToLocalDateTime(
-                        DateTimeAssumedUtc.AsUtc(lastSession.StartTimeUtc))
-                    .ToString("yyyy-MM-dd HH:mm");
+                lastLaneVisit = DateDisplayFormats.FormatDateTime(
+                    AzerbaijanTime.UtcToLocalDateTime(
+                        DateTimeAssumedUtc.AsUtc(lastSession.StartTimeUtc)));
                 if (laneById.TryGetValue(lastSession.LaneId, out var lastLn))
                 {
                     lastLaneNumber = lastLn;
@@ -172,6 +169,15 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 athlete.RegisteredByStaffId,
                 records,
                 staffNameById);
+            var deletedByName = ResolveDeletedByName(
+                athlete,
+                staffNameById);
+            string? deletedAtLocal = null;
+            if (athlete.DeletedAtUtc is DateTime deletedUtc)
+            {
+                deletedAtLocal = DateDisplayFormats.FormatDateTime(
+                    AzerbaijanTime.UtcToLocalDateTime(DateTimeAssumedUtc.AsUtc(deletedUtc)));
+            }
 
             items.Add(new CustomerListItem
             {
@@ -187,13 +193,15 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 IsActive = athlete.IsActive,
                 IsSubscriber = athlete.IsSubscriber,
                 PackageTypeLabel = packageType,
-                SubscriptionFromLocal = activeSub?.ActiveFromDateLocal.ToString("yyyy-MM-dd"),
-                SubscriptionToLocal = activeSub?.ActiveToDateLocal.ToString("yyyy-MM-dd"),
-                RegisteredAtLocal = registeredLocal.ToString("yyyy-MM-dd HH:mm"),
+                SubscriptionFromLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveFromDateLocal),
+                SubscriptionToLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveToDateLocal),
+                RegisteredAtLocal = DateDisplayFormats.FormatDateTime(registeredLocal),
                 RegisteredByStaffName = staffName,
+                DeletedAtLocal = deletedAtLocal,
+                DeletedByName = deletedByName,
                 HasLaneHistory = hasLane,
                 HasStandaloneEquipmentPurchase = hasStandaloneSale,
-                CustomerTypeLabel = ResolveCustomerTypeLabel(hasLane, hasStandaloneSale),
+                CustomerTypeLabel = "Müştəri",
                 HasSessionEquipmentRental = hasSessionRental,
                 HasPendingSessionRental = hasPendingRental,
                 HasEquipmentHistory = hasSessionRental,
@@ -284,23 +292,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         };
     }
 
-    private static bool MatchesCustomerTypeFilter(string? filter, bool hasLane, bool hasStandaloneSale)
-    {
-        if (string.IsNullOrWhiteSpace(filter) || filter.Equals("all", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return filter.ToLowerInvariant() switch
-        {
-            "lane" or "zolaq" => hasLane && !hasStandaloneSale,
-            "buyer" or "alici" or "avadanliq" => hasStandaloneSale && !hasLane,
-            "both" or "her-ikisi" => hasLane && hasStandaloneSale,
-            "none" or "hec-biri" => !hasLane && !hasStandaloneSale,
-            _ => true
-        };
-    }
-
     private static bool MatchesSessionRentalFilter(string? filter, bool hasSessionRental, bool hasPendingRental)
     {
         if (string.IsNullOrWhiteSpace(filter) || filter.Equals("all", StringComparison.OrdinalIgnoreCase))
@@ -315,26 +306,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             "none" or "no" => !hasSessionRental,
             _ => true
         };
-    }
-
-    private static string ResolveCustomerTypeLabel(bool hasLane, bool hasStandaloneSale)
-    {
-        if (hasLane && hasStandaloneSale)
-        {
-            return "Alıcı müştəri";
-        }
-
-        if (hasLane)
-        {
-            return "Müştəri";
-        }
-
-        if (hasStandaloneSale)
-        {
-            return "Alıcı";
-        }
-
-        return "—";
     }
 
     private static string CategoryLabel(CustomerCategory category) => category switch
@@ -363,6 +334,28 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         if (fallbackStaffId is Guid fid && staffNameById.TryGetValue(fid, out var fallback))
         {
             return fallback;
+        }
+
+        return "—";
+    }
+
+    private static string ResolveDeletedByName(
+        Athlete athlete,
+        IReadOnlyDictionary<Guid, string> staffNameById)
+    {
+        if (athlete.IsActive)
+        {
+            return "—";
+        }
+
+        if (athlete.DeletedByStaffId is Guid sid && staffNameById.TryGetValue(sid, out var staff))
+        {
+            return staff;
+        }
+
+        if (!string.IsNullOrWhiteSpace(athlete.DeletedByAdminUserName))
+        {
+            return "Admin: " + athlete.DeletedByAdminUserName.Trim();
         }
 
         return "—";

@@ -1,3 +1,4 @@
+using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
@@ -122,7 +123,11 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
         }
 
         var existingSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-        var plannedDates = BuildPlannedDates(request.StartDateLocal.Date, request.VisitsCount, dayPattern);
+        var plannedDates = BuildPlannedDates(
+            request.StartDateLocal.Date,
+            request.VisitsCount,
+            dayPattern,
+            request.StartTimeLocal);
         var createdSchedules = new List<SubscriptionSchedule>();
 
         foreach (var date in plannedDates)
@@ -214,17 +219,29 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
         };
     }
 
-    private static List<DateTime> BuildPlannedDates(DateTime startDateLocal, int visitsCount, IReadOnlyCollection<int> dayPattern)
+    private static List<DateTime> BuildPlannedDates(
+        DateTime startDateLocal,
+        int visitsCount,
+        IReadOnlyCollection<int> dayPattern,
+        TimeSpan startTimeLocal)
     {
         var results = new List<DateTime>(visitsCount);
         var cursor = startDateLocal;
+        var nowLocal = AzerbaijanTime.NowLocal;
 
         for (var guard = 0; guard < 4000 && results.Count < visitsCount; guard++, cursor = cursor.AddDays(1))
         {
-            if (dayPattern.Contains((int)cursor.DayOfWeek))
+            if (!dayPattern.Contains((int)cursor.DayOfWeek))
             {
-                results.Add(cursor);
+                continue;
             }
+
+            if (SubscriptionOccurrenceRules.IsSlotInThePast(cursor, startTimeLocal, nowLocal))
+            {
+                continue;
+            }
+
+            results.Add(cursor);
         }
 
         if (results.Count != visitsCount)

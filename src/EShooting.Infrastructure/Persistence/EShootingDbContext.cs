@@ -20,6 +20,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
     public DbSet<AccessProfile> AccessProfiles => Set<AccessProfile>();
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CustomerPackageRecord> CustomerPackageRecords => Set<CustomerPackageRecord>();
+    public DbSet<ClubCardAssignment> ClubCardAssignments => Set<ClubCardAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,8 +47,11 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.IsVip).HasDefaultValue(false);
             entity.Property(x => x.IsGroupPlaceholder).HasDefaultValue(false);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.DeletedByAdminUserName).HasMaxLength(100);
             entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
             entity.HasIndex(x => x.RegisteredByStaffId);
+            entity.HasIndex(x => x.DeletedByStaffId);
+            entity.HasIndex(x => x.IsActive);
         });
 
         modelBuilder.Entity<CustomerPackageRecord>(entity =>
@@ -164,8 +168,10 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
                 .HasConversion<int>()
                 .HasDefaultValue(EquipmentUsageMode.Both);
             entity.Property(x => x.Price).HasPrecision(18, 2);
+            entity.Property(x => x.PurchasePrice).HasPrecision(18, 2);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.DamagedQuantity).HasDefaultValue(0);
+            entity.Property(x => x.WarehouseQuantity).HasDefaultValue(0);
             entity.Property(x => x.RentalQuantity).HasDefaultValue(0);
             entity.Property(x => x.SaleQuantity).HasDefaultValue(0);
             entity.HasIndex(x => x.IsActive);
@@ -281,6 +287,21 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
                 .WithMany()
                 .HasForeignKey(x => x.AccessProfileId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ClubCardAssignment>(entity =>
+        {
+            entity.ToTable("ClubCardAssignments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CardNumber).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.IssuedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+            entity.HasIndex(x => x.AthleteId);
+            entity.HasIndex(x => x.CardNumber);
+            entity.HasIndex(x => new { x.CardNumber, x.ReturnedAtUtc });
+            entity.HasOne<Athlete>()
+                .WithMany()
+                .HasForeignKey(x => x.AthleteId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -4,7 +4,7 @@
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     var isEdit = Model.Id is not null && Model.Id != Guid.Empty;
     ViewData["Title"] = isEdit ? "Avadanlığı dəyişdir" : "Yeni avadanlıq";
-    var totalQty = Model.RentalQuantity + Model.SaleQuantity;
+    var totalQty = Model.WarehouseQuantity + Model.RentalQuantity + Model.SaleQuantity;
 }
 
 <style>
@@ -60,9 +60,21 @@
             </div>
 
             <div class="field">
-                <label for="Price">Vahid qiymət (AZN)</label>
-                <input id="Price" name="Price" type="number" min="0" step="0.01" value="@(Model.Price?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")" placeholder="Boş = pulsuz" />
-                <div class="hint">Satışda 1 ədəd üçün. Boş buraxsanız, pulsuz icarə/satış mümkündür.</div>
+                <label for="PurchasePrice">Alış qiyməti (AZN)</label>
+                <input id="PurchasePrice" name="PurchasePrice" type="number" min="0" step="0.01" lang="en" inputmode="decimal" value="@(Model.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")" placeholder="Boş = qeyd olunmayıb" />
+                <div class="hint">1 ədəd üçün alış / maya dəyəri.</div>
+            </div>
+
+            <div class="field">
+                <label for="Price">Satış qiyməti (AZN)</label>
+                <input id="Price" name="Price" type="number" min="0" step="0.01" lang="en" inputmode="decimal" value="@(Model.Price?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")" placeholder="Boş = pulsuz" />
+                <div class="hint">Satışda 1 ədəd üçün. Boş buraxsanız, pulsuz mümkündür.</div>
+            </div>
+
+            <div class="field">
+                <label for="WarehouseQuantity">Anbar (əsas)</label>
+                <input id="WarehouseQuantity" name="WarehouseQuantity" type="number" min="0" step="1" value="@Model.WarehouseQuantity" required />
+                <div class="hint">Əsas anbarda saxlanan miqdar.</div>
             </div>
 
             <div class="field">
@@ -78,9 +90,9 @@
             </div>
 
             <div class="field">
-                <label for="TotalQuantity">Cəmi</label>
+                <label for="TotalQuantity">Cəmi (anbar + zal + satış)</label>
                 <input id="TotalQuantity" type="number" class="total-readonly" value="@totalQty" readonly tabindex="-1" aria-readonly="true" />
-                <div class="hint">Zal + satış — avtomatik hesablanır.</div>
+                <div class="hint">Anbar + Zal + Satış — avtomatik hesablanır.</div>
             </div>
 
             <div class="field">
@@ -98,6 +110,7 @@
 
 <script>
     (function () {
+        const warehouseInput = document.getElementById("WarehouseQuantity");
         const rentalInput = document.getElementById("RentalQuantity");
         const saleInput = document.getElementById("SaleQuantity");
         const totalInput = document.getElementById("TotalQuantity");
@@ -111,19 +124,19 @@
 
         function syncTotal() {
             if (!(totalInput instanceof HTMLInputElement)) return;
-            totalInput.value = String(parseQty(rentalInput) + parseQty(saleInput));
+            totalInput.value = String(parseQty(warehouseInput) + parseQty(rentalInput) + parseQty(saleInput));
         }
 
         function clampDamagedAgainstRental() {
             if (!(damagedInput instanceof HTMLInputElement) || !(rentalInput instanceof HTMLInputElement)) return;
             const rental = parseQty(rentalInput);
             const damaged = parseQty(damagedInput);
-            if (damaged > rental + parseQty(damagedInput)) return;
             if (damaged > rental && rental >= 0) {
                 damagedInput.value = String(rental);
             }
         }
 
+        warehouseInput?.addEventListener("input", syncTotal);
         rentalInput?.addEventListener("input", syncTotal);
         saleInput?.addEventListener("input", syncTotal);
         damagedInput?.addEventListener("input", clampDamagedAgainstRental);

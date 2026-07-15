@@ -1,5 +1,5 @@
 using EShooting.Web.Auth;
-using EShooting.Web.BackgroundServices;
+using EShooting.Api.BackgroundServices;
 using EShooting.Web.Hubs;
 using EShooting.Web.Realtime;
 using EShooting.Application;

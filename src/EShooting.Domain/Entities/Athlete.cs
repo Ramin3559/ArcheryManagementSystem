@@ -20,6 +20,12 @@ public sealed class Athlete
     public bool IsVip { get; set; }
     public bool IsGroupPlaceholder { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Soft-delete vaxtı (UTC). IsActive=false olanda doldurulur.</summary>
+    public DateTime? DeletedAtUtc { get; set; }
+    /// <summary>Resepsiya işçisi sildisə.</summary>
+    public Guid? DeletedByStaffId { get; set; }
+    /// <summary>Admin paneldən sildisə — admin login adı.</summary>
+    public string? DeletedByAdminUserName { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public Guid? RegisteredByStaffId { get; set; }
 }

@@ -11,6 +11,18 @@
         return Number.isFinite(n) && n >= 0 ? n : 0;
     }
 
+    function isEmpty(input) {
+        return !(input instanceof HTMLInputElement) || input.value.trim() === "";
+    }
+
+    function isBlankOrZero(input) {
+        if (!(input instanceof HTMLInputElement)) return true;
+        const raw = input.value.trim();
+        if (!raw) return true;
+        const n = Number(raw);
+        return Number.isFinite(n) && Math.abs(n) <= Tolerance;
+    }
+
     function roundMoney(value) {
         return Math.round((Number(value) || 0) * 100) / 100;
     }
@@ -19,6 +31,22 @@
         const list = Math.max(0, Number(listPrice) || 0);
         const discount = Math.min(Math.max(0, Number(discountAmount) || 0), list);
         return roundMoney(list - discount);
+    }
+
+    function resolvePayable(getPayable) {
+        const v = typeof getPayable === "function" ? getPayable() : getPayable;
+        if (typeof v === "number") {
+            return roundMoney(Math.max(0, v));
+        }
+        if (v && typeof v === "object") {
+            return computePayable(v.listPrice, v.discount);
+        }
+        return 0;
+    }
+
+    function setAmount(input, value) {
+        if (!(input instanceof HTMLInputElement) || input.disabled) return;
+        input.value = roundMoney(Math.max(0, value)).toFixed(2);
     }
 
     function splitCombinedCheckout(packageListPrice, equipmentListPrice, totalDiscount, totalCash, totalCard) {
@@ -62,53 +90,120 @@
         };
     }
 
+    /**
+     * Nağd yazılanda kart = ödəniləcək − nağd;
+     * kart yazılanda nağd = ödəniləcək − kart;
+     * endirim/qiymət dəyişəndə rebalance() eyni qayda ilə yeniləyir.
+     */
     function bindPair(cashInput, cardInput, getPayable, onChange) {
-        let lastEdited = null;
+        let lastEdited = null; // "cash" | "card" | null
+        let syncing = false;
 
         function notify() {
             if (typeof onChange === "function") onChange();
         }
 
-        function balance(from) {
-            const payable = computePayable(getPayable().listPrice, getPayable().discount);
-            if (payable <= Tolerance) {
-                if (cashInput instanceof HTMLInputElement) cashInput.value = "";
-                if (cardInput instanceof HTMLInputElement) cardInput.value = "";
-                notify();
+        function fillRemainderFromCash() {
+            const payable = resolvePayable(getPayable);
+            // Skip only when both blank/zero AND nothing to allocate.
+            if (payable <= Tolerance && isBlankOrZero(cashInput) && isBlankOrZero(cardInput)) {
                 return;
             }
-
-            if (from === "cash" && cashInput instanceof HTMLInputElement && cardInput instanceof HTMLInputElement) {
-                const cash = parseAmount(cashInput);
-                const card = roundMoney(Math.max(0, payable - cash));
-                cardInput.value = card > 0 ? card.toFixed(2) : "";
-            } else if (from === "card" && cashInput instanceof HTMLInputElement && cardInput instanceof HTMLInputElement) {
-                const card = parseAmount(cardInput);
-                const cash = roundMoney(Math.max(0, payable - card));
-                cashInput.value = cash > 0 ? cash.toFixed(2) : "";
-            }
-            notify();
+            const cash = parseAmount(cashInput);
+            // Always rewrite the other side, even if it already shows 0.00.
+            setAmount(cardInput, Math.max(0, payable - cash));
         }
 
-        cashInput?.addEventListener("input", () => {
+        function fillRemainderFromCard() {
+            const payable = resolvePayable(getPayable);
+            if (payable <= Tolerance && isBlankOrZero(cashInput) && isBlankOrZero(cardInput)) {
+                return;
+            }
+            const card = parseAmount(cardInput);
+            setAmount(cashInput, Math.max(0, payable - card));
+        }
+
+        function rebalance() {
+            if (syncing) return;
+            syncing = true;
+            try {
+                const payable = resolvePayable(getPayable);
+                if (payable <= Tolerance) {
+                    if (cashInput instanceof HTMLInputElement && !cashInput.disabled) {
+                        cashInput.value = "0.00";
+                    }
+                    if (cardInput instanceof HTMLInputElement && !cardInput.disabled) {
+                        cardInput.value = "0.00";
+                    }
+                    notify();
+                    return;
+                }
+
+                if (isBlankOrZero(cashInput) && isBlankOrZero(cardInput)) {
+                    if (cashInput instanceof HTMLInputElement && !cashInput.disabled && cashInput.value.trim() !== "") cashInput.value = "";
+                    if (cardInput instanceof HTMLInputElement && !cardInput.disabled && cardInput.value.trim() !== "") cardInput.value = "";
+                    notify();
+                    return;
+                }
+
+                if (lastEdited === "card") {
+                    fillRemainderFromCard();
+                } else if (lastEdited === "cash") {
+                    fillRemainderFromCash();
+                } else if (!isBlankOrZero(cashInput)) {
+                    fillRemainderFromCash();
+                } else if (!isBlankOrZero(cardInput)) {
+                    fillRemainderFromCard();
+                } else {
+                    notify();
+                    return;
+                }
+                notify();
+            } finally {
+                syncing = false;
+            }
+        }
+
+        function onCashEdit() {
+            if (syncing) return;
             lastEdited = "cash";
-            balance("cash");
-        });
-        cardInput?.addEventListener("input", () => {
+            syncing = true;
+            try {
+                fillRemainderFromCash();
+                notify();
+            } finally {
+                syncing = false;
+            }
+        }
+
+        function onCardEdit() {
+            if (syncing) return;
             lastEdited = "card";
-            balance("card");
-        });
+            syncing = true;
+            try {
+                fillRemainderFromCard();
+                notify();
+            } finally {
+                syncing = false;
+            }
+        }
+
+        cashInput?.addEventListener("input", onCashEdit);
+        cashInput?.addEventListener("change", onCashEdit);
+        cardInput?.addEventListener("input", onCardEdit);
+        cardInput?.addEventListener("change", onCardEdit);
 
         return {
-            rebalance() {
-                balance(lastEdited || "cash");
-            }
+            rebalance,
+            fillRemainderFromCash,
+            fillRemainderFromCard
         };
     }
 
     global.PaymentSplit = {
         Tolerance,
         parseAmount,
+        isBlankOrZero,
         roundMoney,
         computePayable,
         splitCombinedCheckout,

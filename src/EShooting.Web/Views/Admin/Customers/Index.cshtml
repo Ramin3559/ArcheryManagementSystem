@@ -1,18 +1,37 @@
-@using EShooting.Application.Common
 @{
     Layout = "~/Views/Admin/_AdminLayout.cshtml";
     ViewData["Title"] = "Müştərilər";
-    var today = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
 }
 
 <style>
-    .customers-hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
     .filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; align-items: end; }
     .filter-grid label.field { display: flex; flex-direction: column; gap: 6px; }
     .filter-grid .field span { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
     .filter-grid input:not([type="checkbox"]), .filter-grid select { width: 100%; min-width: 0; }
     .filter-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .field--presets { grid-column: span 2; min-width: 420px; }
+    .field--presets > span { visibility: hidden; user-select: none; }
+    .preset-inline { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; min-height: 38px; }
+    .preset-btn {
+        border-radius:999px;
+        border:1px solid var(--border);
+        background:#fff;
+        padding:6px 14px;
+        font-weight:700;
+        cursor:pointer;
+        font-size:13px;
+        color:#253060;
+    }
+    .preset-btn:hover { background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.18); }
+    .preset-btn.active {
+        background: rgba(79,70,229,0.12);
+        border-color: rgba(79,70,229,0.28);
+        color: #3730a3;
+    }
     .card.loading { opacity: 0.65; pointer-events: none; }
+    .cust-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .cust-actions .btn { padding: 4px 10px; font-size: 12px; }
+    .row-deleted td { opacity: 0.78; }
 </style>
 
 <div class="topbar">
@@ -20,7 +39,7 @@
     <a class="btn btn-excel" id="customersExportBtn" href="/admin/customers/export.xlsx">Excel-ə çıxart</a>
 </div>
 
-<p class="customers-hint">Tarix filtri <strong>qeydiyyata alınma</strong> tarixinə görədir (zolağa yazılma deyil). İlk açılışda bugün qeydiyyata alınanlar göstərilir. Redaktə yalnız <strong>resepsiya</strong> pəncərəsindən edilir.</p>
+<form id="customersAntiForgery" style="display:none;">@Html.AntiForgeryToken()</form>
 
 <div class="card" style="margin-bottom:12px;">
     <form id="customersFilterForm" autocomplete="off">
@@ -47,16 +66,6 @@
                 </select>
             </label>
             <label class="field">
-                <span>Müştəri tipi</span>
-                <select name="customerType">
-                    <option value="">Hamısı</option>
-                    <option value="zolaq">Müştəri</option>
-                    <option value="alici">Alıcı</option>
-                    <option value="her-ikisi">Alıcı müştəri</option>
-                    <option value="hec-biri">Heç bir əməliyyat yoxdur</option>
-                </select>
-            </label>
-            <label class="field">
                 <span>Oyun icarəsi</span>
                 <select name="sessionRental">
                     <option value="">Hamısı</option>
@@ -68,9 +77,9 @@
             <label class="field">
                 <span>Status</span>
                 <select name="active">
+                    <option value="active" selected>Aktiv</option>
+                    <option value="inactive">Silinmiş</option>
                     <option value="">Hamısı</option>
-                    <option value="active">Aktiv</option>
-                    <option value="inactive">Deaktiv</option>
                 </select>
             </label>
             <label class="field">
@@ -84,15 +93,25 @@
             </label>
             <label class="field">
                 <span>Qeydiyyata alınma (başlanğıc)</span>
-                <input type="date" name="registeredFrom" value="@today" />
+                <input type="date" name="registeredFrom" id="customersFromDate" value="" />
             </label>
             <label class="field">
                 <span>Qeydiyyata alınma (son)</span>
-                <input type="date" name="registeredTo" value="@today" />
+                <input type="date" name="registeredTo" id="customersToDate" value="" />
             </label>
+            <div class="field field--presets">
+                <span>Tarix</span>
+                <div class="preset-inline">
+                    <button type="button" class="preset-btn active" data-preset="all">Hamısı</button>
+                    <button type="button" class="preset-btn" data-preset="today">Bu gün</button>
+                    <button type="button" class="preset-btn" data-preset="yesterday">Dünən</button>
+                    <button type="button" class="preset-btn" data-preset="last7">Son 7 gün</button>
+                    <button type="button" class="preset-btn" data-preset="month">Cari ay</button>
+                </div>
+            </div>
         </div>
         <div class="filter-actions">
-            <button class="btn btn-primary" type="submit">Filtrlə</button>
+            <button class="btn btn-primary" type="submit">Axtar</button>
         </div>
     </form>
 </div>
@@ -110,12 +129,13 @@
                 <th>Qeydiyyata alınma</th>
                 <th>Qeydiyyata alan</th>
                 <th>Son zolağa yazılma</th>
-                <th>Tip</th>
                 <th>Oyun icarəsi</th>
+                <th>Silən</th>
+                <th></th>
             </tr>
             </thead>
             <tbody id="customersTableBody">
-            <tr><td colspan="10" style="color:var(--muted);">Yüklənir…</td></tr>
+            <tr><td colspan="11" style="color:var(--muted);">Yüklənir…</td></tr>
             </tbody>
         </table>
     </div>
@@ -124,17 +144,92 @@
 
 <script>
     (function () {
-        var STORAGE_KEY = "customers";
+        // v2: köhnə sessionStorage (məcburi «bu gün» / dar tarix) sıfırlanır
+        var STORAGE_KEY = "customers-v2";
         var form = document.getElementById("customersFilterForm");
         var exportBtn = document.getElementById("customersExportBtn");
         var tbody = document.getElementById("customersTableBody");
         var countLabel = document.getElementById("customersCountLabel");
         var tableCard = document.getElementById("customersTableCard");
+        var antiForm = document.getElementById("customersAntiForgery");
+        var fromEl = document.getElementById("customersFromDate");
+        var toEl = document.getElementById("customersToDate");
         var debounceTimer = null;
+        var applyingPreset = false;
         var AFS = window.AdminFilterState;
 
+        function isoDate(d) {
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, "0");
+            var day = String(d.getDate()).padStart(2, "0");
+            return y + "-" + m + "-" + day;
+        }
+
         function qsFromForm() {
-            return new URLSearchParams(new FormData(form));
+            var params = new URLSearchParams(new FormData(form));
+            // Boş tarixləri göndərmə — server hamısını qaytarsın
+            if (!params.get("registeredFrom")) params.delete("registeredFrom");
+            if (!params.get("registeredTo")) params.delete("registeredTo");
+            return params;
+        }
+
+        function setDateInput(el, iso) {
+            if (!(el instanceof HTMLInputElement)) return;
+            el.value = iso || "";
+            if (el._flatpickr) {
+                if (iso) {
+                    el._flatpickr.setDate(iso, false);
+                } else {
+                    el._flatpickr.clear();
+                }
+            }
+        }
+
+        function clearDateRange() {
+            setDateInput(fromEl, "");
+            setDateInput(toEl, "");
+        }
+
+        function markPresetActive(preset) {
+            document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
+                btn.classList.toggle("active", (btn.getAttribute("data-preset") || "") === preset);
+            });
+        }
+
+        function applyPreset(preset) {
+            if (!(fromEl instanceof HTMLInputElement) || !(toEl instanceof HTMLInputElement)) return;
+            applyingPreset = true;
+            if (preset === "all") {
+                clearDateRange();
+                markPresetActive("all");
+                applyingPreset = false;
+                void loadList();
+                return;
+            }
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+            var from = new Date(today);
+            var to = new Date(today);
+            if (preset === "yesterday") {
+                from.setDate(from.getDate() - 1);
+                to = new Date(from);
+            } else if (preset === "last7") {
+                from.setDate(from.getDate() - 6);
+            } else if (preset === "month") {
+                from = new Date(today.getFullYear(), today.getMonth(), 1);
+                to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            }
+            setDateInput(fromEl, isoDate(from));
+            setDateInput(toEl, isoDate(to));
+            markPresetActive(preset || "today");
+            applyingPreset = false;
+            void loadList();
+        }
+
+        function antiforgeryToken() {
+            if (!antiForm) return "";
+            var input = antiForm.querySelector('input[name="__RequestVerificationToken"]');
+            return input && "value" in input ? input.value : "";
         }
 
         function syncExportUrl() {
@@ -148,10 +243,28 @@
             return "—";
         }
 
+        function deletedByLabel(x) {
+            if (x.isActive) return "—";
+            if (x.deletedByName && x.deletedByName !== "—") {
+                var when = x.deletedAtLocal ? (" · " + x.deletedAtLocal) : "";
+                return AFS.escapeHtml(x.deletedByName) + (when ? AFS.escapeHtml(when) : "");
+            }
+            return "—";
+        }
+
+        function actionCell(x) {
+            if (x.isActive) {
+                return '<div class="cust-actions"><button type="button" class="btn btn-danger" data-action="delete" data-id="'
+                    + AFS.escapeHtml(x.id) + '">Sil</button></div>';
+            }
+            return '<div class="cust-actions"><button type="button" class="btn btn-primary" data-action="restore" data-id="'
+                + AFS.escapeHtml(x.id) + '">Bərpa</button></div>';
+        }
+
         function renderRows(items) {
             if (!tbody) return;
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
                 return;
             }
             tbody.innerHTML = items.map(function (x) {
@@ -160,7 +273,9 @@
                     ? AFS.escapeHtml(x.lastLaneVisitLocal + (x.lastLaneNumber ? " · Zolaq " + x.lastLaneNumber : ""))
                     : "—";
                 var name = AFS.escapeHtml(x.fullName) + (x.isVip ? " · VIP" : "");
-                return "<tr>"
+                if (!x.isActive) name += ' <span style="color:#b91c1c;font-size:11px;">(silinmiş)</span>';
+                var rowClass = x.isActive ? "" : ' class="row-deleted"';
+                return "<tr" + rowClass + ">"
                     + "<td>" + name + "</td>"
                     + "<td>" + AFS.escapeHtml(x.phoneNumber) + "</td>"
                     + "<td>" + (x.isVip ? "Bəli" : "—") + "</td>"
@@ -169,10 +284,55 @@
                     + "<td>" + AFS.escapeHtml(x.registeredAtLocal) + "</td>"
                     + "<td>" + AFS.escapeHtml(x.registeredByStaffName) + "</td>"
                     + "<td>" + lastLane + "</td>"
-                    + "<td>" + AFS.escapeHtml(x.customerTypeLabel || "—") + "</td>"
                     + "<td>" + AFS.escapeHtml(sessionRentalLabel(x)) + "</td>"
+                    + "<td>" + deletedByLabel(x) + "</td>"
+                    + "<td>" + actionCell(x) + "</td>"
                     + "</tr>";
             }).join("");
+        }
+
+        async function postCustomerAction(id, action) {
+            var url = action === "delete"
+                ? "/admin/customers/" + id + "/delete"
+                : "/admin/customers/" + id + "/restore";
+            var body = new URLSearchParams();
+            body.set("__RequestVerificationToken", antiforgeryToken());
+            var res = await fetch(url, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "RequestVerificationToken": antiforgeryToken()
+                },
+                body: body.toString()
+            });
+            var data = null;
+            try { data = await res.json(); } catch (_) { /* ignore */ }
+            if (!res.ok) {
+                throw new Error((data && data.error) || "Əməliyyat alınmadı.");
+            }
+            return data;
+        }
+
+        if (tbody) {
+            tbody.addEventListener("click", function (e) {
+                var btn = e.target && e.target.closest ? e.target.closest("button[data-action]") : null;
+                if (!btn) return;
+                var id = btn.getAttribute("data-id");
+                var action = btn.getAttribute("data-action");
+                if (!id || !action) return;
+                var confirmMsg = action === "delete"
+                    ? "Müştəri silinsin?"
+                    : "Müştəri bərpa edilsin?";
+                if (!window.confirm(confirmMsg)) return;
+                btn.disabled = true;
+                postCustomerAction(id, action)
+                    .then(function () { return loadList(); })
+                    .catch(function (err) {
+                        alert(err && err.message ? err.message : "Əməliyyat alınmadı.");
+                    })
+                    .finally(function () { btn.disabled = false; });
+            });
         }
 
         async function loadList() {
@@ -188,7 +348,7 @@
                 renderRows(items);
                 if (countLabel) countLabel.textContent = "Cəmi: " + items.length + " müştəri";
             } catch (e) {
-                if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="11" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
             } finally {
                 if (tableCard) tableCard.classList.remove("loading");
             }
@@ -199,16 +359,41 @@
             debounceTimer = setTimeout(loadList, delayMs);
         }
 
+        function onStatusChange() {
+            var activeEl = form.elements.namedItem("active");
+            if (activeEl && activeEl.value === "inactive") {
+                clearDateRange();
+                markPresetActive("all");
+            }
+        }
+
+        document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                applyPreset(btn.getAttribute("data-preset") || "all");
+            });
+        });
+
         if (form && AFS) {
             AFS.initForm(STORAGE_KEY, form, {
                 applyDefaults: function (f) {
-                    var today = AFS.todayIso();
-                    var from = f.elements.namedItem("registeredFrom");
-                    var to = f.elements.namedItem("registeredTo");
-                    if (from && "value" in from && !from.value) from.value = today;
-                    if (to && "value" in to && !to.value) to.value = today;
+                    var active = f.elements.namedItem("active");
+                    if (active && "value" in active && !active.value) active.value = "active";
+                    clearDateRange();
+                    markPresetActive("all");
                 }
             });
+
+            // Saxlanmış dar tarix / kateqoriya səhv nəticə verməsin deyə:
+            // açılışda Status boşdursa Aktiv; boz tarixlər Hamısı sayılır.
+            (function syncPresetFromDates() {
+                var from = fromEl && fromEl.value ? fromEl.value : "";
+                var to = toEl && toEl.value ? toEl.value : "";
+                if (!from && !to) {
+                    markPresetActive("all");
+                    return;
+                }
+                markPresetActive("");
+            })();
 
             form.addEventListener("submit", function (e) {
                 e.preventDefault();
@@ -229,7 +414,12 @@
                 var el = form.elements[i];
                 if (!el.name || el === searchInput) continue;
                 if (el.tagName === "SELECT" || el.type === "date") {
-                    el.addEventListener("change", function () {
+                    el.addEventListener("change", function (ev) {
+                        if (applyingPreset) return;
+                        if (ev.target && ev.target.name === "active") onStatusChange();
+                        if (ev.target && (ev.target.name === "registeredFrom" || ev.target.name === "registeredTo")) {
+                            markPresetActive("");
+                        }
                         syncExportUrl();
                         scheduleLoad(0);
                     });
@@ -238,7 +428,7 @@
 
             void loadList();
         } else if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Səhifə skripti yüklənmədi.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="color:#b91c1c;">Səhifə skripti yüklənmədi.</td></tr>';
         }
     })();
 </script>

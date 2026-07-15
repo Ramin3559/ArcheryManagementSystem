@@ -37,6 +37,18 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             throw new InvalidOperationException("ActiveToDateLocal must be after ActiveFromDateLocal.");
         }
 
+        var nowLocal = AzerbaijanTime.NowLocal;
+        var firstOccurrence = SubscriptionOccurrenceRules.ResolveFirstOccurrenceDateLocal(
+            request.ActiveFromDateLocal.Date,
+            request.DayOfWeek,
+            request.StartTimeLocal,
+            nowLocal);
+        if (firstOccurrence > request.ActiveToDateLocal.Date)
+        {
+            throw new InvalidOperationException(
+                "Seçilmiş həftə günü/saat üçün abunə müddətində cari vaxtdan sonra keçərli tarix qalmayıb.");
+        }
+
         if (request.LaneNumber is < 0 or > 11)
         {
             throw new InvalidOperationException("LaneNumber must be between 0 and 11.");
@@ -95,7 +107,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
                     && s.Id != existing.Id
                     && s.LaneNumber == request.LaneNumber
                     && s.DayOfWeek == request.DayOfWeek
-                    && DateRangesOverlap(s.ActiveFromDateLocal, s.ActiveToDateLocal, request.ActiveFromDateLocal, request.ActiveToDateLocal))
+                    && DateRangesOverlap(s.ActiveFromDateLocal, s.ActiveToDateLocal, firstOccurrence, request.ActiveToDateLocal))
                 .FirstOrDefault(s =>
                 {
                     var sEnd = s.StartTimeLocal
@@ -115,7 +127,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
         existing.DayOfWeek = request.DayOfWeek;
         existing.StartTimeLocal = request.StartTimeLocal;
         existing.DurationMinutes = request.DurationMinutes;
-        existing.ActiveFromDateLocal = request.ActiveFromDateLocal.Date;
+        existing.ActiveFromDateLocal = firstOccurrence;
         existing.ActiveToDateLocal = request.ActiveToDateLocal.Date;
         existing.IsEnabled = true;
         existing.PreferredLaneType = request.PreferredLaneType;
@@ -151,7 +163,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
                         var sEndLocal = sEndUtc.ToLocalTime();
 
                         var sDate = sStartLocal.Date;
-                        if (sDate < request.ActiveFromDateLocal.Date || sDate > request.ActiveToDateLocal.Date) continue;
+                        if (sDate < firstOccurrence || sDate > request.ActiveToDateLocal.Date) continue;
                         if ((int)sDate.DayOfWeek != request.DayOfWeek) continue;
 
                         var sStartTod = sStartLocal.TimeOfDay;
@@ -168,11 +180,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
                 }
             }
 
-            var nextLocal = request.ActiveFromDateLocal.Date;
-            for (var guard = 0; guard < 14 && (int)nextLocal.DayOfWeek != request.DayOfWeek; guard++)
-            {
-                nextLocal = nextLocal.AddDays(1);
-            }
+            var nextLocal = firstOccurrence;
             var slotLocal = nextLocal.Add(request.StartTimeLocal);
             var startUtc = DateTime.SpecifyKind(slotLocal, DateTimeKind.Local).ToUniversalTime();
             var endUtc = startUtc.AddMinutes(request.DurationMinutes);

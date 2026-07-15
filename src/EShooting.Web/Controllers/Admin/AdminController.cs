@@ -1,5 +1,7 @@
 using System.Globalization;
+using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Domain.Entities;
 using EShooting.Web.Auth;
 using EShooting.Web.Helpers;
 using EShooting.Domain.Enums;
@@ -19,22 +21,12 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
+        var stats = ComputeTodayDashboardStats(sessions, athletes, lanes);
 
-        var totalRegistrations = sessions.Count;
-        var activeSubscribers = athletes.Count(a => a.IsSubscriber);
-        var todayLocal = DateTime.Now.Date;
-        var todaysSessions = sessions.Count(s => DateTimeAssumedLocal(DateTimeAssumedUtc(s.StartTimeUtc)).Date == todayLocal);
-
-        var popularLaneNumber = sessions
-            .GroupBy(s => lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0)
-            .OrderByDescending(g => g.Count())
-            .Select(g => g.Key)
-            .FirstOrDefault();
-
-        ViewData["TotalRegistrations"] = totalRegistrations;
-        ViewData["ActiveSubscribers"] = activeSubscribers;
-        ViewData["TodaysSessions"] = todaysSessions;
-        ViewData["PopularLane"] = popularLaneNumber <= 0 ? "—" : $"Zolaq {popularLaneNumber}";
+        ViewData["TotalRegistrations"] = stats.TotalRegistrations;
+        ViewData["ActiveSubscribers"] = stats.ActiveSubscribers;
+        ViewData["TodaysSessions"] = stats.TodaysSessions;
+        ViewData["PopularLane"] = stats.PopularLane;
         ViewData["LaneAnalyticsToday"] = AdminLaneAnalytics.ComputeToday(sessions, lanes);
         return View("~/Views/Admin/Dashboard.cshtml");
     }
@@ -45,24 +37,14 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
-
-        var totalRegistrations = sessions.Count;
-        var activeSubscribers = athletes.Count(a => a.IsSubscriber);
-        var todayLocal = DateTime.Now.Date;
-        var todaysSessions = sessions.Count(s => DateTimeAssumedLocal(DateTimeAssumedUtc(s.StartTimeUtc)).Date == todayLocal);
-
-        var popularLaneNumber = sessions
-            .GroupBy(s => lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0)
-            .OrderByDescending(g => g.Count())
-            .Select(g => g.Key)
-            .FirstOrDefault();
+        var stats = ComputeTodayDashboardStats(sessions, athletes, lanes);
 
         return Ok(new
         {
-            totalRegistrations,
-            activeSubscribers,
-            todaysSessions,
-            popularLane = popularLaneNumber <= 0 ? "—" : $"Zolaq {popularLaneNumber}"
+            totalRegistrations = stats.TotalRegistrations,
+            activeSubscribers = stats.ActiveSubscribers,
+            todaysSessions = stats.TodaysSessions,
+            popularLane = stats.PopularLane
         });
     }
 
@@ -148,11 +130,7 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
     }
 
     [HttpGet("history")]
-    public IActionResult History()
-    {
-        ViewData["Title"] = "Tarixçə";
-        return View("~/Views/Admin/History.cshtml");
-    }
+    public IActionResult History() => RedirectPermanent("/admin/customers");
 
     [HttpGet("history/data")]
     public async Task<IActionResult> HistoryData([FromQuery] HistoryFilter filter, CancellationToken cancellationToken)
@@ -211,7 +189,7 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
     {
         var from = filter.FromDate?.Date ?? DateTime.Now.Date;
         var to = filter.ToDate?.Date ?? from;
-        return from == to ? from.ToString("yyyy-MM-dd") : $"{from:yyyy-MM-dd} — {to:yyyy-MM-dd}";
+        return from == to ? DateDisplayFormats.FormatDate(from) : $"{DateDisplayFormats.FormatDate(from)} — {DateDisplayFormats.FormatDate(to)}";
     }
 
     private async Task<HistoryQueryOutcome> QueryHistoryRowsAsync(HistoryFilter filter, CancellationToken cancellationToken)
@@ -263,7 +241,7 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
 
                 return new HistoryRow
                 {
-                    DateLocal = startLocal.ToString("yyyy-MM-dd"),
+                    DateLocal = DateDisplayFormats.FormatDate(startLocal),
                     AthleteName = a?.FullName ?? "—",
                     Phone = a?.PhoneNumber ?? "—",
                     Category = a is null ? CustomerDisplayHelper.FormatCategory(CustomerCategory.Amateur) : CustomerDisplayHelper.FormatCategory(a.Category),
@@ -277,6 +255,44 @@ public sealed class AdminController(ITrainingCenterRepository repository) : Cont
             .ToList();
 
         return new HistoryQueryOutcome(rows, IdentityCriteriaNoAthleteMatch: false);
+    }
+
+    private sealed record TodayDashboardStats(
+        int TotalRegistrations,
+        int ActiveSubscribers,
+        int TodaysSessions,
+        string PopularLane);
+
+    /// <summary>Yuxarıdakı kartlar yalnız cari günə görə.</summary>
+    private TodayDashboardStats ComputeTodayDashboardStats(
+        IReadOnlyCollection<TrainingSession> sessions,
+        IReadOnlyCollection<Athlete> athletes,
+        IReadOnlyCollection<Lane> lanes)
+    {
+        var todayLocal = DateTime.Now.Date;
+        var todaySessions = sessions
+            .Where(s => DateTimeAssumedLocal(DateTimeAssumedUtc(s.StartTimeUtc)).Date == todayLocal)
+            .ToList();
+
+        var athletesById = athletes.ToDictionary(a => a.Id);
+        var todayAthleteIds = todaySessions.Select(s => s.AthleteId).Distinct().ToList();
+
+        var totalRegistrations = todayAthleteIds.Count;
+        var activeSubscribers = todayAthleteIds.Count(id =>
+            athletesById.TryGetValue(id, out var a) && a.IsSubscriber);
+        var todaysSessions = todaySessions.Count;
+
+        var popularLaneNumber = todaySessions
+            .GroupBy(s => lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .FirstOrDefault();
+
+        return new TodayDashboardStats(
+            totalRegistrations,
+            activeSubscribers,
+            todaysSessions,
+            popularLaneNumber <= 0 ? "—" : $"Zolaq {popularLaneNumber}");
     }
 
     private static DateTime DateTimeAssumedUtc(DateTime value)

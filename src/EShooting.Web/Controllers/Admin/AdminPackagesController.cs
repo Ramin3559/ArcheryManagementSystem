@@ -4,6 +4,7 @@ using EShooting.Application.Packages.Queries;
 using EShooting.Domain.Enums;
 using EShooting.Web.Contracts.Packages;
 using EShooting.Web.Auth;
+using EShooting.Web.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -111,6 +112,11 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
         }
 
         model.IsActive = Request.Form.ContainsKey("IsActive");
+
+        if (InvariantDecimalParser.ParseOptional(Request.Form["Price"].ToString()) is { } parsedPrice)
+        {
+            model.Price = parsedPrice;
+        }
 
         try
         {

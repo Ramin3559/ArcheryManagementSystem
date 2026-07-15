@@ -80,8 +80,25 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
             return Ok(new { id });
         }
+        catch (ClubCardHeldException ex)
+        {
+            return Conflict(ClubCardHeldPayload(ex));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
         catch (DbUpdateException)
         {
+            if (!string.IsNullOrWhiteSpace(clubCardQ))
+            {
+                var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCardQ, null, cancellationToken);
+                if (cardHolder is not null)
+                {
+                    return Conflict(ClubCardHeldPayload(clubCardQ, cardHolder));
+                }
+            }
+
             var existingAfterError = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken, includeInactive: true);
             if (existingAfterError is not null)
             {
@@ -101,35 +118,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     }
 
     /// <summary>
-    /// Sürətli qeydiyyat (yalnız satış üçün): ad + soyad + telefon.
+    /// Bütün axtarıla bilən müştəriləri qaytarır.
     /// </summary>
-    [HttpPost("quick-register")]
-    public async Task<IActionResult> QuickRegister([FromBody] QuickRegisterAthleteRequest request, CancellationToken cancellationToken)
-    {
-        if (!User.HasAnyReceptionPermission(
-                ReceptionStaffClaims.CanRegisterCustomers,
-                ReceptionStaffClaims.CanSellEquipment))
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
-        }
-
-        try
-        {
-            var result = await mediator.Send(
-                new QuickRegisterAthleteCommand(
-                    request.FirstName,
-                    request.LastName,
-                    request.PhoneNumber,
-                    User.GetStaffMemberId()),
-                cancellationToken);
-            return Ok(new { id = result.AthleteId, isNewCustomer = result.IsNewCustomer });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
@@ -175,6 +165,13 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         ApplyDefaultRegistrationDates(ref registeredFrom, ref registeredTo);
         CustomerCategory? cat = category is >= 0 and <= 2 ? (CustomerCategory)category.Value : null;
         var rentalFilter = string.IsNullOrWhiteSpace(sessionRental) ? equipment : sessionRental;
+        var activeKey = (active ?? "").Trim();
+        if (string.IsNullOrEmpty(activeKey)
+            || activeKey.Equals("inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            includeInactive = true;
+        }
+
         var result = await mediator.Send(
             new GetCustomersListQuery(
                 search,
@@ -209,6 +206,13 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         ApplyDefaultRegistrationDates(ref registeredFrom, ref registeredTo);
         CustomerCategory? cat = category is >= 0 and <= 2 ? (CustomerCategory)category.Value : null;
         var rentalFilter = string.IsNullOrWhiteSpace(sessionRental) ? equipment : sessionRental;
+        var activeKey = (active ?? "").Trim();
+        if (string.IsNullOrEmpty(activeKey)
+            || activeKey.Equals("inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            includeInactive = true;
+        }
+
         var result = await mediator.Send(
             new GetCustomersListQuery(search, vip, packageType, customerType, rentalFilter, active, cat, registeredFrom, registeredTo, includeInactive),
             cancellationToken);
@@ -321,10 +325,10 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var first = (request.FirstName ?? "").Trim();
         var last = (request.LastName ?? "").Trim();
         var phone = NormalizeDigits(request.PhoneNumber);
-        var email = NormalizeText(request.Email);
-        var idCard = NormalizeText(request.IdCardNumber);
-        var clubCard = NormalizeText(request.ClubCardNumber);
-        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, email, idCard, clubCard))
+        var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
+        var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
+        var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))
         {
             return BadRequest(new { error = AthleteRegistrationRules.RequiredFieldsMessage });
         }
@@ -338,6 +342,20 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 return NotFound(new { error = "Müştəri tapılmadı." });
             }
 
+            var previousCard = existing.ClubCardNumber;
+            if (!string.IsNullOrWhiteSpace(clubCard)
+                && !string.Equals(
+                    AthleteRegistrationRules.NormalizeText(previousCard),
+                    clubCard,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await ClubCardAssignmentService.EnsureCardAvailableAsync(
+                    repository,
+                    clubCard,
+                    id,
+                    cancellationToken);
+            }
+
             await repository.UpdateAthleteAsync(new Domain.Entities.Athlete
             {
                 Id = id,
@@ -346,17 +364,31 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 FullName = $"{first} {last}".Trim(),
                 PhoneNumber = phone,
                 Email = email,
-                IdCardNumber = idCard,
+                IdCardNumber = string.IsNullOrWhiteSpace(idCard) ? null : idCard,
                 ClubCardNumber = clubCard,
                 Category = request.Category,
                 IsSubscriber = request.IsSubscriber,
                 MembershipType = request.MembershipType,
                 IsFullPackage = existing.IsFullPackage,
                 IsVip = request.IsVip,
-                IsActive = existing.IsActive
+                IsActive = existing.IsActive,
+                RegisteredByStaffId = existing.RegisteredByStaffId,
+                CreatedAtUtc = existing.CreatedAtUtc
             }, cancellationToken);
 
+            await ClubCardAssignmentService.SyncAthleteCardAsync(
+                repository,
+                id,
+                previousCard,
+                clubCard,
+                User.GetStaffMemberId(),
+                cancellationToken);
+
             return Ok(new { message = "Məlumatlar uğurla yeniləndi." });
+        }
+        catch (ClubCardHeldException ex)
+        {
+            return Conflict(ClubCardHeldPayload(ex));
         }
         catch (InvalidOperationException ex)
         {
@@ -364,8 +396,61 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
         catch (DbUpdateException)
         {
+            if (!string.IsNullOrWhiteSpace(clubCard))
+            {
+                var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCard, id, cancellationToken);
+                if (cardHolder is not null)
+                {
+                    return Conflict(ClubCardHeldPayload(clubCard, cardHolder));
+                }
+            }
+
             return Conflict(new { error = "Bu telefon/email/FİN/kart nömrəsi artıq başqa bir şəxsə aiddir." });
         }
+    }
+
+    [HttpPost("{id:guid}/return-club-card")]
+    public async Task<IActionResult> ReturnClubCard([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        if (!User.HasAnyReceptionPermission(
+                ReceptionStaffClaims.CanEditCustomerDetails,
+                ReceptionStaffClaims.CanRegisterCustomers))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
+        }
+
+        try
+        {
+            await mediator.Send(new ReturnClubCardCommand(id, User.GetStaffMemberId()), cancellationToken);
+            return Ok(new { message = "Kart qaytarıldı — nömrə azad edildi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("club-card-holder")]
+    public async Task<IActionResult> GetClubCardHolder([FromQuery] string? cardNumber, CancellationToken cancellationToken)
+    {
+        var card = AthleteRegistrationRules.NormalizeText(cardNumber);
+        if (string.IsNullOrWhiteSpace(card) || card.Length < 1)
+        {
+            return BadRequest(new { error = "Kart nömrəsi daxil edin." });
+        }
+
+        var holder = await repository.FindAthleteByClubCardNumberAsync(card, null, cancellationToken);
+        if (holder is null)
+        {
+            return Ok(new { held = false });
+        }
+
+        return Ok(new
+        {
+            held = true,
+            error = ClubCardAssignmentService.FormatHeldByMessage(card, holder),
+            holder = MapExistingAthlete(holder)
+        });
     }
 
     /// <summary>
@@ -497,7 +582,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.IsFullPackage,
             best.IsVip,
             hasActiveWalkIn = activeVip is not null,
-            walkInExpiresLocal = activeVip?.ActiveToDateLocal.ToString("yyyy-MM-dd"),
+            walkInExpiresLocal = activeVip is null ? null : DateDisplayFormats.FormatDate(activeVip.ActiveToDateLocal),
             walkInSessionDurationMinutes = 0
         });
     }
@@ -507,8 +592,13 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     {
         try
         {
-            await mediator.Send(new SetAthleteActiveCommand(id, false), cancellationToken);
-            return Ok(new { message = "Müştəri deaktiv edildi — siyahıdan çıxarıldı." });
+            await mediator.Send(
+                new SetAthleteActiveCommand(
+                    id,
+                    IsActive: false,
+                    DeletedByStaffId: User.GetStaffMemberId()),
+                cancellationToken);
+            return Ok(new { message = "Müştəri silindi." });
         }
         catch (InvalidOperationException ex)
         {
@@ -521,8 +611,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     {
         try
         {
-            await mediator.Send(new SetAthleteActiveCommand(id, true), cancellationToken);
-            return Ok(new { message = "Müştəri yenidən aktiv edildi." });
+            await mediator.Send(new SetAthleteActiveCommand(id, IsActive: true), cancellationToken);
+            return Ok(new { message = "Müştəri bərpa edildi." });
         }
         catch (InvalidOperationException ex)
         {
@@ -563,6 +653,16 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         existing.IsFullPackage,
         existing.IsVip,
         existing.IsActive
+    };
+
+    private static object ClubCardHeldPayload(ClubCardHeldException ex) => ClubCardHeldPayload(ex.CardNumber, ex.Holder);
+
+    private static object ClubCardHeldPayload(string cardNumber, Domain.Entities.Athlete holder) => new
+    {
+        error = ClubCardAssignmentService.FormatHeldByMessage(cardNumber, holder),
+        clubCardHeld = true,
+        clubCardNumber = cardNumber,
+        holder = MapExistingAthlete(holder)
     };
 
     private static string NormalizeDigits(string? value)

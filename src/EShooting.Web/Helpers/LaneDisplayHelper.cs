@@ -136,7 +136,8 @@ public static class LaneDisplayHelper
         string? storedStatus,
         DateTime? startTimeUtc,
         DateTime? endTimeUtc,
-        bool isOpenEnded)
+        bool isOpenEnded,
+        bool isSessionActivated = false)
     {
         var st = storedStatus ?? "Idle";
         if (startTimeUtc is null || endTimeUtc is null)
@@ -152,13 +153,9 @@ public static class LaneDisplayHelper
             ? DateTime.SpecifyKind(endTimeUtc.Value, DateTimeKind.Utc)
             : endTimeUtc.Value.ToUniversalTime();
 
-        if (string.Equals(st, "Scheduled", StringComparison.OrdinalIgnoreCase))
+        // Never-activated sessions stay Planned forever (UI), regardless of clock.
+        if (!isSessionActivated)
         {
-            if (nowUtc >= endUtc && endUtc > startUtc)
-            {
-                return "Completed";
-            }
-
             return "Scheduled";
         }
 

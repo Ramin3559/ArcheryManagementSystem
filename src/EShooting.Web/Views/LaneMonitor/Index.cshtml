@@ -1069,6 +1069,15 @@
             ringEl.setAttribute("data-time-wide", isWide ? "1" : "0");
         }
 
+        function isRingSessionActivated(ringEl) {
+            if (!(ringEl instanceof HTMLElement)) return true;
+            return ringEl.dataset.activated !== "0";
+        }
+
+        function isPlannedLaneRing(ringEl, status) {
+            return status === "Scheduled" || !isRingSessionActivated(ringEl);
+        }
+
         function updateCountdownRings() {
             document.querySelectorAll("[data-countdown-ring]").forEach(el => {
                 if (!(el instanceof HTMLElement)) return;
@@ -1106,6 +1115,18 @@
                     if (vipMode && start) {
                         const vipStartMs = parseApiDate(start).getTime();
                         const vipNowMs = Date.now();
+
+                        // Aktiv edilməyən planlı sessiya heç vaxt Bitib/keçən vaxt göstərməsin.
+                        if (isPlannedLaneRing(el, status)) {
+                            el.classList.add("is-pending", "is-open-ended");
+                            timerEl.textContent = Number.isFinite(vipStartMs)
+                                ? new Date(vipStartMs).toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" })
+                                : "—";
+                            if (captionEl) captionEl.textContent = "Planlı";
+                            setBottomHint("", "");
+                            applyRingRemaining(progressEl, 1);
+                            return;
+                        }
 
                         if (status === "Completed") {
                             el.classList.add("is-done");
@@ -1149,6 +1170,16 @@
                     const timedSession = hasValidTimeWindow(startMs, endMs);
 
                     if (!start || !end || !timedSession) {
+                        if (isPlannedLaneRing(el, status)) {
+                            el.classList.add("is-pending");
+                            const untilStartMs = Number.isFinite(startMs) ? Math.max(0, startMs - nowMs) : 0;
+                            timerEl.textContent = untilStartMs > 0 ? formatSeconds(untilStartMs) : "—";
+                            if (captionEl) captionEl.textContent = untilStartMs > 0 ? "Başlayır" : "Planlı";
+                            setBottomHint("", "");
+                            applyRingRemaining(progressEl, 1);
+                            return;
+                        }
+
                         if (status === "Completed") {
                             el.classList.add("is-done");
                             timerEl.textContent = "Bitib";
@@ -1157,16 +1188,6 @@
                                 setBottomHint("", "");
                             }
                             applyRingRemaining(progressEl, 0);
-                            return;
-                        }
-
-                        if (status === "Scheduled") {
-                            el.classList.add("is-pending");
-                            const untilStartMs = Number.isFinite(startMs) ? Math.max(0, startMs - nowMs) : 0;
-                            timerEl.textContent = untilStartMs > 0 ? formatSeconds(untilStartMs) : "—";
-                            if (captionEl) captionEl.textContent = untilStartMs > 0 ? "Başlayır" : "Planlı";
-                            setBottomHint("", "");
-                            applyRingRemaining(progressEl, 1);
                             return;
                         }
 
@@ -1188,6 +1209,16 @@
                         return;
                     }
 
+                    if (isPlannedLaneRing(el, status)) {
+                        el.classList.add("is-pending");
+                        const startLocal = new Date(startMs);
+                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+                        if (captionEl) captionEl.textContent = "Planlı";
+                        setBottomHint("", "");
+                        applyRingRemaining(progressEl, 1);
+                        return;
+                    }
+
                     if (status === "Completed") {
                         el.classList.add("is-done");
                         timerEl.textContent = "Bitib";
@@ -1196,16 +1227,6 @@
                             setBottomHint("", "");
                         }
                         applyRingRemaining(progressEl, 0);
-                        return;
-                    }
-
-                    if (status === "Scheduled") {
-                        el.classList.add("is-pending");
-                        const startLocal = new Date(startMs);
-                        timerEl.textContent = startLocal.toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
-                        if (captionEl) captionEl.textContent = "Planlı";
-                        setBottomHint("", "");
-                        applyRingRemaining(progressEl, 1);
                         return;
                     }
 

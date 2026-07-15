@@ -21,7 +21,7 @@ namespace EShooting.Web.Controllers;
 public sealed class SessionsController(IMediator mediator, ITrainingCenterRepository repository, IRealtimeNotifier notifier) : ControllerBase
 {
     private static bool HasActivation(TrainingSession session)
-        => session.ActivatedAtUtc is not null || session.Status == SessionStatus.Active;
+        => SessionActivationRules.HasActivation(session);
 
     private static DateTime ResolveEffectiveStartUtc(TrainingSession session)
         => session.ActivatedAtUtc is DateTime a ? DateTimeAssumedUtc.AsUtc(a) : DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
@@ -40,9 +40,9 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         [FromQuery] DateTime dateLocal,
         CancellationToken cancellationToken)
     {
+        // Query string tarixini Bakı kalendar günü kimi götürürük (server Local TZ-dən asılı deyil).
         var day = dateLocal.Date;
-        var startUtc = DateTime.SpecifyKind(day, DateTimeKind.Local).ToUniversalTime();
-        var endUtc = DateTime.SpecifyKind(day.AddDays(1), DateTimeKind.Local).ToUniversalTime();
+        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, day, cancellationToken);
 
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -50,11 +50,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         var nowUtc = DateTime.UtcNow;
 
         var items = sessions
-            .Where(s =>
-            {
-                var sStart = DateTimeAssumedUtc.AsUtc(s.StartTimeUtc);
-                return sStart >= startUtc && sStart < endUtc;
-            })
+            .Where(s => AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(s.StartTimeUtc)) == day)
             .OrderBy(s => DateTimeAssumedUtc.AsUtc(s.StartTimeUtc))
             .Select(s =>
             {
@@ -64,7 +60,9 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 var effectiveEndUtc = HasActivation(s) ? ResolveEffectiveEndUtc(s) : sEndUtc;
                 var laneNumber = lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0;
                 var athleteName = athletes.FirstOrDefault(a => a.Id == s.AthleteId)?.FullName ?? "—";
-                var kind = LaneDisplayHelper.IsGroupAthleteName(athleteName) ? "Qrup" : "Anlıq";
+                var kind = s.SubscriptionScheduleId is not null
+                    ? "Abunə"
+                    : (LaneDisplayHelper.IsGroupAthleteName(athleteName) ? "Qrup" : "Anlıq");
                 var derivedStatus = s.Status;
                 if (derivedStatus != SessionStatus.Completed)
                 {
@@ -175,7 +173,8 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 request.PreferredLaneType,
                 equipmentIssues,
                 User.GetStaffMemberId(),
-                request.ForceOpenEnded), cancellationToken);
+                request.ForceOpenEnded,
+                request.ActivateImmediately), cancellationToken);
 
             var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
             var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -202,81 +201,13 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message.Contains("tutulub", StringComparison.OrdinalIgnoreCase))
-            {
-                return Conflict(new { error = ex.Message });
-            }
-            if (ex.Message.Contains("aktivdir", StringComparison.OrdinalIgnoreCase))
-            {
-                return Conflict(new { error = ex.Message });
-            }
-            // Smart lane allocation: if lane is reserved/busy, try other lanes automatically.
-            if (ex.Message.Contains("rezerv", StringComparison.OrdinalIgnoreCase)
+            if (ex.Message.Contains("tutulub", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("aktivdir", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("rezerv", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("doludur", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("busy", StringComparison.OrdinalIgnoreCase))
             {
-                if (request.LaneNumber <= 0)
-                {
-                    return Conflict(new { error = ex.Message });
-                }
-
-                var athletes = await repository.GetAthletesAsync(cancellationToken);
-                var athlete = athletes.FirstOrDefault(x => x.Id == request.AthleteId);
-                var allowed = athlete?.Category == CustomerCategory.Amateur
-                    ? Enumerable.Range(1, 8).ToList()
-                    : request.PreferredLaneType switch
-                    {
-                        PreferredLaneType.Short => Enumerable.Range(1, 8).ToList(),
-                        PreferredLaneType.Long => Enumerable.Range(9, 3).ToList(),
-                        _ => Enumerable.Range(1, 11).ToList()
-                    };
-
-                foreach (var alt in allowed.Where(x => x != request.LaneNumber))
-                {
-                    try
-                    {
-                        var sid = await mediator.Send(
-                            new ScheduleSessionCommand(
-                                request.AthleteId,
-                                alt,
-                                request.StartTimeUtc,
-                                request.DurationMinutes,
-                                request.IsEquipmentIssued,
-                                request.PreferredLaneType,
-                                equipmentIssues,
-                                User.GetStaffMemberId(),
-                                request.ForceOpenEnded),
-                            cancellationToken);
-
-                        if (request.ServicePackageId is Guid altPkgId && altPkgId != Guid.Empty)
-                        {
-                            await CustomerBillingService.RecordSessionBookingBillingAsync(
-                                repository,
-                                request.AthleteId,
-                                altPkgId,
-                                sid,
-                                request.DiscountAmount,
-                                request.AmountPaidCash,
-                                request.AmountPaidCard,
-                                request.IsComplimentary,
-                                User.GetStaffMemberId(),
-                                cancellationToken);
-                        }
-
-                        return Ok(new
-                        {
-                            sessionId = sid,
-                            laneNumber = alt,
-                            message = $"Seçdiyiniz zolaq doludur, qeydiyyat avtomatik olaraq boş olan {alt} nömrəli zolağa keçirildi."
-                        });
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // try next lane
-                    }
-                }
-
-                return Conflict(new { error = "Seçdiyiniz vaxt aralığında bütün zolaqlar doludur. Zəhmət olmasa başqa vaxt seçin." });
+                return Conflict(new { error = ex.Message });
             }
 
             return BadRequest(new { error = ex.Message });
@@ -288,6 +219,38 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         [FromBody] RegisterGroupOnLaneRequest request,
         CancellationToken cancellationToken)
     {
+        if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanManageSessions) is { } denied)
+        {
+            return denied;
+        }
+
+        if (request.IsComplimentary
+            && ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanGrantComplimentarySession) is { } compDenied)
+        {
+            return compDenied;
+        }
+
+        if (!request.IsComplimentary)
+        {
+            try
+            {
+                PaymentSettlementRules.EnsureDiscountAllowed(
+                    request.DiscountAmount,
+                    User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        var equipmentIssues = MapEquipmentIssues(request.EquipmentIssues);
+        if ((request.IsEquipmentIssued || equipmentIssues.Count > 0)
+            && ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanManageEquipment) is { } equipDenied)
+        {
+            return equipDenied;
+        }
+
         try
         {
             var result = await mediator.Send(
@@ -296,8 +259,32 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                     request.LaneNumber,
                     request.StartTimeUtc,
                     request.DurationMinutes,
-                    request.IsEquipmentIssued),
+                    request.IsEquipmentIssued,
+                    request.ActivateImmediately,
+                    equipmentIssues,
+                    User.GetStaffMemberId()),
                 cancellationToken);
+
+            if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)
+            {
+                var first = result.Sessions.FirstOrDefault();
+                if (first is not null)
+                {
+                    var packageQuantity = Math.Max(1, request.AthleteNames?.Count(n => !string.IsNullOrWhiteSpace(n)) ?? 1);
+                    await CustomerBillingService.RecordSessionBookingBillingAsync(
+                        repository,
+                        first.AthleteId,
+                        pkgId,
+                        first.SessionId,
+                        request.DiscountAmount,
+                        request.AmountPaidCash,
+                        request.AmountPaidCard,
+                        request.IsComplimentary,
+                        User.GetStaffMemberId(),
+                        cancellationToken,
+                        packageQuantity);
+                }
+            }
 
             return Ok(new
             {
@@ -909,15 +896,21 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
             return NotFound(new { error = "Sessiya tapılmadı." });
         }
 
-        if (session.Status == SessionStatus.Completed)
+        if (session.Status != SessionStatus.Completed)
         {
-            return Ok(new { sessionId = id });
+            // Planlı abunə seansı: həm seansı bağla, həm təqvimdən həmin günü sil.
+            if (!HasActivation(session) && session.SubscriptionScheduleId is not null)
+            {
+                await SubscriptionOccurrenceCancel.CancelScheduledSessionAsync(repository, session, cancellationToken);
+            }
+            else
+            {
+                session.Status = SessionStatus.Completed;
+                session.ActivatedAtUtc = null;
+                session.EndTimeUtc = session.StartTimeUtc;
+                await repository.UpdateSessionAsync(session, cancellationToken);
+            }
         }
-
-        session.Status = SessionStatus.Completed;
-        session.ActivatedAtUtc = null;
-        session.EndTimeUtc = session.StartTimeUtc;
-        await repository.UpdateSessionAsync(session, cancellationToken);
 
         var laneNumber = (await repository.GetLanesAsync(cancellationToken)).FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? 0;
         if (laneNumber > 0)

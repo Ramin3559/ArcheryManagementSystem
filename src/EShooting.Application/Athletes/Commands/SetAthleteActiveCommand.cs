@@ -3,7 +3,11 @@ using MediatR;
 
 namespace EShooting.Application.Athletes.Commands;
 
-public sealed record SetAthleteActiveCommand(Guid AthleteId, bool IsActive) : IRequest;
+public sealed record SetAthleteActiveCommand(
+    Guid AthleteId,
+    bool IsActive,
+    Guid? DeletedByStaffId = null,
+    string? DeletedByAdminUserName = null) : IRequest;
 
 public sealed class SetAthleteActiveCommandHandler(ITrainingCenterRepository repository)
     : IRequestHandler<SetAthleteActiveCommand>
@@ -24,9 +28,23 @@ public sealed class SetAthleteActiveCommandHandler(ITrainingCenterRepository rep
 
             athlete.IsSubscriber = false;
             athlete.IsFullPackage = false;
+            athlete.IsActive = false;
+            athlete.DeletedAtUtc = DateTime.UtcNow;
+            athlete.DeletedByStaffId = request.DeletedByStaffId is Guid sid && sid != Guid.Empty
+                ? sid
+                : null;
+            athlete.DeletedByAdminUserName = string.IsNullOrWhiteSpace(request.DeletedByAdminUserName)
+                ? null
+                : request.DeletedByAdminUserName.Trim();
+        }
+        else
+        {
+            athlete.IsActive = true;
+            athlete.DeletedAtUtc = null;
+            athlete.DeletedByStaffId = null;
+            athlete.DeletedByAdminUserName = null;
         }
 
-        athlete.IsActive = request.IsActive;
         await repository.UpdateAthleteAsync(athlete, cancellationToken);
     }
 }

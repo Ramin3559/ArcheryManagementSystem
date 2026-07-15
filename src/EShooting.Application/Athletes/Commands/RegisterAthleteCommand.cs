@@ -26,13 +26,22 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
         var first = AthleteRegistrationRules.NormalizeText(request.FirstName);
         var last = AthleteRegistrationRules.NormalizeText(request.LastName);
         var phone = AthleteRegistrationRules.NormalizeDigits(request.PhoneNumber);
-        var email = AthleteRegistrationRules.NormalizeEmail(request.Email);
+        var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
         var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
-        var clubCard = AthleteRegistrationRules.NormalizeText(request.ClubCardNumber);
+        var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
 
-        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, email, idCard, clubCard))
+        if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))
         {
             throw new InvalidOperationException(AthleteRegistrationRules.RequiredFieldsMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(clubCard))
+        {
+            await ClubCardAssignmentService.EnsureCardAvailableAsync(
+                repository,
+                clubCard,
+                excludeAthleteId: null,
+                cancellationToken);
         }
 
         var athlete = new Athlete
@@ -54,6 +63,18 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
         };
 
         var created = await repository.AddAthleteAsync(athlete, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(clubCard))
+        {
+            await repository.AddClubCardAssignmentAsync(new ClubCardAssignment
+            {
+                CardNumber = clubCard,
+                AthleteId = created.Id,
+                IssuedAtUtc = DateTime.UtcNow,
+                IssuedByStaffId = request.RegisteredByStaffId
+            }, cancellationToken);
+        }
+
         return created.Id;
     }
 }

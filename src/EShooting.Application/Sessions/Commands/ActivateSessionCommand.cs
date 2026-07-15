@@ -67,8 +67,7 @@ public sealed class ActivateSessionCommandHandler(
         }
 
         session.LaneId = lane.Id;
-        session.ActivatedAtUtc = nowUtc;
-        session.Status = SessionStatus.Active;
+        SessionActivationRules.MarkActivated(session, nowUtc);
         await repository.UpdateSessionAsync(session, cancellationToken);
 
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);

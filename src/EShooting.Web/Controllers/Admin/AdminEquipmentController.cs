@@ -5,6 +5,7 @@ using EShooting.Application.StaffMembers.Queries;
 using EShooting.Domain.Enums;
 using EShooting.Web.Auth;
 using EShooting.Web.Contracts.Equipment;
+using EShooting.Web.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -88,10 +89,12 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
             Id = item.Id,
             Name = item.Name,
             Category = item.Category,
+            WarehouseQuantity = item.WarehouseQuantity,
             RentalQuantity = item.RentalQuantity,
             SaleQuantity = item.SaleQuantity,
             DamagedQuantity = item.DamagedQuantity,
-            Price = item.Price
+            Price = item.Price,
+            PurchasePrice = item.PurchasePrice
         });
     }
 
@@ -147,7 +150,16 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
             ModelState.AddModelError(nameof(model.Name), "Avadanlıq adı mütləqdir.");
         }
 
-        var price = model.Price is > 0 ? model.Price : null;
+        // HTML number input InvariantCulture ilə gəlir; AZ binder '.'-ni minlik sayırdı (10.5 → 105).
+        var price = InvariantDecimalParser.ParseOptionalPositiveOrNull(Request.Form["Price"].ToString());
+        var purchasePrice = InvariantDecimalParser.ParseOptionalPositiveOrNull(Request.Form["PurchasePrice"].ToString());
+        model.Price = price;
+        model.PurchasePrice = purchasePrice;
+
+        if (!ModelState.IsValid)
+        {
+            return View("~/Views/Admin/Equipment/Form.cshtml", model);
+        }
 
         try
         {
@@ -155,10 +167,12 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
                 model.Id,
                 model.Name,
                 model.Category,
+                model.WarehouseQuantity,
                 model.RentalQuantity,
                 model.SaleQuantity,
                 model.DamagedQuantity,
-                price), cancellationToken);
+                price,
+                purchasePrice), cancellationToken);
 
             TempData["EquipmentNotice"] = model.Id is null ? "Avadanlıq yaradıldı." : "Avadanlıq yeniləndi.";
             return RedirectToAction(nameof(Index));

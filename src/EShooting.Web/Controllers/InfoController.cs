@@ -137,6 +137,7 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             phoneNumber = athlete.PhoneNumber,
             email = athlete.Email,
             idCardNumber = athlete.IdCardNumber,
+            clubCardNumber = athlete.ClubCardNumber,
             category = athlete.Category,
             membershipType = athlete.MembershipType,
             isSubscriber = athlete.IsSubscriber,

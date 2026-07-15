@@ -5,10 +5,12 @@ public sealed class EquipmentItemFormModel
     public Guid? Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Category { get; set; }
+    public int WarehouseQuantity { get; set; }
     public int RentalQuantity { get; set; }
     public int SaleQuantity { get; set; }
     public int DamagedQuantity { get; set; }
     public decimal? Price { get; set; }
+    public decimal? PurchasePrice { get; set; }
 }
 
 public sealed class EquipmentHistoryFilter

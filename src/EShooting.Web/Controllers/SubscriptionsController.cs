@@ -7,6 +7,7 @@ using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 using EShooting.Web.Contracts.Subscriptions;
 using EShooting.Application.Customers;
+using EShooting.Web.Auth;
 using EShooting.Web.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +28,8 @@ public sealed class SubscriptionsController(
         [FromBody] AnalyzeSubscriptionScheduleRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TimeSpan.TryParse(request.StartTimeLocal, out var startTimeLocal))
+        if (!TimeSpan.TryParse(request.StartTimeLocal, out var startTimeLocal)
+            || !IsValidTimeOfDay(startTimeLocal))
         {
             return BadRequest(new { error = "Saat formatı yanlışdır (HH:mm)." });
         }
@@ -77,41 +79,36 @@ public sealed class SubscriptionsController(
 
         var from = request.ActiveFromDateLocal.Date;
         var to = request.ActiveToDateLocal.Date;
+        var nowLocal = AzerbaijanTime.NowLocal;
+        var firstOccurrence = SubscriptionOccurrenceRules.ResolveFirstOccurrenceDateLocal(
+            from,
+            request.DayOfWeek,
+            startTimeLocal,
+            nowLocal);
+        if (firstOccurrence > to)
+        {
+            firstOccurrence = to.AddDays(1); // diapazonda heç nə
+        }
+
+        from = firstOccurrence;
         var occurrences = new List<object>();
         var conflictCount = 0;
 
         for (var day = from; day <= to; day = day.AddDays(1))
         {
             if ((int)day.DayOfWeek != request.DayOfWeek) continue;
+            if (SubscriptionOccurrenceRules.IsSlotInThePast(day, startTimeLocal, nowLocal)) continue;
 
-            var slotLocal = day.Add(startTimeLocal);
-            var reqStartUtc = DateTime.SpecifyKind(slotLocal, DateTimeKind.Local).ToUniversalTime();
-            var reqEndUtc = reqStartUtc.AddMinutes(request.DurationMinutes);
-
-            bool IsLaneBusy(int laneNumber)
-            {
-                var lane = lanes.FirstOrDefault(l => l.Number == laneNumber);
-                if (lane is null) return true;
-
-                var busyBySession = sessions
-                    .Where(s => s.LaneId == lane.Id)
-                    .Any(s => LaneReservationRules.OverlapsSession(s, reqStartUtc, reqEndUtc, nowUtc));
-                if (busyBySession) return true;
-
-                var reqStartLocal = slotLocal;
-                var reqEndLocal = slotLocal.AddMinutes(request.DurationMinutes);
-                return schedules.Any(s =>
-                {
-                    if (!s.IsEnabled) return false;
-                    if (day < s.ActiveFromDateLocal.Date || day > s.ActiveToDateLocal.Date) return false;
-                    if (s.DayOfWeek != (int)day.DayOfWeek) return false;
-                    var reservedLane = s.LastAssignedLaneNumber ?? (s.LaneNumber > 0 ? s.LaneNumber : (int?)null);
-                    if (reservedLane != laneNumber) return false;
-                    var subStart = day.Add(s.StartTimeLocal);
-                    var subEnd = subStart.AddMinutes(s.DurationMinutes);
-                    return reqStartLocal < subEnd && reqEndLocal > subStart;
-                });
-            }
+            bool IsLaneBusy(int laneNumber) =>
+                SubscriptionSlotConflict.IsLaneSlotBusy(
+                    sessions,
+                    schedules,
+                    lanes,
+                    laneNumber,
+                    day,
+                    startTimeLocal,
+                    request.DurationMinutes,
+                    nowUtc);
 
             var baseBusy = IsLaneBusy(request.LaneNumber);
 
@@ -122,41 +119,25 @@ public sealed class SubscriptionsController(
                 .Where(n => !busyLanesSameTime.Contains(n))
                 .ToArray();
 
-            // Find a few alternative times on the same lane for this date.
+            // Eyni zolaqda boş alternativ saatlar (30 dəq addım, Bakı vaxtı).
             var altTimes = new List<string>();
-            var lane = lanes.FirstOrDefault(l => l.Number == request.LaneNumber);
-            if (lane is not null)
+            for (var minuteOfDay = 0; minuteOfDay <= 24 * 60 - request.DurationMinutes; minuteOfDay += 30)
             {
-                for (var cursor = day; cursor < day.AddDays(1); cursor = cursor.AddMinutes(30))
+                var altStart = TimeSpan.FromMinutes(minuteOfDay);
+                if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                        sessions,
+                        schedules,
+                        lanes,
+                        request.LaneNumber,
+                        day,
+                        altStart,
+                        request.DurationMinutes,
+                        nowUtc))
                 {
-                    var altStartUtc = DateTime.SpecifyKind(cursor, DateTimeKind.Local).ToUniversalTime();
-                    var altEndUtc = altStartUtc.AddMinutes(request.DurationMinutes);
-
-                    var busy = sessions
-                        .Where(s => s.LaneId == lane.Id)
-                        .Any(s => LaneReservationRules.OverlapsSession(s, altStartUtc, altEndUtc, nowUtc));
-                    if (!busy)
-                    {
-                        var reqStartLocal2 = cursor;
-                        var reqEndLocal2 = cursor.AddMinutes(request.DurationMinutes);
-                        busy = schedules.Any(s =>
-                        {
-                            if (!s.IsEnabled) return false;
-                            if (day < s.ActiveFromDateLocal.Date || day > s.ActiveToDateLocal.Date) return false;
-                            if (s.DayOfWeek != (int)day.DayOfWeek) return false;
-                            var reservedLane = s.LastAssignedLaneNumber ?? (s.LaneNumber > 0 ? s.LaneNumber : (int?)null);
-                            if (reservedLane != request.LaneNumber) return false;
-                            var subStart = day.Add(s.StartTimeLocal);
-                            var subEnd = subStart.AddMinutes(s.DurationMinutes);
-                            return reqStartLocal2 < subEnd && reqEndLocal2 > subStart;
-                        });
-                    }
-
-                    if (!busy)
-                    {
-                        altTimes.Add(cursor.ToString("HH:mm"));
-                    }
+                    continue;
                 }
+
+                altTimes.Add($"{altStart.Hours:D2}:{altStart.Minutes:D2}");
             }
 
             if (baseBusy) conflictCount++;
@@ -431,6 +412,7 @@ public sealed class SubscriptionsController(
         schedule.OccurrenceOverridesJson = overrides.Count > 0 ? OccurrenceJson.SerializeOverrides(overrides) : null;
 
         await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
+        await CancelSessionsOnLocalDateAsync(schedule.AthleteId, schedule.Id, date, cancellationToken);
         return Ok(new { message = "Bu tarix üçün seans ləğv edildi." });
     }
 
@@ -450,7 +432,8 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = "Tarix formatı yanlışdır (yyyy-MM-dd)." });
         }
 
-        if (!TimeSpan.TryParse(request.StartTimeLocal?.Trim(), out var startTimeLocal))
+        if (!TimeSpan.TryParse(request.StartTimeLocal?.Trim(), out var startTimeLocal)
+            || !IsValidTimeOfDay(startTimeLocal))
         {
             return BadRequest(new { error = "Saat formatı yanlışdır (HH:mm)." });
         }
@@ -559,6 +542,11 @@ public sealed class SubscriptionsController(
 
         schedule.OccurrenceOverridesJson = OccurrenceJson.SerializeOverrides(list);
         await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
+        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(
+            repository,
+            date.Date,
+            SubscriptionSessionEnsureMode.ForceOpen,
+            cancellationToken);
         return Ok(new { message = "Bu tarix üçün seans yeniləndi." });
     }
 
@@ -583,7 +571,8 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = "Yeni tarix formatı yanlışdır (yyyy-MM-dd)." });
         }
 
-        if (!TimeSpan.TryParse(request.StartTimeLocal?.Trim(), out var startTimeLocal))
+        if (!TimeSpan.TryParse(request.StartTimeLocal?.Trim(), out var startTimeLocal)
+            || !IsValidTimeOfDay(startTimeLocal))
         {
             return BadRequest(new { error = "Saat formatı yanlışdır (HH:mm)." });
         }
@@ -627,6 +616,16 @@ public sealed class SubscriptionsController(
         if (targetErr is not null)
         {
             return BadRequest(new { error = "Yeni tarix: " + targetErr });
+        }
+
+        var targetDateOccupied = schedules.Any(s =>
+            s.IsEnabled
+            && !s.IsFullPackage
+            && s.AthleteId == schedule.AthleteId
+            && SubscriptionOccurrenceJson.TryResolveOccurrence(s, targetDate, out _, out _, out _));
+        if (targetDateOccupied)
+        {
+            return BadRequest(new { error = "Bu tarixdə abunə artıq yazılıb." });
         }
 
         var durationMinutes = request.DurationMinutes is > 0 ? request.DurationMinutes.Value : schedule.DurationMinutes;
@@ -714,6 +713,11 @@ public sealed class SubscriptionsController(
             schedule.Id,
             sourceDate,
             cancellationToken);
+        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(
+            repository,
+            targetDate.Date,
+            SubscriptionSessionEnsureMode.ForceOpen,
+            cancellationToken);
         return Ok(new { message = "Seans yeni tarixə köçürüldü, köhnə abunə günü ləğv edildi." });
     }
 
@@ -724,9 +728,8 @@ public sealed class SubscriptionsController(
         CancellationToken cancellationToken)
     {
         var dayStartLocal = dateLocal.Date;
-        var dayEndLocal = dayStartLocal.AddDays(1);
-        var startUtc = DateTime.SpecifyKind(dayStartLocal, DateTimeKind.Local).ToUniversalTime();
-        var endUtc = DateTime.SpecifyKind(dayEndLocal, DateTimeKind.Local).ToUniversalTime();
+        var startUtc = new DateTimeOffset(dayStartLocal, AzerbaijanTime.Offset).UtcDateTime;
+        var endUtc = new DateTimeOffset(dayStartLocal.AddDays(1), AzerbaijanTime.Offset).UtcDateTime;
 
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -759,6 +762,10 @@ public sealed class SubscriptionsController(
             }
         }
     }
+
+
+    private static bool IsValidTimeOfDay(TimeSpan time) =>
+        time >= TimeSpan.Zero && time.TotalDays < 1 && time.Hours <= 23;
 
     private static string? ValidateOccurrenceDateInPeriod(SubscriptionSchedule schedule, DateTime date)
     {
@@ -1016,6 +1023,17 @@ public sealed class SubscriptionsController(
         if (!TimeSpan.TryParse(request.StartTimeLocal, out var startTimeLocal))
         {
             return BadRequest(new { error = "StartTimeLocal must be a valid time value (HH:mm)." });
+        }
+
+        try
+        {
+            PaymentSettlementRules.EnsureDiscountAllowed(
+                request.DiscountAmount,
+                User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
         }
 
         try

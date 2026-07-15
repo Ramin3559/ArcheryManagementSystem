@@ -4,7 +4,7 @@
     var st = Model.Status ?? "Idle";
     var isOpenEnded = LaneDisplayHelper.IsOpenEndedLaneSession(Model);
     var isVipTvMode = isOpenEnded;
-    var effectiveStatus = LaneDisplayHelper.ResolveEffectiveLaneStatus(st, Model.StartTimeUtc, Model.EndTimeUtc, isOpenEnded);
+    var effectiveStatus = LaneDisplayHelper.ResolveEffectiveLaneStatus(st, Model.StartTimeUtc, Model.EndTimeUtc, isOpenEnded, Model.IsSessionActivated);
 
     var hasSession = Model.IsSessionOpen && Model.SessionId is not null;
     var startText = LaneDisplayHelper.FormatScheduleTimeLocal(Model.StartTimeUtc);
@@ -84,6 +84,7 @@
                  data-start="@LaneDisplayHelper.ToIsoOffset(Model.StartTimeUtc)"
                  data-end="@LaneDisplayHelper.ToIsoOffset(Model.EndTimeUtc)"
                  data-status="@effectiveStatus"
+                 data-activated="@(Model.IsSessionActivated ? "1" : "0")"
                  data-vip-mode="@(isVipTvMode ? "1" : "0")"
                  data-pending-rental-equipment="@(Model.HasPendingRentalEquipment ? "1" : "0")">
                 <svg class="countdown-ring__svg" viewBox="0 0 100 100" aria-hidden="true">

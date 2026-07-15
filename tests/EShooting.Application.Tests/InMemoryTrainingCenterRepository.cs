@@ -66,7 +66,11 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.MembershipType = athlete.MembershipType;
         existing.IsFullPackage = athlete.IsFullPackage;
         existing.IsVip = athlete.IsVip;
+        existing.IsGroupPlaceholder = athlete.IsGroupPlaceholder;
         existing.IsActive = athlete.IsActive;
+        existing.DeletedAtUtc = athlete.DeletedAtUtc;
+        existing.DeletedByStaffId = athlete.DeletedByStaffId;
+        existing.DeletedByAdminUserName = athlete.DeletedByAdminUserName;
         existing.RegisteredByStaffId = athlete.RegisteredByStaffId;
         return Task.CompletedTask;
     }
@@ -102,6 +106,66 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
 
     public Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyCollection<CustomerPackageRecord>>(_customerPackageRecords.ToList());
+
+    private readonly List<ClubCardAssignment> _clubCardAssignments = [];
+
+    public Task<Athlete?> FindAthleteByClubCardNumberAsync(
+        string cardNumber,
+        Guid? excludeAthleteId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = (cardNumber ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return Task.FromResult<Athlete?>(null);
+        }
+
+        var holder = _athletes
+            .Where(a => !string.IsNullOrWhiteSpace(a.ClubCardNumber)
+                && string.Equals(a.ClubCardNumber.Trim(), normalized, StringComparison.OrdinalIgnoreCase))
+            .Where(a => excludeAthleteId is null || a.Id != excludeAthleteId.Value)
+            .OrderByDescending(a => a.IsActive)
+            .ThenByDescending(a => a.CreatedAtUtc)
+            .FirstOrDefault();
+        return Task.FromResult(holder);
+    }
+
+    public Task AddClubCardAssignmentAsync(ClubCardAssignment assignment, CancellationToken cancellationToken)
+    {
+        _clubCardAssignments.Add(assignment);
+        return Task.CompletedTask;
+    }
+
+    public Task CloseOpenClubCardAssignmentAsync(
+        Guid athleteId,
+        string cardNumber,
+        Guid? returnedByStaffId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = (cardNumber ?? "").Trim();
+        var now = DateTime.UtcNow;
+        foreach (var row in _clubCardAssignments.Where(x =>
+                     x.AthleteId == athleteId
+                     && x.ReturnedAtUtc is null
+                     && string.Equals(x.CardNumber.Trim(), normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            row.ReturnedAtUtc = now;
+            row.ReturnedByStaffId = returnedByStaffId;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyCollection<ClubCardAssignment>> GetClubCardAssignmentsForAthleteAsync(
+        Guid athleteId,
+        CancellationToken cancellationToken)
+    {
+        var rows = _clubCardAssignments
+            .Where(x => x.AthleteId == athleteId)
+            .OrderByDescending(x => x.IssuedAtUtc)
+            .ToList();
+        return Task.FromResult<IReadOnlyCollection<ClubCardAssignment>>(rows);
+    }
 
     public Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken)
     {
@@ -208,6 +272,27 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
             return phoneOk && emailOk && idOk;
         });
 
+        return Task.FromResult(match);
+    }
+
+    public Task<Athlete?> FindAthleteByExactPhoneAsync(
+        string phoneDigits,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
+        var normalized = string.IsNullOrWhiteSpace(phoneDigits)
+            ? ""
+            : new string(phoneDigits.Where(char.IsDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return Task.FromResult<Athlete?>(null);
+        }
+
+        var match = _athletes
+            .Where(a => includeInactive || a.IsActive)
+            .Where(a => new string((a.PhoneNumber ?? "").Where(char.IsDigit).ToArray()) == normalized)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .FirstOrDefault();
         return Task.FromResult(match);
     }
 
@@ -330,11 +415,13 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.Name = item.Name;
         existing.Category = item.Category;
         existing.UsageMode = item.UsageMode;
+        existing.WarehouseQuantity = item.WarehouseQuantity;
         existing.RentalQuantity = item.RentalQuantity;
         existing.SaleQuantity = item.SaleQuantity;
         existing.Quantity = item.Quantity;
         existing.DamagedQuantity = item.DamagedQuantity;
         existing.Price = item.Price;
+        existing.PurchasePrice = item.PurchasePrice;
         existing.IsActive = item.IsActive;
         existing.IsDeleted = item.IsDeleted;
         existing.UpdatedAtUtc = item.UpdatedAtUtc;
@@ -386,6 +473,26 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
     {
         _equipmentSaleReceipts.Add(receipt);
         _equipmentSaleReceiptLines.AddRange(lines);
+        return Task.CompletedTask;
+    }
+
+    public Task CreateEquipmentSaleAsync(
+        EquipmentSaleReceipt receipt,
+        IReadOnlyCollection<EquipmentSaleReceiptLine> lines,
+        IReadOnlyDictionary<Guid, int> quantitySoldByItemId,
+        CancellationToken cancellationToken)
+    {
+        _equipmentSaleReceipts.Add(receipt);
+        _equipmentSaleReceiptLines.AddRange(lines);
+        foreach (var (itemId, qty) in quantitySoldByItemId)
+        {
+            var item = _equipmentItems.FirstOrDefault(x => x.Id == itemId);
+            if (item is not null)
+            {
+                item.SaleQuantity = Math.Max(0, item.SaleQuantity - qty);
+            }
+        }
+
         return Task.CompletedTask;
     }
 

@@ -11,7 +11,8 @@ public static class AdminEquipmentCatalogExcelExporter
         var ws = wb.Worksheets.Add("Avadanlıqlar");
         var headers = new[]
         {
-            "Ad", "Kateqoriya", "Zalda", "Satışda", "Cəmi", "Xarab", "Vahid qiymət (AZN)"
+            "Ad", "Kateqoriya", "Anbar", "Zal", "Satışda", "Cəmi", "Xarab",
+            "Alış qiyməti (AZN)", "Satış qiyməti (AZN)"
         };
         for (var c = 0; c < headers.Length; c++)
         {
@@ -24,11 +25,13 @@ public static class AdminEquipmentCatalogExcelExporter
         {
             ws.Cell(r, 1).Value = x.Name;
             ws.Cell(r, 2).Value = x.Category ?? "";
-            ws.Cell(r, 3).Value = x.RentalQuantity;
-            ws.Cell(r, 4).Value = x.SaleQuantity;
-            ws.Cell(r, 5).Value = x.Quantity;
-            ws.Cell(r, 6).Value = x.DamagedQuantity;
-            ws.Cell(r, 7).Value = x.UnitPrice ?? x.Price ?? 0m;
+            ws.Cell(r, 3).Value = x.WarehouseQuantity;
+            ws.Cell(r, 4).Value = x.RentalQuantity;
+            ws.Cell(r, 5).Value = x.SaleQuantity;
+            ws.Cell(r, 6).Value = x.Quantity;
+            ws.Cell(r, 7).Value = x.DamagedQuantity;
+            ws.Cell(r, 8).Value = x.PurchasePrice ?? 0m;
+            ws.Cell(r, 9).Value = x.UnitPrice ?? x.Price ?? 0m;
             r++;
         }
 
@@ -36,11 +39,12 @@ public static class AdminEquipmentCatalogExcelExporter
         {
             ws.Cell(r, 1).Value = "Cəmi";
             ws.Cell(r, 1).Style.Font.Bold = true;
-            ws.Cell(r, 3).Value = items.Sum(x => x.RentalQuantity);
-            ws.Cell(r, 4).Value = items.Sum(x => x.SaleQuantity);
-            ws.Cell(r, 5).Value = items.Sum(x => x.Quantity);
-            ws.Cell(r, 6).Value = items.Sum(x => x.DamagedQuantity);
-            ws.Range(r, 1, r, 7).Style.Font.Bold = true;
+            ws.Cell(r, 3).Value = items.Sum(x => x.WarehouseQuantity);
+            ws.Cell(r, 4).Value = items.Sum(x => x.RentalQuantity);
+            ws.Cell(r, 5).Value = items.Sum(x => x.SaleQuantity);
+            ws.Cell(r, 6).Value = items.Sum(x => x.Quantity);
+            ws.Cell(r, 7).Value = items.Sum(x => x.DamagedQuantity);
+            ws.Range(r, 1, r, 9).Style.Font.Bold = true;
         }
 
         ws.Columns().AdjustToContents();
