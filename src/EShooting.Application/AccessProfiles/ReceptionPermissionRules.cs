@@ -19,7 +19,8 @@ public static class ReceptionPermissionRules
         bool canReturnEquipment,
         bool canAccessPlanset,
         bool canIssueEquipmentRental,
-        bool canViewHistory) =>
+        bool canViewHistory,
+        bool canDeleteRestoreCustomers) =>
         canRegisterCustomers
         || canViewCustomerDetails
         || canEditCustomerDetails
@@ -33,7 +34,8 @@ public static class ReceptionPermissionRules
         || canReturnEquipment
         || canAccessPlanset
         || canIssueEquipmentRental
-        || canViewHistory;
+        || canViewHistory
+        || canDeleteRestoreCustomers;
 
     public static bool HasAny(AccessProfile profile) =>
         HasAny(
@@ -50,7 +52,8 @@ public static class ReceptionPermissionRules
             profile.CanReturnEquipment,
             profile.CanAccessPlanset,
             profile.CanIssueEquipmentRental,
-            profile.CanViewHistory);
+            profile.CanViewHistory,
+            profile.CanDeleteRestoreCustomers);
 
     public static void ApplyPermissions(
         AccessProfile target,
@@ -67,7 +70,8 @@ public static class ReceptionPermissionRules
         bool canReturnEquipment,
         bool canAccessPlanset,
         bool canIssueEquipmentRental,
-        bool canViewHistory)
+        bool canViewHistory,
+        bool canDeleteRestoreCustomers)
     {
         target.CanRegisterCustomers = canRegisterCustomers;
         target.CanViewCustomerDetails = canViewCustomerDetails;
@@ -83,6 +87,7 @@ public static class ReceptionPermissionRules
         target.CanAccessPlanset = canAccessPlanset;
         target.CanIssueEquipmentRental = canIssueEquipmentRental;
         target.CanViewHistory = canViewHistory;
+        target.CanDeleteRestoreCustomers = canDeleteRestoreCustomers;
     }
 
     public static void CopyPermissions(AccessProfile source, AccessProfile target) =>
@@ -101,5 +106,6 @@ public static class ReceptionPermissionRules
             source.CanReturnEquipment,
             source.CanAccessPlanset,
             source.CanIssueEquipmentRental,
-            source.CanViewHistory);
+            source.CanViewHistory,
+            source.CanDeleteRestoreCustomers);
 }

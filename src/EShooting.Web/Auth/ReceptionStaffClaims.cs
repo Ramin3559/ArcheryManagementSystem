@@ -22,6 +22,7 @@ public static class ReceptionStaffClaims
     public const string CanAccessPlanset = "perm_access_planset";
     public const string CanIssueEquipmentRental = "perm_issue_equipment_rental";
     public const string CanViewHistory = "perm_view_history";
+    public const string CanDeleteRestoreCustomers = "perm_delete_restore_customers";
 
     public static readonly string[] AllPermissionClaims =
     [
@@ -38,6 +39,7 @@ public static class ReceptionStaffClaims
         CanReturnEquipment,
         CanAccessPlanset,
         CanIssueEquipmentRental,
-        CanViewHistory
+        CanViewHistory,
+        CanDeleteRestoreCustomers
     ];
 }

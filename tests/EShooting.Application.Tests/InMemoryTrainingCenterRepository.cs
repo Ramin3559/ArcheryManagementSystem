@@ -75,6 +75,23 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         return Task.CompletedTask;
     }
 
+    public Task HardDeleteAthleteAsync(Guid athleteId, CancellationToken cancellationToken)
+    {
+        var sessionIds = _sessions.Where(x => x.AthleteId == athleteId).Select(x => x.Id).ToHashSet();
+        _sessionEquipmentIssues.RemoveAll(x => sessionIds.Contains(x.SessionId));
+        _sessions.RemoveAll(x => x.AthleteId == athleteId);
+        _subscriptionSchedules.RemoveAll(x => x.AthleteId == athleteId);
+
+        var receiptIds = _equipmentSaleReceipts.Where(x => x.AthleteId == athleteId).Select(x => x.Id).ToHashSet();
+        _equipmentSaleReceiptLines.RemoveAll(x => receiptIds.Contains(x.ReceiptId));
+        _equipmentSaleReceipts.RemoveAll(x => x.AthleteId == athleteId);
+
+        _customerPackageRecords.RemoveAll(x => x.AthleteId == athleteId);
+        _clubCardAssignments.RemoveAll(x => x.AthleteId == athleteId);
+        _athletes.RemoveAll(x => x.Id == athleteId);
+        return Task.CompletedTask;
+    }
+
     private readonly List<CustomerPackageRecord> _customerPackageRecords = [];
 
     public Task<CustomerPackageRecord> AddCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
@@ -293,6 +310,34 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
             .Where(a => new string((a.PhoneNumber ?? "").Where(char.IsDigit).ToArray()) == normalized)
             .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefault();
+        return Task.FromResult(match);
+    }
+
+    public Task<Athlete?> FindAthleteByExactUniqueFieldsAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
+        var phoneQ = string.IsNullOrWhiteSpace(phoneDigits)
+            ? ""
+            : new string(phoneDigits.Where(char.IsDigit).ToArray());
+        var emailQ = (emailNormalized ?? "").Trim().ToLowerInvariant();
+        var idQ = (idCardNormalized ?? "").Trim().ToLowerInvariant();
+
+        var match = _athletes
+            .Where(a => includeInactive || a.IsActive)
+            .FirstOrDefault(a =>
+            {
+                var p = new string((a.PhoneNumber ?? "").Where(char.IsDigit).ToArray());
+                var e = (a.Email ?? "").Trim().ToLowerInvariant();
+                var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
+                return (!string.IsNullOrEmpty(phoneQ) && p == phoneQ)
+                    || (!string.IsNullOrEmpty(emailQ) && e == emailQ)
+                    || (!string.IsNullOrEmpty(idQ) && id == idQ);
+            });
+
         return Task.FromResult(match);
     }
 
@@ -574,6 +619,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.CanAccessPlanset = profile.CanAccessPlanset;
         existing.CanIssueEquipmentRental = profile.CanIssueEquipmentRental;
         existing.CanViewHistory = profile.CanViewHistory;
+        existing.CanDeleteRestoreCustomers = profile.CanDeleteRestoreCustomers;
         existing.IsActive = profile.IsActive;
         existing.UpdatedAtUtc = profile.UpdatedAtUtc;
         return Task.CompletedTask;

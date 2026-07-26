@@ -13,6 +13,7 @@
     var canManageSessions = User.HasReceptionPermission(ReceptionStaffClaims.CanManageSessions);
     var canManageEquipment = User.HasReceptionPermission(ReceptionStaffClaims.CanManageEquipment);
     var canSellEquipment = User.HasReceptionPermission(ReceptionStaffClaims.CanSellEquipment);
+    var canDeleteRestoreCustomers = User.HasReceptionPermission(ReceptionStaffClaims.CanDeleteRestoreCustomers);
 }
 <!DOCTYPE html>
 <html lang="az">
@@ -1769,8 +1770,8 @@
                 <button id="infoManageEditBtn" type="button" class="btn btn-primary btn-sm">Dəyişdir</button>
                 <button id="infoReturnClubCardBtn" type="button" class="btn btn-ghost btn-sm" style="display:none;">Kartı qaytar</button>
                 <button id="infoManageCancelSubBtn" type="button" class="btn btn-danger btn-sm">Abunəni ləğv et</button>
-                <button id="infoManageDeactivateBtn" type="button" class="btn btn-danger btn-sm" style="display:none;">Siyahıdan çıxar</button>
-                <button id="infoManageReactivateBtn" type="button" class="btn btn-primary btn-sm" style="display:none;">Yenidən aktiv et</button>
+                                <button id="infoManageDeactivateBtn" type="button" class="btn btn-danger btn-sm" style="display:none;">Sil</button>
+                <button id="infoManageReactivateBtn" type="button" class="btn btn-primary btn-sm" style="display:none;">Bərpa</button>
             </div>
             <div id="infoClubCardWarning" class="notice" style="display:none; margin-top:10px;"></div>
         </div>
@@ -2098,7 +2099,8 @@
         canGrantComplimentary: @(canGrantComplimentary ? "true" : "false"),
         canManageSessions: @(canManageSessions ? "true" : "false"),
         canManageEquipment: @(canManageEquipment ? "true" : "false"),
-        canSellEquipment: @(canSellEquipment ? "true" : "false")
+        canSellEquipment: @(canSellEquipment ? "true" : "false"),
+        canDeleteRestoreCustomers: @(canDeleteRestoreCustomers ? "true" : "false")
     };
     const firstNameInput = document.getElementById("firstName");
     const customerSearchInput = document.getElementById("customerSearch");
@@ -3720,12 +3722,13 @@
     }
 
     function syncInfoManageActionButtons() {
+        const canDeleteRestore = receptionPermissions.canDeleteRestoreCustomers === true;
         const active = _currentInfoIsActive !== false;
         if (infoManageDeactivateBtn instanceof HTMLButtonElement) {
-            infoManageDeactivateBtn.style.display = active && _currentInfoAthleteId ? "" : "none";
+            infoManageDeactivateBtn.style.display = canDeleteRestore && active && _currentInfoAthleteId ? "" : "none";
         }
         if (infoManageReactivateBtn instanceof HTMLButtonElement) {
-            infoManageReactivateBtn.style.display = !active && _currentInfoAthleteId ? "" : "none";
+            infoManageReactivateBtn.style.display = canDeleteRestore && !active && _currentInfoAthleteId ? "" : "none";
         }
         if (infoManageCancelSubBtn instanceof HTMLButtonElement) {
             infoManageCancelSubBtn.style.display = active ? "" : "none";
@@ -5241,29 +5244,9 @@
         if (!existingId) return null;
 
         if (payload?.isInactive) {
-            const name = existing?.fullName ?? "Bu şəxs";
-            const isSamePerson = window.confirm(
-                `Bu telefon nömrəsi əvvəl «${name}» adlı müştəriyə aid idi (deaktiv).\n\n` +
-                `OK — eyni şəxsdir, yenidən aktiv et\n` +
-                `Ləğv — başqa şəxsdir (yeni müştəri kimi qeyd et)`
-            );
-            if (isSamePerson) {
-                const ok = await reactivateAthlete(existingId);
-                if (!ok) return null;
-            } else {
-                const confirmNew = window.confirm(
-                    `Yeni müştəri kimi qeydə alınacaq.\n` +
-                    `Köhnə qeydiyyat («${name}») bu telefon nömrəsindən ayrılacaq; keçmiş tarix saxlanılacaq.\n\nDavam edilsin?`
-                );
-                if (!confirmNew) return null;
-                const released = await releaseInactiveAthleteIdentifiers(existingId);
-                if (!released) return null;
-                if (typeof options.retryRegister === "function") {
-                    return await options.retryRegister();
-                }
-                alert("Yenidən «Təsdiqlə və saxla» və ya «Zolağa yaz» basın.");
-                return null;
-            }
+            alert(payload?.error
+                || "Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.");
+            return null;
         }
 
         receptionMatchedAthleteId = existingId;
@@ -5549,12 +5532,18 @@
 
         items.forEach(function (it) {
             const fullName = it.fullName || (`${it.firstName || ""} ${it.lastName || ""}`).trim() || "—";
+            const isInactive = it.isActive === false;
             const row = document.createElement("div");
-            row.className = "athlete-suggest__row";
+            row.className = "athlete-suggest__row" + (isInactive ? " is-inactive" : "");
+            if (isInactive) {
+                row.style.opacity = "0.85";
+            }
 
             const nameEl = document.createElement("div");
             nameEl.className = "athlete-suggest__name";
-            nameEl.textContent = fullName + (it.isVip ? " · VIP" : "");
+            nameEl.textContent = fullName
+                + (it.isVip ? " · VIP" : "")
+                + (isInactive ? " · (Silinmişlər)" : "");
             row.appendChild(nameEl);
 
             const metaParts = [];
@@ -5574,7 +5563,11 @@
                     try { ev.preventDefault(); } catch (e) { /* ignore */ }
                     try { ev.stopPropagation(); } catch (e) { /* ignore */ }
                 }
-                console.log("[autocomplete] row seçildi", it);
+                if (isInactive) {
+                    alert("Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.");
+                    hideAthleteSuggest();
+                    return;
+                }
                 applyAthleteToReception(it);
                 hideAthleteSuggest();
             };
@@ -6008,7 +6001,11 @@
         const data = await res.json().catch(() => ({}));
         const packages = Array.isArray(data?.packages) ? data.packages : [];
         const weeklySchedules = Array.isArray(data?.weeklySchedules) ? data.weeklySchedules : [];
-        showInfoHint(`Müştəri tapıldı: ${data?.fullName ?? "—"}${data?.isActive === false ? " (deaktiv)" : ""}`, data?.isActive === false ? "warn" : "ok");
+        showInfoHint(
+            data?.isActive === false
+                ? `Müştəri tapıldı: ${data?.fullName ?? "—"} — «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.`
+                : `Müştəri tapıldı: ${data?.fullName ?? "—"}`,
+            data?.isActive === false ? "warn" : "ok");
 
         if (!(infoTableBody instanceof HTMLElement) || !(infoTableWrap instanceof HTMLElement)) return;
         infoTableBody.innerHTML = "";
@@ -8911,10 +8908,8 @@
                 }
                 const data = await response.json().catch(() => ({}));
                 if (infoClubCardEdit instanceof HTMLInputElement) infoClubCardEdit.value = "";
-                if (clubCardNumberInput instanceof HTMLInputElement
-                    && String(receptionMatchedAthleteId || "") === String(_currentInfoAthleteId || "")) {
-                    clubCardNumberInput.value = "";
-                }
+                if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = "";
+                if (modalClubCardNumber instanceof HTMLInputElement) modalClubCardNumber.value = "";
                 syncInfoClubCardUi("");
                 refreshSelectedCustomerCard();
                 allAthletesCache = [];
@@ -8933,14 +8928,28 @@
         infoClubCardEdit?.addEventListener("input", () => syncInfoClubCardUi(infoClubCardEdit?.value));
     } catch (e) { console.error(e); }
     try {
+        infoManageReactivateBtn?.addEventListener("click", async () => {
+            if (!_currentInfoAthleteId) {
+                alert("Əvvəlcə müştərini axtarın.");
+                return;
+            }
+            const ok = window.confirm(`«${_currentInfoAthleteName}» bərpa edilsin?`);
+            if (!ok) return;
+            const success = await reactivateAthlete(_currentInfoAthleteId);
+            if (success) {
+                showInfoHint("Müştəri bərpa edildi.", "ok");
+                _currentInfoIsActive = true;
+                syncInfoManageActionButtons();
+            }
+        });
+    } catch (e) { console.error(e); }
+    try {
         infoManageDeactivateBtn?.addEventListener("click", async () => {
             if (!_currentInfoAthleteId) {
                 alert("Əvvəlcə müştərini axtarın.");
                 return;
             }
-            const ok = window.confirm(
-                `«${_currentInfoAthleteName}» siyahıdan çıxarılsın?\n\nMəlumatlar bazada qalır; eyni telefonla yenidən əlavə edəndə aktiv edə bilərsiniz.`
-            );
+            const ok = window.confirm(`\u00ab${_currentInfoAthleteName}\u00bb silinsin?\n\nM\u0259lumatlar bazada qal\u0131r; eyni telefonla yenid\u0259n \u0259lav\u0259 ed\u0259nd\u0259 aktiv ed\u0259 bil\u0259rsiniz.`);
             if (!ok) return;
             const success = await deactivateAthlete(_currentInfoAthleteId);
             if (success) {
@@ -8950,21 +8959,6 @@
                 if (receptionMatchedAthleteId === _currentInfoAthleteId) {
                     clearReceptionPersonFields();
                 }
-            }
-        });
-    } catch (e) { console.error(e); }
-    try {
-        infoManageReactivateBtn?.addEventListener("click", async () => {
-            if (!_currentInfoAthleteId) {
-                alert("Əvvəlcə müştərini axtarın.");
-                return;
-            }
-            const success = await reactivateAthlete(_currentInfoAthleteId);
-            if (success) {
-                showInfoHint("Müştəri yenidən aktiv edildi.", "ok");
-                _currentInfoIsActive = true;
-                syncInfoManageActionButtons();
-                await infoShow();
             }
         });
     } catch (e) { console.error(e); }

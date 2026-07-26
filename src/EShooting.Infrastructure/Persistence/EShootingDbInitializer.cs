@@ -29,7 +29,6 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureEquipmentItemSeedAsync(cancellationToken);
         await EnsureSessionEquipmentIssuesTableAsync(cancellationToken);
         await EnsureEquipmentSplitStockBackfillAsync(cancellationToken);
-        await EnsureEquipmentPriceAsUnitAsync(cancellationToken);
         await EnsureSessionEquipmentIssueJournalColumnsAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptsTablesAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptLineDiscountColumnAsync(cancellationToken);
@@ -207,7 +206,31 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 [ClubCardNumber] = NULLIF(LTRIM(RTRIM([ClubCardNumber])), '')
             WHERE 1=1;
 
+            -- Duplicate club cards: keep one athlete, clear others (so unique index can be created).
+            ;WITH dupCards AS (
+                SELECT [Id],
+                       ROW_NUMBER() OVER (
+                           PARTITION BY LOWER(LTRIM(RTRIM([ClubCardNumber])))
+                           ORDER BY [CreatedAtUtc], [Id]
+                       ) AS rn
+                FROM [dbo].[Athletes]
+                WHERE [ClubCardNumber] IS NOT NULL
+                  AND LTRIM(RTRIM([ClubCardNumber])) <> N''
+            )
+            UPDATE a
+            SET a.[ClubCardNumber] = NULL
+            FROM [dbo].[Athletes] a
+            INNER JOIN dupCards d ON d.[Id] = a.[Id]
+            WHERE d.rn > 1;
+
             IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_PhoneNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Athletes]
+                    WHERE [PhoneNumber] IS NOT NULL AND LTRIM(RTRIM([PhoneNumber])) <> N''
+                    GROUP BY LTRIM(RTRIM([PhoneNumber]))
+                    HAVING COUNT(*) > 1
+               )
             BEGIN
                 CREATE UNIQUE INDEX [UX_Athletes_PhoneNumber]
                 ON [dbo].[Athletes]([PhoneNumber])
@@ -215,6 +238,13 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             END;
 
             IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_Email' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Athletes]
+                    WHERE [Email] IS NOT NULL AND LTRIM(RTRIM([Email])) <> N''
+                    GROUP BY LOWER(LTRIM(RTRIM([Email])))
+                    HAVING COUNT(*) > 1
+               )
             BEGIN
                 CREATE UNIQUE INDEX [UX_Athletes_Email]
                 ON [dbo].[Athletes]([Email])
@@ -222,6 +252,13 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             END;
 
             IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_IdCardNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Athletes]
+                    WHERE [IdCardNumber] IS NOT NULL AND LTRIM(RTRIM([IdCardNumber])) <> N''
+                    GROUP BY LTRIM(RTRIM([IdCardNumber]))
+                    HAVING COUNT(*) > 1
+               )
             BEGIN
                 CREATE UNIQUE INDEX [UX_Athletes_IdCardNumber]
                 ON [dbo].[Athletes]([IdCardNumber])
@@ -229,6 +266,13 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             END;
 
             IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_ClubCardNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Athletes]
+                    WHERE [ClubCardNumber] IS NOT NULL AND LTRIM(RTRIM([ClubCardNumber])) <> N''
+                    GROUP BY LOWER(LTRIM(RTRIM([ClubCardNumber])))
+                    HAVING COUNT(*) > 1
+               )
             BEGIN
                 CREATE UNIQUE INDEX [UX_Athletes_ClubCardNumber]
                 ON [dbo].[Athletes]([ClubCardNumber])
@@ -246,6 +290,12 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             IF OBJECT_ID(N'[dbo].[TrainingSessions]', N'U') IS NOT NULL
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_TrainingSessions_Athlete_Lane_Start' AND object_id = OBJECT_ID(N'[dbo].[TrainingSessions]'))
+                   AND NOT EXISTS (
+                        SELECT 1
+                        FROM [dbo].[TrainingSessions]
+                        GROUP BY [AthleteId], [LaneId], [StartTimeUtc]
+                        HAVING COUNT(*) > 1
+                   )
                 BEGIN
                     CREATE UNIQUE INDEX [UX_TrainingSessions_Athlete_Lane_Start]
                     ON [dbo].[TrainingSessions]([AthleteId], [LaneId], [StartTimeUtc]);
@@ -285,10 +335,16 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     ADD [ActivatedAtUtc] DATETIME2 NULL;
                 END;
 
-                UPDATE [dbo].[TrainingSessions]
-                SET [ActivatedAtUtc] = [StartTimeUtc]
-                WHERE [ActivatedAtUtc] IS NULL
-                  AND ([Status] = N'Active' OR TRY_CONVERT(int, [Status]) = 2);
+                -- Yeni sütuna eyni batch-də birbaşa UPDATE Msg 207 verir → dinamik SQL.
+                EXEC(N'
+                    IF COL_LENGTH(N''[dbo].[TrainingSessions]'', N''ActivatedAtUtc'') IS NOT NULL
+                    BEGIN
+                        UPDATE [dbo].[TrainingSessions]
+                        SET [ActivatedAtUtc] = [StartTimeUtc]
+                        WHERE [ActivatedAtUtc] IS NULL
+                          AND ([Status] = N''Active'' OR TRY_CONVERT(int, [Status]) = 2);
+                    END
+                ');
 
                 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_TrainingSessions_SubscriptionSchedules_SubscriptionScheduleId')
                 BEGIN
@@ -775,7 +831,9 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
 
     private async Task EnsureEquipmentWarehouseAndPurchasePriceColumnsAsync(CancellationToken cancellationToken)
     {
-        const string sql = """
+        // ALTER + eyni batch-də yeni sütuna UPDATE → SQL Server compile xətası (Msg 207).
+        // Ona görə əlavə və sync ayrı sql-lərlə gedir; UPDATE dinamik SQL-dir.
+        const string addSql = """
             IF OBJECT_ID(N'[dbo].[EquipmentItems]', N'U') IS NOT NULL
             BEGIN
                 IF COL_LENGTH(N'[dbo].[EquipmentItems]', N'WarehouseQuantity') IS NULL
@@ -789,36 +847,23 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     ALTER TABLE [dbo].[EquipmentItems]
                     ADD [PurchasePrice] DECIMAL(18, 2) NULL;
                 END
-
-                UPDATE [dbo].[EquipmentItems]
-                SET [Quantity] = ISNULL([WarehouseQuantity], 0) + ISNULL([RentalQuantity], 0) + ISNULL([SaleQuantity], 0);
             END
             """;
-        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-    }
+        await dbContext.Database.ExecuteSqlRawAsync(addSql, cancellationToken);
 
-    private async Task EnsureEquipmentPriceAsUnitAsync(CancellationToken cancellationToken)
-    {
-        var items = await dbContext.EquipmentItems
-            .Where(x => x.Price != null
-                        && x.Price > 0
-                        && x.SaleQuantity > 1
-                        && x.Price > x.SaleQuantity * 10)
-            .ToListAsync(cancellationToken);
-
-        if (items.Count == 0)
-        {
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        foreach (var item in items)
-        {
-            item.Price = Math.Round(item.Price!.Value / item.SaleQuantity, 2, MidpointRounding.AwayFromZero);
-            item.UpdatedAtUtc = now;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
+        const string syncSql = """
+            IF OBJECT_ID(N'[dbo].[EquipmentItems]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[EquipmentItems]', N'WarehouseQuantity') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[EquipmentItems]', N'RentalQuantity') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[EquipmentItems]', N'SaleQuantity') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    UPDATE [dbo].[EquipmentItems]
+                    SET [Quantity] = ISNULL([WarehouseQuantity], 0) + ISNULL([RentalQuantity], 0) + ISNULL([SaleQuantity], 0);
+                ');
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(syncSql, cancellationToken);
     }
 
     private async Task EnsureEquipmentItemUsageModeColumnAsync(CancellationToken cancellationToken)
@@ -1139,6 +1184,11 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             "DF_AccessProfiles_CanIssueEquipmentRental",
             backfillFromColumn: null,
             cancellationToken);
+        await EnsureAccessProfileBitColumnAsync(
+            "CanDeleteRestoreCustomers",
+            "DF_AccessProfiles_CanDeleteRestoreCustomers",
+            backfillFromColumn: null,
+            cancellationToken);
     }
 
     private async Task EnsureAccessProfileBitColumnAsync(
@@ -1197,6 +1247,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 CanSellEquipment = true,
                 CanReturnEquipment = true,
                 CanViewHistory = true,
+                CanDeleteRestoreCustomers = true,
                 IsActive = true,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now

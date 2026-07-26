@@ -353,6 +353,10 @@
 
     function applySaleCustomerPick(athlete) {
         if (!athlete) return;
+        if (athlete.isActive === false) {
+            alert("Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.");
+            return;
+        }
         selectedSaleAthleteId = String(athlete.id || "");
         selectedSaleCustomerName = `${athlete.fullName || ""}${athlete.phoneNumber ? " · " + athlete.phoneNumber : ""}`.trim();
         if (saleCustomerSearch instanceof HTMLInputElement) {
@@ -370,7 +374,8 @@
             return;
         }
         saleCustomerMatches.innerHTML = rows.map(function (x) {
-            const label = `${x.fullName || "—"}${x.phoneNumber ? " · " + x.phoneNumber : ""}`;
+            const inactive = x.isActive === false ? " · (Silinmişlər)" : "";
+            const label = `${x.fullName || "—"}${x.phoneNumber ? " · " + x.phoneNumber : ""}${inactive}`;
             return `<button type="button" class="customer-match-btn" data-athlete-id="${x.id}">${label}</button>`;
         }).join("");
         saleCustomerMatches.classList.add("is-open");

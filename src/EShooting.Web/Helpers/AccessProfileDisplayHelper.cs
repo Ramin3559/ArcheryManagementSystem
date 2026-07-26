@@ -20,6 +20,7 @@ public static class AccessProfileDisplayHelper
         if (profile.CanAccessPlanset) parts.Add("Planşet");
         if (profile.CanIssueEquipmentRental) parts.Add("İcarə");
         if (profile.CanViewHistory) parts.Add("Tarixçə");
+        if (profile.CanDeleteRestoreCustomers) parts.Add("Sil/Bərpa");
         return parts.Count == 0 ? "—" : string.Join(", ", parts);
     }
 }

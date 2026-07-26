@@ -33,6 +33,7 @@ public static class ReceptionStaffSignIn
         AddPermissionClaim(claims, ReceptionStaffClaims.CanAccessPlanset, staff.CanAccessPlanset);
         AddPermissionClaim(claims, ReceptionStaffClaims.CanIssueEquipmentRental, staff.CanIssueEquipmentRental);
         AddPermissionClaim(claims, ReceptionStaffClaims.CanViewHistory, staff.CanViewHistory);
+        AddPermissionClaim(claims, ReceptionStaffClaims.CanDeleteRestoreCustomers, staff.CanDeleteRestoreCustomers);
 
         var identity = new ClaimsIdentity(
             claims,

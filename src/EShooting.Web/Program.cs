@@ -99,9 +99,16 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogCritical(
-            ex,
-            "Verilənlər bazası işə salınmadı. ConnectionStrings:DefaultConnection və SQL Server-i yoxlayın.");
+        logger.LogCritical(ex, "Verilənlər bazası işə salınmadı. ConnectionStrings:DefaultConnection və SQL Server-i yoxlayın.");
+        try
+        {
+            var logDir = Path.Combine(app.Environment.ContentRootPath, "App_Data");
+            Directory.CreateDirectory(logDir);
+            await File.WriteAllTextAsync(
+                Path.Combine(logDir, "startup-error.txt"),
+                $"{DateTime.UtcNow:O}\n{ex}");
+        }
+        catch { /* ignore */ }
         throw;
     }
 }

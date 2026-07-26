@@ -23,6 +23,7 @@ public sealed record UpsertAccessProfileCommand(
     bool CanAccessPlanset,
     bool CanIssueEquipmentRental,
     bool CanViewHistory,
+    bool CanDeleteRestoreCustomers,
     bool IsActive) : IRequest<Guid>;
 
 public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository repository)
@@ -49,7 +50,8 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
                 request.CanReturnEquipment,
                 request.CanAccessPlanset,
                 request.CanIssueEquipmentRental,
-                request.CanViewHistory))
+                request.CanViewHistory,
+                request.CanDeleteRestoreCustomers))
         {
             throw new InvalidOperationException("Ən az bir icazə seçilməlidir.");
         }
@@ -82,7 +84,8 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
                 request.CanReturnEquipment,
                 request.CanAccessPlanset,
                 request.CanIssueEquipmentRental,
-                request.CanViewHistory);
+                request.CanViewHistory,
+                request.CanDeleteRestoreCustomers);
 
             var added = await repository.AddAccessProfileAsync(created, cancellationToken);
             return added.Id;
@@ -110,7 +113,8 @@ public sealed class UpsertAccessProfileCommandHandler(ITrainingCenterRepository 
             request.CanReturnEquipment,
             request.CanAccessPlanset,
             request.CanIssueEquipmentRental,
-            request.CanViewHistory);
+            request.CanViewHistory,
+            request.CanDeleteRestoreCustomers);
 
         await repository.UpdateAccessProfileAsync(existing, cancellationToken);
         return existing.Id;

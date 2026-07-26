@@ -30,14 +30,19 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return denied;
         }
 
-        // Prevent duplicate inserts (phone/email/idCard/clubCard). If exists, return 409 with existing id.
+        // Dublikat yalnız dəqiq telefon / email / FİN (və ya kart) ilə — ad-soyad və qismən uyğunluq bloklamır.
         var phoneQ = NormalizeDigits(request.PhoneNumber);
         var emailQ = NormalizeText(request.Email);
         var idQ = NormalizeText(request.IdCardNumber);
         var clubCardQ = NormalizeText(request.ClubCardNumber);
-        if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ) || !string.IsNullOrWhiteSpace(clubCardQ))
+        if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ))
         {
-            var existing = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken, includeInactive: true);
+            var existing = await repository.FindAthleteByExactUniqueFieldsAsync(
+                phoneQ,
+                emailQ,
+                idQ,
+                cancellationToken,
+                includeInactive: true);
 
             if (existing is not null)
             {
@@ -45,7 +50,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 {
                     return Conflict(new
                     {
-                        error = "Bu şəxs əvvəl bazada qeydiyyatda idi, indi deaktiv edilib.",
+                        error = "Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
                         isInactive = true,
                         existingId = existing.Id,
                         existing = MapExistingAthlete(existing)
@@ -58,6 +63,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                     existingId = existing.Id,
                     existing = MapExistingAthlete(existing)
                 });
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(clubCardQ))
+        {
+            var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCardQ, null, cancellationToken);
+            if (cardHolder is not null)
+            {
+                return Conflict(ClubCardHeldPayload(clubCardQ, cardHolder));
             }
         }
 
@@ -99,14 +113,19 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 }
             }
 
-            var existingAfterError = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken, includeInactive: true);
+            var existingAfterError = await repository.FindAthleteByExactUniqueFieldsAsync(
+                phoneQ,
+                emailQ,
+                idQ,
+                cancellationToken,
+                includeInactive: true);
             if (existingAfterError is not null)
             {
                 return Conflict(new
                 {
                     error = existingAfterError.IsActive
                         ? "Bu şəxs artıq sistemdə qeydiyyatdadır."
-                        : "Bu şəxs əvvəl bazada qeydiyyatda idi, indi deaktiv edilib.",
+                        : "Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
                     isInactive = !existingAfterError.IsActive,
                     existingId = existingAfterError.Id,
                     existing = MapExistingAthlete(existingAfterError)
@@ -473,7 +492,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var matches = athletes
-            .Where(AthleteSearchRules.IsSearchable)
+            .Where(a => !AthleteSearchRules.IsGroupSessionPlaceholder(a))
             .Select(a =>
             {
                 var firstLower = (a.FirstName ?? string.Empty).ToLowerInvariant();
@@ -516,7 +535,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 return new { Athlete = a, Score = score };
             })
             .Where(x => x.Score > 0)
-            .OrderByDescending(x => x.Score)
+            .OrderByDescending(x => x.Athlete.IsActive)
+            .ThenByDescending(x => x.Score)
             .ThenBy(x => x.Athlete.FullName)
             .Take(take)
             .Select(x => new
@@ -533,7 +553,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.Athlete.MembershipType,
                 x.Athlete.IsSubscriber,
                 x.Athlete.IsFullPackage,
-                x.Athlete.IsVip
+                x.Athlete.IsVip,
+                x.Athlete.IsActive
             })
             .ToList();
 
@@ -590,6 +611,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     [HttpPost("{id:guid}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
+        if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanDeleteRestoreCustomers) is { } denied)
+            return denied;
+
         try
         {
             await mediator.Send(
@@ -609,6 +633,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     [HttpPost("{id:guid}/reactivate")]
     public async Task<IActionResult> Reactivate(Guid id, CancellationToken cancellationToken)
     {
+        if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanDeleteRestoreCustomers) is { } denied)
+            return denied;
+
         try
         {
             await mediator.Send(new SetAthleteActiveCommand(id, IsActive: true), cancellationToken);

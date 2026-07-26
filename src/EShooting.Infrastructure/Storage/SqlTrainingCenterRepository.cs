@@ -32,6 +32,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.Email = athlete.Email;
         existing.IdCardNumber = athlete.IdCardNumber;
         existing.ClubCardNumber = athlete.ClubCardNumber;
+        dbContext.Entry(existing).Property(x => x.ClubCardNumber).IsModified = true;
         existing.Category = athlete.Category;
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
@@ -45,6 +46,65 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.RegisteredByStaffId = athlete.RegisteredByStaffId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task HardDeleteAthleteAsync(Guid athleteId, CancellationToken cancellationToken)
+    {
+        await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var sessionIds = await dbContext.Sessions
+            .Where(x => x.AthleteId == athleteId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        if (sessionIds.Count > 0)
+        {
+            await dbContext.SessionEquipmentIssues
+                .Where(x => sessionIds.Contains(x.SessionId))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await dbContext.Scores
+                .Where(x => sessionIds.Contains(x.SessionId))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await dbContext.Sessions
+                .Where(x => x.AthleteId == athleteId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await dbContext.SubscriptionSchedules
+            .Where(x => x.AthleteId == athleteId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var receiptIds = await dbContext.EquipmentSaleReceipts
+            .Where(x => x.AthleteId == athleteId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        if (receiptIds.Count > 0)
+        {
+            await dbContext.EquipmentSaleReceiptLines
+                .Where(x => receiptIds.Contains(x.ReceiptId))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await dbContext.EquipmentSaleReceipts
+                .Where(x => x.AthleteId == athleteId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await dbContext.CustomerPackageRecords
+            .Where(x => x.AthleteId == athleteId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await dbContext.ClubCardAssignments
+            .Where(x => x.AthleteId == athleteId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await dbContext.Athletes
+            .Where(x => x.Id == athleteId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await tx.CommitAsync(cancellationToken);
     }
    
     public async Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken)
@@ -260,6 +320,72 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             .Where(a => includeInactive || a.IsActive)
             .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefault();
+    }
+
+    public async Task<Athlete?> FindAthleteByExactUniqueFieldsAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
+        var phoneQ = AthleteRegistrationRules.NormalizeDigits(phoneDigits);
+        var emailQ = AthleteRegistrationRules.NormalizeEmail(emailNormalized);
+        var idQ = AthleteRegistrationRules.NormalizeText(idCardNormalized).ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(phoneQ)
+            && string.IsNullOrWhiteSpace(emailQ)
+            && string.IsNullOrWhiteSpace(idQ))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(phoneQ))
+        {
+            var byPhone = await FindAthleteByExactPhoneAsync(phoneQ, cancellationToken, includeInactive);
+            if (byPhone is not null)
+            {
+                return byPhone;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(emailQ))
+        {
+            var byEmail = await dbContext.Athletes
+                .AsNoTracking()
+                .Where(a => a.Email != null && a.Email != "")
+                .ToListAsync(cancellationToken);
+
+            var emailMatch = byEmail
+                .Where(a => includeInactive || a.IsActive)
+                .FirstOrDefault(a =>
+                    string.Equals(
+                        AthleteRegistrationRules.NormalizeEmail(a.Email),
+                        emailQ,
+                        StringComparison.Ordinal));
+            if (emailMatch is not null)
+            {
+                return emailMatch;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(idQ))
+        {
+            var byId = await dbContext.Athletes
+                .AsNoTracking()
+                .Where(a => a.IdCardNumber != null && a.IdCardNumber != "")
+                .ToListAsync(cancellationToken);
+
+            return byId
+                .Where(a => includeInactive || a.IsActive)
+                .FirstOrDefault(a =>
+                    string.Equals(
+                        AthleteRegistrationRules.NormalizeText(a.IdCardNumber).ToLowerInvariant(),
+                        idQ,
+                        StringComparison.Ordinal));
+        }
+
+        return null;
     }
 
     public async Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(
@@ -640,6 +766,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.CanAccessPlanset = profile.CanAccessPlanset;
         existing.CanIssueEquipmentRental = profile.CanIssueEquipmentRental;
         existing.CanViewHistory = profile.CanViewHistory;
+        existing.CanDeleteRestoreCustomers = profile.CanDeleteRestoreCustomers;
         existing.IsActive = profile.IsActive;
         existing.IsDeleted = profile.IsDeleted;
         existing.UpdatedAtUtc = profile.UpdatedAtUtc;

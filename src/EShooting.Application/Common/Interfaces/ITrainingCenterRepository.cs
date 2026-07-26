@@ -6,6 +6,8 @@ public interface ITrainingCenterRepository
 {
     Task<Athlete> AddAthleteAsync(Athlete athlete, CancellationToken cancellationToken);
     Task UpdateAthleteAsync(Athlete athlete, CancellationToken cancellationToken);
+    /// <summary>Müştəri və bağlı bütün qeydləri birdəfəlik silir.</summary>
+    Task HardDeleteAthleteAsync(Guid athleteId, CancellationToken cancellationToken);
     Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken);
     Task<TrainingSession?> GetSessionByIdAsync(Guid sessionId, CancellationToken cancellationToken);
     Task UpdateSessionAsync(TrainingSession session, CancellationToken cancellationToken);
@@ -29,6 +31,16 @@ public interface ITrainingCenterRepository
         bool includeInactive = false);
     Task<Athlete?> FindAthleteByExactPhoneAsync(
         string phoneDigits,
+        CancellationToken cancellationToken,
+        bool includeInactive = false);
+    /// <summary>
+    /// Qeydiyyat dublikatı: telefon / email / FİN dəqiq uyğunluq (OR).
+    /// Axtarış üçün istifadə olunan qismən (Contains) uyğunluq deyil.
+    /// </summary>
+    Task<Athlete?> FindAthleteByExactUniqueFieldsAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
         CancellationToken cancellationToken,
         bool includeInactive = false);
     Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(Guid athleteId, CancellationToken cancellationToken);

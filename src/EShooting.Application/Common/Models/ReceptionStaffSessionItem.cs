@@ -24,4 +24,5 @@ public sealed class ReceptionStaffSessionItem
     public bool CanAccessPlanset { get; init; }
     public bool CanIssueEquipmentRental { get; init; }
     public bool CanViewHistory { get; init; }
+    public bool CanDeleteRestoreCustomers { get; init; }
 }

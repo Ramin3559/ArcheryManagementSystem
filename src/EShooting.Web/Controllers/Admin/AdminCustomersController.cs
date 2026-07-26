@@ -115,6 +115,21 @@ public sealed class AdminCustomersController(IMediator mediator) : Controller
         }
     }
 
+    [HttpPost("{id:guid}/hard-delete")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> HardDelete(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(new HardDeleteAthleteCommand(id), cancellationToken);
+            return Ok(new { message = "Müştəri birdəfəlik silindi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}")]
     public IActionResult Detail([FromRoute] Guid id) =>
         RedirectToAction(nameof(Index));

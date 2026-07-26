@@ -41,6 +41,7 @@ public sealed class GetAccessProfilesQueryHandler(ITrainingCenterRepository repo
         CanAccessPlanset = x.CanAccessPlanset,
         CanIssueEquipmentRental = x.CanIssueEquipmentRental,
         CanViewHistory = x.CanViewHistory,
+        CanDeleteRestoreCustomers = x.CanDeleteRestoreCustomers,
         IsActive = x.IsActive
     };
 }

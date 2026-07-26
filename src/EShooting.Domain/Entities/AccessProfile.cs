@@ -21,6 +21,7 @@ public sealed class AccessProfile
     public bool CanAccessPlanset { get; set; }
     public bool CanIssueEquipmentRental { get; set; }
     public bool CanViewHistory { get; set; }
+    public bool CanDeleteRestoreCustomers { get; set; }
 
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;

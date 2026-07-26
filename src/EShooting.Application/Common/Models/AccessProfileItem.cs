@@ -19,5 +19,6 @@ public sealed class AccessProfileItem
     public bool CanAccessPlanset { get; init; }
     public bool CanIssueEquipmentRental { get; init; }
     public bool CanViewHistory { get; init; }
+    public bool CanDeleteRestoreCustomers { get; init; }
     public bool IsActive { get; init; }
 }

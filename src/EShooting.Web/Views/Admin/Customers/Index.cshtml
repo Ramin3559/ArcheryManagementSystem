@@ -79,7 +79,6 @@
                 <select name="active">
                     <option value="active" selected>Aktiv</option>
                     <option value="inactive">Silinmiş</option>
-                    <option value="">Hamısı</option>
                 </select>
             </label>
             <label class="field">
@@ -102,11 +101,11 @@
             <div class="field field--presets">
                 <span>Tarix</span>
                 <div class="preset-inline">
-                    <button type="button" class="preset-btn active" data-preset="all">Hamısı</button>
-                    <button type="button" class="preset-btn" data-preset="today">Bu gün</button>
+                    <button type="button" class="preset-btn active" data-preset="today">Bu gün</button>
                     <button type="button" class="preset-btn" data-preset="yesterday">Dünən</button>
                     <button type="button" class="preset-btn" data-preset="last7">Son 7 gün</button>
                     <button type="button" class="preset-btn" data-preset="month">Cari ay</button>
+                    <button type="button" class="preset-btn" data-preset="all">Hamısı</button>
                 </div>
             </div>
         </div>
@@ -145,7 +144,7 @@
 <script>
     (function () {
         // v2: köhnə sessionStorage (məcburi «bu gün» / dar tarix) sıfırlanır
-        var STORAGE_KEY = "customers-v2";
+        var STORAGE_KEY = "admin-customers-v4";
         var form = document.getElementById("customersFilterForm");
         var exportBtn = document.getElementById("customersExportBtn");
         var tbody = document.getElementById("customersTableBody");
@@ -194,6 +193,14 @@
             document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
                 btn.classList.toggle("active", (btn.getAttribute("data-preset") || "") === preset);
             });
+        }
+
+        function setTodayDateRange() {
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+            setDateInput(fromEl, isoDate(today));
+            setDateInput(toEl, isoDate(today));
+            markPresetActive("today");
         }
 
         function applyPreset(preset) {
@@ -257,8 +264,13 @@
                 return '<div class="cust-actions"><button type="button" class="btn btn-danger" data-action="delete" data-id="'
                     + AFS.escapeHtml(x.id) + '">Sil</button></div>';
             }
-            return '<div class="cust-actions"><button type="button" class="btn btn-primary" data-action="restore" data-id="'
-                + AFS.escapeHtml(x.id) + '">Bərpa</button></div>';
+            return '<div class="cust-actions">'
+                + '<button type="button" class="btn btn-primary" data-action="restore" data-id="'
+                + AFS.escapeHtml(x.id) + '">Bərpa</button>'
+                + '<button type="button" class="btn btn-danger" data-action="hard-delete" data-id="'
+                + AFS.escapeHtml(x.id) + '" data-name="' + AFS.escapeHtml(x.fullName || "")
+                + '">Birdəfəlik sil</button>'
+                + '</div>';
         }
 
         function renderRows(items) {
@@ -294,7 +306,9 @@
         async function postCustomerAction(id, action) {
             var url = action === "delete"
                 ? "/admin/customers/" + id + "/delete"
-                : "/admin/customers/" + id + "/restore";
+                : action === "hard-delete"
+                    ? "/admin/customers/" + id + "/hard-delete"
+                    : "/admin/customers/" + id + "/restore";
             var body = new URLSearchParams();
             body.set("__RequestVerificationToken", antiforgeryToken());
             var res = await fetch(url, {
@@ -321,9 +335,15 @@
                 var id = btn.getAttribute("data-id");
                 var action = btn.getAttribute("data-action");
                 if (!id || !action) return;
-                var confirmMsg = action === "delete"
-                    ? "Müştəri silinsin?"
-                    : "Müştəri bərpa edilsin?";
+                var confirmMsg;
+                if (action === "delete") {
+                    confirmMsg = "Müştəri silinsin? (Silinmiş siyahısına düşəcək — bərpa etmək olar)";
+                } else if (action === "hard-delete") {
+                    var nm = btn.getAttribute("data-name") || "bu müştəri";
+                    confirmMsg = "«" + nm + "» birdəfəlik silinsin?";
+                } else {
+                    confirmMsg = "Müştəri bərpa edilsin?";
+                }
                 if (!window.confirm(confirmMsg)) return;
                 btn.disabled = true;
                 postCustomerAction(id, action)
@@ -369,7 +389,7 @@
 
         document.querySelectorAll(".preset-btn[data-preset]").forEach(function (btn) {
             btn.addEventListener("click", function () {
-                applyPreset(btn.getAttribute("data-preset") || "all");
+                applyPreset(btn.getAttribute("data-preset") || "today");
             });
         });
 
@@ -377,19 +397,32 @@
             AFS.initForm(STORAGE_KEY, form, {
                 applyDefaults: function (f) {
                     var active = f.elements.namedItem("active");
-                    if (active && "value" in active && !active.value) active.value = "active";
-                    clearDateRange();
-                    markPresetActive("all");
+                    if (active && "value" in active) {
+                        if (active.value !== "inactive") active.value = "active";
+                    }
+                    setTodayDateRange();
                 }
             });
 
-            // Saxlanmış dar tarix / kateqoriya səhv nəticə verməsin deyə:
-            // açılışda Status boşdursa Aktiv; boz tarixlər Hamısı sayılır.
+            // Status yalnız Aktiv | Silinmiş; boş/köhnə «Hamısı» → Aktiv.
+            (function ensureStatusDefault() {
+                var active = form.elements.namedItem("active");
+                if (active && "value" in active && active.value !== "inactive") {
+                    active.value = "active";
+                }
+            })();
+
+            // Boş tarix → bu gün (açılış default).
             (function syncPresetFromDates() {
                 var from = fromEl && fromEl.value ? fromEl.value : "";
                 var to = toEl && toEl.value ? toEl.value : "";
                 if (!from && !to) {
-                    markPresetActive("all");
+                    setTodayDateRange();
+                    return;
+                }
+                var todayIso = isoDate(new Date());
+                if (from === todayIso && to === todayIso) {
+                    markPresetActive("today");
                     return;
                 }
                 markPresetActive("");
