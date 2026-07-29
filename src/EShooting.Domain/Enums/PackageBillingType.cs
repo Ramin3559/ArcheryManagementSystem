@@ -6,5 +6,6 @@ public enum PackageBillingType
     Monthly = 1,
     Yearly = 2,
     Vip = 3,
-    Gym = 4
+    Gym = 4,
+    Unlimited = 5
 }

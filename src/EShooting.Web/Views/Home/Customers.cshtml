@@ -239,24 +239,7 @@
             <div class="filter-grid">
                 <label class="field">
                     <span class="field__label">Axtarış</span>
-                    <input name="search" id="search" type="search" placeholder="Ad, telefon, qeydiyyata alan…" autocomplete="off" />
-                </label>
-                <label class="field">
-                    <span class="field__label">Paket</span>
-                    <select name="packageType" id="packageType">
-                        <option value="">Hamısı</option>
-                        <option value="birdefelik">Birdefəlik</option>
-                        <option value="abune">Abunə</option>
-                        <option value="vip">VIP abunə</option>
-                    </select>
-                </label>
-                <label class="field">
-                    <span class="field__label">Status</span>
-                    <select name="active" id="active">
-                        <option value="active">Aktiv</option>
-                        <option value="inactive">Silinmiş</option>
-                        <option value="">Hamısı</option>
-                    </select>
+                    <input name="search" id="search" type="search" placeholder="Ad, telefon…" autocomplete="off" />
                 </label>
                 <label class="field">
                     <span class="field__label">Qeydiyyata alınma (başlanğıc)</span>
@@ -298,7 +281,6 @@
                     <th>Qeydiyyata alınma</th>
                     <th>Qeydiyyata alan</th>
                     <th>Son zolağa yazılma</th>
-                    <th>Oyun icarəsi</th>
                 </tr>
                 </thead>
                 <tbody id="tbody"></tbody>
@@ -338,10 +320,18 @@
     function qsFromForm() {
         const form = document.getElementById("filterForm");
         const qs = new URLSearchParams();
+        const searchText = (document.getElementById("search")?.value ?? "").trim();
         for (const el of form.elements) {
             if (!el.name) continue;
             if (el.type === "checkbox" && !el.checked) continue;
+            // Axtarış dolu olanda tarix filtri nəzərə alınmır — bütün müştərilər arasında axtarılır.
+            if (searchText && (el.name === "registeredFrom" || el.name === "registeredTo")) continue;
             qs.append(el.name, el.value ?? "");
+        }
+        if (searchText) {
+            qs.set("active", "");
+        } else {
+            qs.set("active", "active");
         }
         return qs;
     }
@@ -415,15 +405,12 @@
             const tbody = document.getElementById("tbody");
             tbody.innerHTML = "";
             if (items.length === 0) {
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
             } else {
                 for (const x of items) {
                     const tr = document.createElement("tr");
                     tr.dataset.id = x.id;
                     const sub = x.subscriptionFromLocal ? `${x.subscriptionFromLocal} — ${x.subscriptionToLocal}` : "—";
-                    const sessionRental = x.hasPendingSessionRental
-                        ? "Qaytarılmamış icarə"
-                        : x.hasSessionEquipmentRental ? "Bəli" : "—";
                     const vip = x.isVip ? '<span class="badge-vip">VIP</span>' : "—";
                     const lastLane = x.lastLaneVisitLocal
                         ? `${x.lastLaneVisitLocal}${x.lastLaneNumber ? ` · Zolaq ${x.lastLaneNumber}` : ""}`
@@ -436,8 +423,7 @@
                         <td>${escapeHtml(sub)}</td>
                         <td>${escapeHtml(x.registeredAtLocal)}</td>
                         <td>${escapeHtml(x.registeredByStaffName)}</td>
-                        <td>${escapeHtml(lastLane)}</td>
-                        <td>${escapeHtml(sessionRental)}</td>`;
+                        <td>${escapeHtml(lastLane)}</td>`;
                     tr.addEventListener("click", () => {
                         try {
                             sessionStorage.setItem("es-manage-athlete-id", x.id);

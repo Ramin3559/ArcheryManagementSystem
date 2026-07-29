@@ -64,7 +64,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         var search = (request.Search ?? "").Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(a => MatchesCustomerSearch(a, search, staffNameById, packageRecords));
+            query = query.Where(a => MatchesCustomerSearch(a, search));
         }
 
         if (request.Category is not null)
@@ -119,8 +119,9 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 athleteRecords);
             var registeredLocal = AzerbaijanTime.UtcToLocalDateTime(registeredUtc);
             var registeredLocalDate = registeredLocal.Date;
-            // Filter tarixləri kalendar günü kimi (Kind-dan asılı olmadan) müqayisə olunur.
-            if (request.RegisteredFrom is DateTime from)
+            // Axtarış dolu olanda tarix filtri tətbiq olunmur — bütün müştərilər arasında axtarılır.
+            var hasSearch = !string.IsNullOrWhiteSpace(request.Search);
+            if (!hasSearch && request.RegisteredFrom is DateTime from)
             {
                 var fromDate = DateTime.SpecifyKind(from.Date, DateTimeKind.Unspecified);
                 if (registeredLocalDate < fromDate)
@@ -129,7 +130,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 }
             }
 
-            if (request.RegisteredTo is DateTime to)
+            if (!hasSearch && request.RegisteredTo is DateTime to)
             {
                 var toDate = DateTime.SpecifyKind(to.Date, DateTimeKind.Unspecified);
                 if (registeredLocalDate > toDate)
@@ -221,11 +222,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         };
     }
 
-    private static bool MatchesCustomerSearch(
-        Athlete athlete,
-        string search,
-        IReadOnlyDictionary<Guid, string> staffNameById,
-        IReadOnlyList<CustomerPackageRecord> packageRecords)
+    private static bool MatchesCustomerSearch(Athlete athlete, string search)
     {
         var qLower = search.ToLowerInvariant();
         var qDigits = new string(search.Where(char.IsDigit).ToArray());
@@ -240,22 +237,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             return true;
         }
 
-        if (qDigits.Length > 0 && (athlete.PhoneNumber ?? "").Contains(qDigits))
-        {
-            return true;
-        }
-
-        if (athlete.RegisteredByStaffId is Guid registeredStaffId
-            && staffNameById.TryGetValue(registeredStaffId, out var registeredBy)
-            && registeredBy.ToLowerInvariant().Contains(qLower))
-        {
-            return true;
-        }
-
-        return packageRecords
-            .Where(r => r.AthleteId == athlete.Id && r.CreatedByStaffId is Guid staffId && staffId != Guid.Empty)
-            .Select(r => staffNameById.GetValueOrDefault(r.CreatedByStaffId!.Value, ""))
-            .Any(name => name.ToLowerInvariant().Contains(qLower));
+        return qDigits.Length > 0 && (athlete.PhoneNumber ?? "").Contains(qDigits);
     }
 
     private static bool ContainsIgnoreCase(string? value, string needleLower) =>

@@ -33,9 +33,25 @@ public static class WalkInSubscriptionRules
         return schedule is { DurationMinutes: 0 } ? schedule : null;
     }
 
+    /// <summary>Limitsiz paket (WalkIn + DurationMinutes > 0) — gəlişdə vaxtlı sessiya başlayır.</summary>
+    public static SubscriptionSchedule? GetActiveUnlimitedSchedule(
+        IReadOnlyCollection<SubscriptionSchedule> schedules,
+        Guid athleteId,
+        DateTime todayLocal)
+    {
+        var schedule = GetActiveWalkInSchedule(schedules, athleteId, todayLocal);
+        return schedule is { DurationMinutes: > 0 } ? schedule : null;
+    }
+
     public static bool HasActiveWalkIn(
         IReadOnlyCollection<SubscriptionSchedule> schedules,
         Guid athleteId,
         DateTime todayLocal)
         => GetActiveVipSchedule(schedules, athleteId, todayLocal) is not null;
+
+    public static bool HasActiveUnlimited(
+        IReadOnlyCollection<SubscriptionSchedule> schedules,
+        Guid athleteId,
+        DateTime todayLocal)
+        => GetActiveUnlimitedSchedule(schedules, athleteId, todayLocal) is not null;
 }

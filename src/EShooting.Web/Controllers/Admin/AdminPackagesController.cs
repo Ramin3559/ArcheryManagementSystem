@@ -135,6 +135,12 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                     validity = null;
                     unlimitedGym = true;
                     break;
+                case PackageBillingType.Unlimited:
+                    scope = PackageScope.Archery;
+                    scheduling = PackageSchedulingMode.WalkInFlexible;
+                    sessionDuration = model.SessionDurationMinutes;
+                    validity = null;
+                    break;
                 case PackageBillingType.Gym:
                     scope = PackageScope.Gym;
                     scheduling = PackageSchedulingMode.None;

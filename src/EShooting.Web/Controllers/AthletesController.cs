@@ -586,6 +586,10 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
         var activeVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, best.Id, DateTime.Now);
+        var activeUnlimited = activeVip is null
+            ? WalkInSubscriptionRules.GetActiveUnlimitedSchedule(schedules, best.Id, DateTime.Now)
+            : null;
+        var activeWalkIn = activeVip ?? activeUnlimited;
 
         return Ok(new
         {
@@ -602,9 +606,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.IsSubscriber,
             best.IsFullPackage,
             best.IsVip,
-            hasActiveWalkIn = activeVip is not null,
-            walkInExpiresLocal = activeVip is null ? null : DateDisplayFormats.FormatDate(activeVip.ActiveToDateLocal),
-            walkInSessionDurationMinutes = 0
+            hasActiveWalkIn = activeWalkIn is not null,
+            walkInExpiresLocal = activeWalkIn is null ? null : DateDisplayFormats.FormatDate(activeWalkIn.ActiveToDateLocal),
+            walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 0
         });
     }
 

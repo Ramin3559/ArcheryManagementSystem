@@ -21,4 +21,17 @@ public static class ServicePackageRules
 
         return schedulingMode == PackageSchedulingMode.WalkInFlexible && sessionDurationMinutes == 0;
     }
+
+    public static bool IsUnlimitedPackage(ServicePackage package) =>
+        IsUnlimitedPackage(package.BillingType, package.SchedulingMode, package.SessionDurationMinutes);
+
+    public static bool IsUnlimitedPackage(
+        PackageBillingType billingType,
+        PackageSchedulingMode schedulingMode,
+        int sessionDurationMinutes)
+    {
+        if (billingType == PackageBillingType.Unlimited)
+            return true;
+        return schedulingMode == PackageSchedulingMode.WalkInFlexible && sessionDurationMinutes > 0;
+    }
 }

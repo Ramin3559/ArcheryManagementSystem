@@ -11,6 +11,7 @@ public static class ServicePackageDisplayHelper
         PackageBillingType.Yearly => "İllik",
         PackageBillingType.Vip => "VIP",
         PackageBillingType.Gym => "Zal",
+        PackageBillingType.Unlimited => "Limitsiz",
         _ => value.ToString()
     };
 

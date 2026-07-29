@@ -2311,6 +2311,12 @@
         return pkg.schedulingMode === "WalkInFlexible" && Number(pkg.sessionDurationMinutes) === 0;
     }
 
+    function isUnlimitedBillingPackage(pkg) {
+        if (!pkg) return false;
+        if (pkg.billingType === "Unlimited") return true;
+        return pkg.schedulingMode === "WalkInFlexible" && Number(pkg.sessionDurationMinutes) > 0;
+    }
+
     function isGymPackage(pkg) {
         return pkg?.scope === "Gym" || pkg?.billingType === "Gym";
     }
@@ -2367,7 +2373,8 @@
             const durLabel = Number(p.sessionDurationMinutes) > 0
                 ? ` · ${p.sessionDurationMinutes} dəq`
                 : (isVipBillingPackage(p) ? " · müddətsiz" : "");
-            opt.textContent = `${p.name} (${p.billingTypeLabel})${durLabel}${price}`;
+            const unlimitedLabel = isUnlimitedBillingPackage(p) ? " [Limitsiz]" : "";
+            opt.textContent = `${p.name} (${p.billingTypeLabel})${unlimitedLabel}${durLabel}${price}`;
             bookingPackageSelect.appendChild(opt);
         }
         if (prev && filtered.some(x => String(x.id) === String(prev))) {
@@ -2378,12 +2385,12 @@
     }
 
     function isWalkInPackage(pkg) {
-        return isVipBillingPackage(pkg);
+        return isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg);
     }
 
     function calcSubscriptionEndDateLocal(startIso, pkg) {
         if (!startIso) return "";
-        if (isVipBillingPackage(pkg)) {
+        if (isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg)) {
             const months = Number(bookingSubMonths?.value ?? 1);
             const start = new Date(`${startIso}T12:00:00`);
             start.setMonth(start.getMonth() + months);
@@ -2393,30 +2400,62 @@
     }
 
     function isActiveVipReception() {
-        return Boolean(_receptionWalkIn?.isActive);
+        return Boolean(_receptionWalkIn?.isActive && !_receptionWalkIn?.isUnlimited);
     }
 
     function shouldUseOpenEndedSession() {
+        if (_receptionWalkIn?.isActive && _receptionWalkIn?.isUnlimited) return false;
         if (isActiveVipReception()) return true;
-        return isVipBillingPackage(getSelectedBookingPackage());
+        const pkg = getSelectedBookingPackage();
+        if (isUnlimitedBillingPackage(pkg)) return false;
+        return isVipBillingPackage(pkg);
     }
 
     function resolveSessionDurationMinutes() {
-        return shouldUseOpenEndedSession() ? 0 : Number(durationMinutesInput?.value ?? "0");
+        if (_receptionWalkIn?.isActive && _receptionWalkIn?.isUnlimited) {
+            return Number(_receptionWalkIn.sessionDurationMinutes || durationMinutesInput?.value || 0);
+        }
+        if (shouldUseOpenEndedSession()) return 0;
+        const pkg = getSelectedBookingPackage();
+        if (isUnlimitedBillingPackage(pkg)) return Number(pkg.sessionDurationMinutes || durationMinutesInput?.value || 0);
+        return Number(durationMinutesInput?.value ?? "0");
     }
 
     function syncVipReceptionBookingUi() {
         const vipActive = isActiveVipReception();
+        const unlimitedActive = isActiveUnlimitedReception();
+        const walkInActive = vipActive || unlimitedActive;
         if (bookingPackageSelect instanceof HTMLSelectElement) {
-            bookingPackageSelect.disabled = vipActive;
-            if (vipActive) {
+            bookingPackageSelect.disabled = walkInActive;
+            if (walkInActive) {
                 bookingPackageSelect.value = "";
             }
         }
         if (laneBookingHint instanceof HTMLElement) {
             laneBookingHint.textContent = "";
         }
-        if (vipActive) {
+        if (unlimitedActive) {
+            const dur = _receptionWalkIn?.sessionDurationMinutes || 0;
+            if (registrationModeInput instanceof HTMLInputElement) {
+                registrationModeInput.value = "instant";
+            }
+            if (durationMinutesInput instanceof HTMLInputElement) {
+                durationMinutesInput.value = String(dur);
+            }
+            if (subscriptionPeriodRow instanceof HTMLElement) subscriptionPeriodRow.style.display = "none";
+            if (bookingSubscriptionScheduleRow instanceof HTMLElement) bookingSubscriptionScheduleRow.style.display = "none";
+            if (bookingWalkInHint instanceof HTMLElement) bookingWalkInHint.style.display = "none";
+            if (bookingVipHint instanceof HTMLElement) {
+                bookingVipHint.style.display = "block";
+                bookingVipHint.textContent = `Limitsiz abunə aktivdir — paket seçimi lazım deyil. Zolaq seçib «Zolağa yaz» basın (${dur} dəq).`;
+            }
+            if (packageDurationHint instanceof HTMLElement) {
+                packageDurationHint.textContent = `Limitsiz — ${dur} dəq`;
+            }
+            if (sessionInfo instanceof HTMLElement) {
+                sessionInfo.textContent = `Limitsiz müştəri — zolaq seçib «Zolağa yaz» basın. ${dur} dəq geri sayım başlayacaq.`;
+            }
+        } else if (vipActive) {
             if (registrationModeInput instanceof HTMLInputElement) {
                 registrationModeInput.value = "instant";
             }
@@ -2459,21 +2498,26 @@
         const isSubscription = pkg && pkg.billingType !== "OneTime";
         const isWalkIn = isWalkInPackage(pkg);
         const isVip = isVipBillingPackage(pkg);
+        const isUnlimited = isUnlimitedBillingPackage(pkg);
         const gymMode = isGymBookingMode();
-        const hideWeeklySchedule = isVip || (pkg && isGymPackage(pkg));
+        const hideWeeklySchedule = isVip || isUnlimited || (pkg && isGymPackage(pkg));
         if (packageDurationHint instanceof HTMLElement) {
             if (!pkg) packageDurationHint.textContent = "";
             else if (isVip) packageDurationHint.textContent = "VIP — müddətsiz full paket";
+            else if (isUnlimited) packageDurationHint.textContent = `Limitsiz — hər gəliş ${pkg.sessionDurationMinutes} dəq`;
             else packageDurationHint.textContent = `Müddət: ${pkg.sessionDurationMinutes} dəq`;
         }
         if (subscriptionPeriodRow instanceof HTMLElement) {
-            subscriptionPeriodRow.style.display = isSubscription ? "flex" : "none";
+            subscriptionPeriodRow.style.display = (isSubscription || isUnlimited) ? "flex" : "none";
         }
         if (bookingSubEndDateWrap instanceof HTMLElement) {
-            bookingSubEndDateWrap.style.display = isSubscription && !isVip ? "" : "none";
+            bookingSubEndDateWrap.style.display = (isSubscription || isUnlimited) && !isVip && !isUnlimited ? "" : "none";
         }
         if (bookingSubMonthsWrap instanceof HTMLElement) {
-            bookingSubMonthsWrap.style.display = isSubscription && isVip ? "flex" : "none";
+            bookingSubMonthsWrap.style.display = (isSubscription || isUnlimited) && (isVip || isUnlimited) ? "flex" : "none";
+            if (isUnlimited && bookingSubMonthsWrap.querySelector("span")) {
+                bookingSubMonthsWrap.querySelector("span").textContent = "Neçə ay (Limitsiz)";
+            }
         }
         if (bookingSubscriptionScheduleRow instanceof HTMLElement) {
             bookingSubscriptionScheduleRow.style.display = isSubscription && !hideWeeklySchedule ? "" : "none";
@@ -2482,7 +2526,7 @@
             bookingWalkInHint.style.display = "none";
         }
         if (bookingVipHint instanceof HTMLElement) {
-            bookingVipHint.style.display = isSubscription && isVip ? "block" : "none";
+            bookingVipHint.style.display = isSubscription && isVip && !isUnlimited ? "block" : "none";
         }
         if (isSubscription && pkg) {
             syncBookingSubscriptionPeriodDefaults(pkg);
@@ -2495,8 +2539,11 @@
                 });
             }
         }
-        if (durationMinutesInput instanceof HTMLInputElement && isVip) {
+        if (durationMinutesInput instanceof HTMLInputElement && isVip && !isUnlimited) {
             durationMinutesInput.value = "0";
+        }
+        if (durationMinutesInput instanceof HTMLInputElement && isUnlimited && pkg) {
+            durationMinutesInput.value = String(pkg.sessionDurationMinutes || 0);
         }
         if (registrationModeInput instanceof HTMLInputElement) {
             if (!pkg) {
@@ -2522,9 +2569,9 @@
     }
 
     function isBillableBookingPackage(pkg) {
-        // Artıq aktiv VIP — yalnız zolağa yazılır, ödəniş/endirim yoxdur.
-        // VIP/Aylıq paket satışı isə billable-dir (open-ended sessiya olsa belə).
-        return Boolean(pkg && !isActiveVipReception());
+        // Artıq aktiv VIP/Limitsiz — yalnız zolağa yazılır, ödəniş/endirim yoxdur.
+        // VIP/Aylıq/Limitsiz paket satışı isə billable-dir.
+        return Boolean(pkg && !isActiveVipReception() && !isActiveUnlimitedReception());
     }
 
     function syncComplimentaryCheckboxUi(pkg) {
@@ -2580,11 +2627,42 @@
 
 
 
+    function countSubscriptionBillingMonths(startIso, endIso) {
+        if (!startIso || !endIso) return 1;
+        const start = new Date(`${startIso}T12:00:00`);
+        const end = new Date(`${endIso}T12:00:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 1;
+        const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        return Math.max(1, months);
+    }
+
+    function getBookingBillingMonths(pkg) {
+        if (!pkg) return 1;
+        if (isUnlimitedBillingPackage(pkg)) {
+            const months = Number(bookingSubMonths?.value ?? 1);
+            return Number.isInteger(months) && months > 0 ? months : 1;
+        }
+        if (pkg.billingType === "Monthly") {
+            return countSubscriptionBillingMonths(
+                bookingSubStartDate?.value ?? "",
+                bookingSubEndDate?.value ?? "");
+        }
+        return 1;
+    }
+
     function estimatePackageDue(pkg, includeEquipment = false) {
         if (!pkg) return 0;
-        let due = Number(pkg.price) || 0;
+        let due = (Number(pkg.price) || 0) * getBookingBillingMonths(pkg);
         if (includeEquipment) due += estimateEquipmentExtraDue();
         return due;
+    }
+
+    function refreshBookingPriceForPeriodChange() {
+        const pkg = getSelectedBookingPackage();
+        if (!pkg) return;
+        syncBookingListPriceDisplay(pkg);
+        try { ensureBookingPaymentBinder().rebalance(); } catch { /* ignore */ }
+        syncPaymentSummary(pkg);
     }
 
     function parseDiscountInput() {
@@ -3224,6 +3302,7 @@
                 alert(periodError);
                 return false;
             }
+            const walkInDuration = isUnlimitedBillingPackage(pkg) ? Number(pkg.sessionDurationMinutes || 0) : 0;
             const response = await apiFetch("/subscriptions/packages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -3234,7 +3313,7 @@
                     dayPattern: "1-3-5",
                     visitsCount: 1,
                     startTimeLocal: "00:00",
-                    durationMinutes: 0,
+                    durationMinutes: walkInDuration,
                     startDateLocal: new Date(`${periodStart}T00:00:00`).toISOString(),
                     endDateLocal: new Date(`${periodEnd}T00:00:00`).toISOString(),
                     preferredLaneTypesByDayOfWeek: {},
@@ -4264,14 +4343,17 @@
             return;
         }
         if (athlete.hasActiveWalkIn) {
+            const dur = Number(athlete.walkInSessionDurationMinutes ?? 0);
+            const isUnlimited = dur > 0;
             _receptionWalkIn = {
                 isActive: true,
-                isVip: true,
+                isVip: !isUnlimited,
+                isUnlimited: isUnlimited,
                 expiresLocal: athlete.walkInExpiresLocal ?? "",
-                sessionDurationMinutes: 0
+                sessionDurationMinutes: dur
             };
             if (durationMinutesInput instanceof HTMLInputElement) {
-                durationMinutesInput.value = "0";
+                durationMinutesInput.value = String(dur);
             }
         }
         syncReceptionWalkInUi();
@@ -4307,11 +4389,12 @@
             _receptionWalkIn = {
                 isActive: true,
                 isVip: info.isVip,
+                isUnlimited: info.isUnlimited || false,
                 expiresLocal: info.expiresLocal,
                 sessionDurationMinutes: info.durationMinutes
             };
             if (durationMinutesInput instanceof HTMLInputElement) {
-                durationMinutesInput.value = "0";
+                durationMinutesInput.value = info.isUnlimited ? String(info.durationMinutes) : "0";
             }
             syncReceptionWalkInUi();
             return;
@@ -4321,10 +4404,19 @@
         syncReceptionWalkInUi();
     }
 
+    function isActiveUnlimitedReception() {
+        return Boolean(_receptionWalkIn?.isActive && _receptionWalkIn?.isUnlimited);
+    }
+
     function syncReceptionWalkInUi() {
         const active = Boolean(_receptionWalkIn?.isActive);
         if (receptionWalkInBanner instanceof HTMLElement) {
-            if (active) {
+            if (active && _receptionWalkIn?.isUnlimited) {
+                const exp = _receptionWalkIn.expiresLocal ? ` · bitir ${_receptionWalkIn.expiresLocal}` : "";
+                const dur = _receptionWalkIn.sessionDurationMinutes || 0;
+                receptionWalkInBanner.style.display = "block";
+                receptionWalkInBanner.textContent = `Limitsiz abunə aktiv${exp}. Zolaq seçib «Zolağa yaz» basın — ${dur} dəq geri sayım.`;
+            } else if (active) {
                 const exp = _receptionWalkIn.expiresLocal ? ` · bitir ${_receptionWalkIn.expiresLocal}` : "";
                 receptionWalkInBanner.style.display = "block";
                 receptionWalkInBanner.textContent = `VIP abunə aktiv${exp}. Zolaq seçib «Zolağa yaz» basın — müddətsiz sessiya.`;
@@ -5087,11 +5179,14 @@
             active.sort((a, b) => String(b.activeToDateLocal).localeCompare(String(a.activeToDateLocal)));
             const best = active[0];
             const durationMinutes = Number(best.durationMinutes ?? 0);
-            if (durationMinutes !== 0) return null;
+            const isUnlimited = durationMinutes > 0;
+            const isVip = durationMinutes === 0;
+            if (!isVip && !isUnlimited) return null;
             return {
                 expiresLocal: String(best.activeToDateLocal ?? "").slice(0, 10),
-                durationMinutes: 0,
-                isVip: true
+                durationMinutes: durationMinutes,
+                isVip: isVip,
+                isUnlimited: isUnlimited
             };
         } catch {
             return null;
@@ -5195,10 +5290,11 @@
             }
         }
 
-        if (walkIn?.isActive && pkg && isVipBillingPackage(pkg)) {
+        if (walkIn?.isActive && pkg && (isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg))) {
             const exp = walkIn.expiresLocal ? ` (bitir: ${walkIn.expiresLocal})` : "";
+            const label = walkIn.isUnlimited ? "Limitsiz" : "VIP";
             alert(
-                `Bu müştərinin artıq aktiv VIP abunəsi var${exp}.\n\n` +
+                `Bu müştərinin artıq aktiv ${label} abunəsi var${exp}.\n\n` +
                 "Gəldikdə zolaq seçin, «İndi başla» və ya «Saat seç» edib «Zolağa yaz» basın."
             );
             return true;
@@ -8450,6 +8546,8 @@
                     }
                     showSessionNotice(`Zala yazıldı (${selectedPkg.name}, ${periodStart} — ${periodEnd}).`, "ok");
                     clearReceptionPersonFields();
+                } else if (isUnlimitedBillingPackage(selectedPkg)) {
+                    showSessionNotice(`Limitsiz abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Gəldikdə zolaq seçib «Başla» basın — ${selectedPkg.sessionDurationMinutes} dəq geri sayım.`, "ok");
                 } else if (isVipBillingPackage(selectedPkg)) {
                     showSessionNotice(`VIP abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Gəldikdə zolaq seçib «Zolağa yaz» basın.`, "ok");
                 } else {
@@ -8466,7 +8564,7 @@
                 return;
             }
 
-            if (await promptActiveSubscriberManage(athleteId, { bookingContext: captureBookingContextForManage() })) {
+            if (!isActiveUnlimitedReception() && await promptActiveSubscriberManage(athleteId, { bookingContext: captureBookingContextForManage() })) {
                 return;
             }
 
@@ -8512,6 +8610,17 @@
             }
 
             const sessionData = await sessionResponse.json();
+            if (isActiveUnlimitedReception()) {
+                const dur = _receptionWalkIn?.sessionDurationMinutes || 0;
+                if (sessionData?.message) {
+                    showSessionNotice(sessionData.message, "warn");
+                } else {
+                    showSessionNotice(`Limitsiz müştəri zolağa yazıldı. Zolaq ${sessionData?.laneNumber ?? laneNumberInput.value} — ${dur} dəq geri sayım.`, "ok");
+                }
+                clearReceptionPersonFields();
+                await refreshReceptionPanelData();
+                return;
+            }
             if (shouldUseOpenEndedSession()) {
                 if (sessionData?.message) {
                     showSessionNotice(sessionData.message, "warn");
@@ -8820,6 +8929,12 @@
     try { loadBookingPackages(); } catch (e) { console.error(e); }
     try { loadEquipmentCatalog(); } catch (e) { console.error(e); }
     try { bookingPackageSelect?.addEventListener("change", syncBookingPackageUi); } catch (e) { console.error(e); }
+    try {
+        bookingSubMonths?.addEventListener("input", refreshBookingPriceForPeriodChange);
+        bookingSubMonths?.addEventListener("change", refreshBookingPriceForPeriodChange);
+        bookingSubStartDate?.addEventListener("change", refreshBookingPriceForPeriodChange);
+        bookingSubEndDate?.addEventListener("change", refreshBookingPriceForPeriodChange);
+    } catch (e) { console.error(e); }
     try {
         bookingDiscountInput?.addEventListener("input", () => {
             ensureBookingPaymentBinder().rebalance();
