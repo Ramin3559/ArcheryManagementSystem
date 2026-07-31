@@ -22,6 +22,15 @@ public sealed class CustomerListFilter
     public bool IncludeInactive { get; set; }
 }
 
+public sealed class UpdateCustomerPackagePaymentRequest
+{
+    public decimal PriceDue { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal AmountPaidCash { get; set; }
+    public decimal AmountPaidCard { get; set; }
+    public bool IsComplimentary { get; set; }
+}
+
 [Authorize(Policy = AdminAuthDefaults.Policy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/customers")]
@@ -77,6 +86,45 @@ public sealed class AdminCustomersController(IMediator mediator) : Controller
 
         var bytes = AdminCustomersExcelExporter.Export(result.Items);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"musteriler-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
+    }
+
+    [HttpGet("{id:guid}/package-payments")]
+    public async Task<IActionResult> PackagePayments(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var items = await mediator.Send(new GetCustomerPackagePaymentsQuery(id), cancellationToken);
+            return Ok(new { items });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("package-payments/{recordId:guid}")]
+    public async Task<IActionResult> UpdatePackagePayment(
+        Guid recordId,
+        [FromBody] UpdateCustomerPackagePaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(
+                new UpdateCustomerPackageBillingCommand(
+                    recordId,
+                    request.PriceDue,
+                    request.DiscountAmount,
+                    request.AmountPaidCash,
+                    request.AmountPaidCard,
+                    request.IsComplimentary),
+                cancellationToken);
+            return Ok(new { message = "Ödəniş qeydi yeniləndi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPost("{id:guid}/delete")]

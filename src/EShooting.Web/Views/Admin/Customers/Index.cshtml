@@ -29,9 +29,61 @@
         color: #3730a3;
     }
     .card.loading { opacity: 0.65; pointer-events: none; }
-    .cust-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .cust-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
     .cust-actions .btn { padding: 4px 10px; font-size: 12px; }
     .row-deleted td { opacity: 0.78; }
+    #customersTableCard .tableWrap {
+        overflow: auto;
+        max-height: 70vh;
+    }
+    #customersTableCard table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        table-layout: auto;
+    }
+    #customersTableCard th,
+    #customersTableCard td {
+        padding: 8px 10px;
+        font-size: 13px;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    #customersTableCard th {
+        font-size: 11px;
+        letter-spacing: .04em;
+    }
+    #customersTableCard tbody tr.cust-row {
+        cursor: pointer;
+    }
+    #customersTableCard tbody tr.cust-row:hover {
+        background: rgba(79, 70, 229, 0.05);
+    }
+    #customersTableCard td.col-actions {
+        cursor: default;
+        position: sticky;
+        right: 0;
+        background: #fff;
+        box-shadow: -6px 0 8px -8px rgba(17, 24, 39, 0.25);
+    }
+    #customersTableCard tr.row-deleted td.col-actions {
+        background: #fff;
+    }
+    #packagePaymentsModal .tableWrap th,
+    #packagePaymentsModal .tableWrap td {
+        padding: 8px 10px;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    #packagePaymentsModal tbody tr.pay-row {
+        cursor: pointer;
+    }
+    #packagePaymentsModal tbody tr.pay-row:hover {
+        background: rgba(79, 70, 229, 0.05);
+    }
+    #packagePaymentsModal tbody tr.pay-row.is-selected {
+        background: rgba(79, 70, 229, 0.08);
+    }
 </style>
 
 <div class="topbar">
@@ -124,6 +176,7 @@
                 <th>Telefon</th>
                 <th>VIP</th>
                 <th>Paket</th>
+                <th>Ödəniş</th>
                 <th>Abunə müddəti</th>
                 <th>Qeydiyyata alınma</th>
                 <th>Qeydiyyata alan</th>
@@ -134,11 +187,74 @@
             </tr>
             </thead>
             <tbody id="customersTableBody">
-            <tr><td colspan="11" style="color:var(--muted);">Yüklənir…</td></tr>
+            <tr><td colspan="12" style="color:var(--muted);">Yüklənir…</td></tr>
             </tbody>
         </table>
     </div>
     <p class="statLabel" style="margin-top:10px;" id="customersCountLabel">Cəmi: — müştəri</p>
+</div>
+
+<div id="packagePaymentsModal"
+     style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.45); z-index:9999; padding:16px; overflow:auto;">
+    <div style="max-width:920px; margin:24px auto; background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px;">
+        <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div>
+                <div style="font-weight:900; color:#1a2650; font-size:18px;">Paket ödənişləri</div>
+                <div id="packagePaymentsAthlete" style="color:var(--muted); font-size:13px; margin-top:4px;"></div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="packagePaymentsCloseBtn">Bağla</button>
+        </div>
+        <div class="tableWrap" style="margin-top:12px;">
+            <table>
+                <thead>
+                <tr>
+                    <th>Tarix</th>
+                    <th>Paket</th>
+                    <th>Qiymət</th>
+                    <th>Endirim</th>
+                    <th>Nağd</th>
+                    <th>Kart</th>
+                    <th>Cəm</th>
+                </tr>
+                </thead>
+                <tbody id="packagePaymentsBody">
+                <tr><td colspan="7" style="color:var(--muted);">Yüklənir…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="packagePaymentEditPanel" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+            <div style="font-weight:800; color:#1a2650; margin-bottom:4px;">Ödənişi düzəlt</div>
+            <p id="editPaymentSelectedLabel" class="statLabel" style="margin:0 0 10px;">Siyahıdan seçin və ya dəyərləri dəyişin.</p>
+            <input type="hidden" id="editPaymentRecordId" />
+            <div class="filter-grid">
+                <label class="field">
+                    <span>Qiymət (AZN)</span>
+                    <input id="editPaymentPriceDue" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                    <span>Endirim (AZN)</span>
+                    <input id="editPaymentDiscount" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                    <span>Nağd (AZN)</span>
+                    <input id="editPaymentCash" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                    <span>Kart (AZN)</span>
+                    <input id="editPaymentCard" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field" style="flex-direction:row; align-items:center; gap:8px;">
+                    <input id="editPaymentComplimentary" type="checkbox" />
+                    <span style="text-transform:none; letter-spacing:0;">Pulsuz</span>
+                </label>
+            </div>
+            <p id="editPaymentHint" class="statLabel" style="margin-top:8px;">Ödəniləcək = qiymət − endirim. Nağd və ya karta yazın — digəri avtomatik dolacaq.</p>
+            <div class="filter-actions">
+                <button type="button" class="btn btn-primary" id="editPaymentSaveBtn">Yadda saxla</button>
+                <button type="button" class="btn btn-ghost" id="editPaymentCancelBtn">Sıfırla</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -276,7 +392,7 @@
         function renderRows(items) {
             if (!tbody) return;
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="11" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
                 return;
             }
             tbody.innerHTML = items.map(function (x) {
@@ -286,19 +402,22 @@
                     : "—";
                 var name = AFS.escapeHtml(x.fullName) + (x.isVip ? " · VIP" : "");
                 if (!x.isActive) name += ' <span style="color:#b91c1c;font-size:11px;">(silinmiş)</span>';
-                var rowClass = x.isActive ? "" : ' class="row-deleted"';
-                return "<tr" + rowClass + ">"
+                var rowClass = "cust-row" + (x.isActive ? "" : " row-deleted");
+                var payment = AFS.escapeHtml(x.latestPaymentLabel || "—");
+                return '<tr class="' + rowClass + '" data-athlete-id="' + AFS.escapeHtml(x.id)
+                    + '" data-athlete-name="' + AFS.escapeHtml(x.fullName || "") + '">'
                     + "<td>" + name + "</td>"
                     + "<td>" + AFS.escapeHtml(x.phoneNumber) + "</td>"
                     + "<td>" + (x.isVip ? "Bəli" : "—") + "</td>"
                     + "<td>" + AFS.escapeHtml(x.packageTypeLabel) + "</td>"
+                    + "<td>" + payment + "</td>"
                     + "<td>" + sub + "</td>"
                     + "<td>" + AFS.escapeHtml(x.registeredAtLocal) + "</td>"
                     + "<td>" + AFS.escapeHtml(x.registeredByStaffName) + "</td>"
                     + "<td>" + lastLane + "</td>"
                     + "<td>" + AFS.escapeHtml(sessionRentalLabel(x)) + "</td>"
                     + "<td>" + deletedByLabel(x) + "</td>"
-                    + "<td>" + actionCell(x) + "</td>"
+                    + '<td class="col-actions">' + actionCell(x) + "</td>"
                     + "</tr>";
             }).join("");
         }
@@ -331,29 +450,282 @@
         if (tbody) {
             tbody.addEventListener("click", function (e) {
                 var btn = e.target && e.target.closest ? e.target.closest("button[data-action]") : null;
-                if (!btn) return;
-                var id = btn.getAttribute("data-id");
-                var action = btn.getAttribute("data-action");
-                if (!id || !action) return;
-                var confirmMsg;
-                if (action === "delete") {
-                    confirmMsg = "Müştəri silinsin? (Silinmiş siyahısına düşəcək — bərpa etmək olar)";
-                } else if (action === "hard-delete") {
-                    var nm = btn.getAttribute("data-name") || "bu müştəri";
-                    confirmMsg = "«" + nm + "» birdəfəlik silinsin?";
-                } else {
-                    confirmMsg = "Müştəri bərpa edilsin?";
+                if (btn) {
+                    var id = btn.getAttribute("data-id");
+                    var action = btn.getAttribute("data-action");
+                    if (!id || !action) return;
+                    var confirmMsg;
+                    if (action === "delete") {
+                        confirmMsg = "Müştəri silinsin? (Silinmiş siyahısına düşəcək — bərpa etmək olar)";
+                    } else if (action === "hard-delete") {
+                        var nm = btn.getAttribute("data-name") || "bu müştəri";
+                        confirmMsg = "«" + nm + "» birdəfəlik silinsin?";
+                    } else {
+                        confirmMsg = "Müştəri bərpa edilsin?";
+                    }
+                    if (!window.confirm(confirmMsg)) return;
+                    btn.disabled = true;
+                    postCustomerAction(id, action)
+                        .then(function () { return loadList(); })
+                        .catch(function (err) {
+                            alert(err && err.message ? err.message : "Əməliyyat alınmadı.");
+                        })
+                        .finally(function () { btn.disabled = false; });
+                    return;
                 }
-                if (!window.confirm(confirmMsg)) return;
-                btn.disabled = true;
-                postCustomerAction(id, action)
-                    .then(function () { return loadList(); })
-                    .catch(function (err) {
-                        alert(err && err.message ? err.message : "Əməliyyat alınmadı.");
-                    })
-                    .finally(function () { btn.disabled = false; });
+
+                var row = e.target && e.target.closest ? e.target.closest("tr.cust-row") : null;
+                if (!row) return;
+                openPackagePaymentsModal(
+                    row.getAttribute("data-athlete-id") || "",
+                    row.getAttribute("data-athlete-name") || ""
+                );
             });
         }
+
+        var paymentsModal = document.getElementById("packagePaymentsModal");
+        var paymentsBody = document.getElementById("packagePaymentsBody");
+        var paymentsAthlete = document.getElementById("packagePaymentsAthlete");
+        var editPanel = document.getElementById("packagePaymentEditPanel");
+        var currentPaymentsAthleteId = null;
+        var paymentSplitSource = "cash";
+
+        function money(v) {
+            var n = Number(v || 0);
+            return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+        }
+
+        function readMoney(id) {
+            var n = Number(document.getElementById(id)?.value || 0);
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        }
+
+        function payableAmount() {
+            var price = readMoney("editPaymentPriceDue");
+            var discount = Math.min(readMoney("editPaymentDiscount"), price);
+            return Math.max(0, Math.round((price - discount) * 100) / 100);
+        }
+
+        function syncPaymentSplit(fromField) {
+            var comp = document.getElementById("editPaymentComplimentary");
+            if (comp && comp.checked) return;
+            var payable = payableAmount();
+            var cashEl = document.getElementById("editPaymentCash");
+            var cardEl = document.getElementById("editPaymentCard");
+            if (!(cashEl instanceof HTMLInputElement) || !(cardEl instanceof HTMLInputElement)) return;
+
+            if (fromField === "cash") {
+                paymentSplitSource = "cash";
+                var cash = Math.min(readMoney("editPaymentCash"), payable);
+                cashEl.value = money(cash);
+                cardEl.value = money(Math.max(0, payable - cash));
+            } else if (fromField === "card") {
+                paymentSplitSource = "card";
+                var card = Math.min(readMoney("editPaymentCard"), payable);
+                cardEl.value = money(card);
+                cashEl.value = money(Math.max(0, payable - card));
+            } else if (paymentSplitSource === "card") {
+                var keepCard = Math.min(readMoney("editPaymentCard"), payable);
+                cardEl.value = money(keepCard);
+                cashEl.value = money(Math.max(0, payable - keepCard));
+            } else {
+                var keepCash = Math.min(readMoney("editPaymentCash"), payable);
+                cashEl.value = money(keepCash);
+                cardEl.value = money(Math.max(0, payable - keepCash));
+            }
+
+            var hint = document.getElementById("editPaymentHint");
+            if (hint) {
+                hint.textContent = "Ödəniləcək: " + money(payable)
+                    + " AZN — nağd və ya karta yazın, digəri avtomatik doldurulur.";
+            }
+        }
+
+        function closePackagePaymentsModal() {
+            if (paymentsModal) paymentsModal.style.display = "none";
+            if (editPanel) editPanel.style.display = "none";
+            currentPaymentsAthleteId = null;
+        }
+
+        function clearPaymentEditForm() {
+            document.getElementById("editPaymentRecordId").value = "";
+            document.getElementById("editPaymentPriceDue").value = "";
+            document.getElementById("editPaymentDiscount").value = "";
+            document.getElementById("editPaymentCash").value = "";
+            document.getElementById("editPaymentCard").value = "";
+            document.getElementById("editPaymentComplimentary").checked = false;
+            var sel = document.getElementById("editPaymentSelectedLabel");
+            if (sel) sel.textContent = "Ödəniş qeydi yoxdur.";
+            if (paymentsBody) {
+                paymentsBody.querySelectorAll("tr.pay-row").forEach(function (tr) {
+                    tr.classList.remove("is-selected");
+                });
+            }
+        }
+
+        function resetPaymentEditToSelected() {
+            if (!paymentsBody) return;
+            var row = paymentsBody.querySelector("tr.pay-row.is-selected");
+            var rid = row ? row.getAttribute("data-payment-id") : null;
+            var items = paymentsBody._items || [];
+            var item = rid
+                ? items.find(function (x) { return String(x.id) === String(rid); })
+                : items[0];
+            if (item) {
+                var targetRow = row || paymentsBody.querySelector('tr.pay-row[data-payment-id="' + item.id + '"]');
+                openPaymentEdit(item, targetRow);
+            }
+        }
+
+        function openPaymentEdit(item, rowEl) {
+            if (!editPanel || !item) return;
+            if (paymentsBody) {
+                paymentsBody.querySelectorAll("tr.pay-row").forEach(function (tr) {
+                    tr.classList.toggle("is-selected", tr === rowEl);
+                });
+            }
+            document.getElementById("editPaymentRecordId").value = item.id || "";
+            document.getElementById("editPaymentPriceDue").value = money(item.priceDue);
+            document.getElementById("editPaymentDiscount").value = money(item.discountAmount);
+            document.getElementById("editPaymentCash").value = money(item.amountPaidCash);
+            document.getElementById("editPaymentCard").value = money(item.amountPaidCard);
+            document.getElementById("editPaymentComplimentary").checked = !!item.isComplimentary;
+            paymentSplitSource = Number(item.amountPaidCard || 0) > Number(item.amountPaidCash || 0) ? "card" : "cash";
+            var sel = document.getElementById("editPaymentSelectedLabel");
+            if (sel) {
+                sel.textContent = (item.createdAtLocal || "")
+                    + (item.packageName ? " · " + item.packageName : "")
+                    + " — siyahıdan digər sətirə klikləyin, forma dəyişsin.";
+            }
+            editPanel.style.display = "block";
+            syncComplimentaryFields();
+            if (!(document.getElementById("editPaymentComplimentary")?.checked)) {
+                syncPaymentSplit(paymentSplitSource);
+            }
+        }
+
+        function syncComplimentaryFields() {
+            var comp = document.getElementById("editPaymentComplimentary");
+            var disabled = !!(comp && comp.checked);
+            ["editPaymentDiscount", "editPaymentCash", "editPaymentCard"].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.disabled = disabled;
+                    if (disabled) el.value = "0.00";
+                }
+            });
+            if (!disabled) syncPaymentSplit(paymentSplitSource);
+            else {
+                var hint = document.getElementById("editPaymentHint");
+                if (hint) hint.textContent = "Pulsuz seçilib — ödəniş 0 AZN.";
+            }
+        }
+
+        async function openPackagePaymentsModal(athleteId, name, selectRecordId) {
+            if (!athleteId) return;
+            currentPaymentsAthleteId = athleteId;
+            if (paymentsAthlete) paymentsAthlete.textContent = name || "";
+            if (paymentsBody) paymentsBody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Yüklənir…</td></tr>';
+            if (editPanel) editPanel.style.display = "block";
+            if (paymentsModal) paymentsModal.style.display = "block";
+            try {
+                var res = await fetch("/admin/customers/" + encodeURIComponent(athleteId) + "/package-payments", {
+                    credentials: "same-origin"
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(data.error || "Yüklənmədi.");
+                var items = Array.isArray(data.items) ? data.items : [];
+                if (!items.length) {
+                    paymentsBody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Ödəniş qeydi yoxdur.</td></tr>';
+                    paymentsBody._items = [];
+                    clearPaymentEditForm();
+                    return;
+                }
+                paymentsBody.innerHTML = items.map(function (p) {
+                    var label = p.isComplimentary ? "Pulsuz" : money(p.amountPaid);
+                    return '<tr class="pay-row" data-payment-id="' + AFS.escapeHtml(p.id) + '">'
+                        + "<td>" + AFS.escapeHtml(p.createdAtLocal || "") + "</td>"
+                        + "<td>" + AFS.escapeHtml(p.packageName || "") + "</td>"
+                        + "<td>" + money(p.priceDue) + "</td>"
+                        + "<td>" + money(p.discountAmount) + "</td>"
+                        + "<td>" + money(p.amountPaidCash) + "</td>"
+                        + "<td>" + money(p.amountPaidCard) + "</td>"
+                        + "<td>" + AFS.escapeHtml(label) + "</td>"
+                        + "</tr>";
+                }).join("");
+                paymentsBody._items = items;
+                var pick = selectRecordId
+                    ? (items.find(function (x) { return String(x.id) === String(selectRecordId); }) || items[0])
+                    : items[0];
+                var pickRow = paymentsBody.querySelector('tr.pay-row[data-payment-id="' + pick.id + '"]');
+                openPaymentEdit(pick, pickRow);
+            } catch (err) {
+                paymentsBody.innerHTML = '<tr><td colspan="7" style="color:#b91c1c;">'
+                    + AFS.escapeHtml(err && err.message ? err.message : "Xəta") + "</td></tr>";
+                clearPaymentEditForm();
+            }
+        }
+
+        if (paymentsBody) {
+            paymentsBody.addEventListener("click", function (e) {
+                var row = e.target && e.target.closest ? e.target.closest("tr.pay-row") : null;
+                if (!row) return;
+                var rid = row.getAttribute("data-payment-id");
+                var items = paymentsBody._items || [];
+                var item = items.find(function (x) { return String(x.id) === String(rid); });
+                if (item) openPaymentEdit(item, row);
+            });
+        }
+
+        document.getElementById("packagePaymentsCloseBtn")?.addEventListener("click", closePackagePaymentsModal);
+        document.getElementById("editPaymentCancelBtn")?.addEventListener("click", resetPaymentEditToSelected);
+        document.getElementById("editPaymentComplimentary")?.addEventListener("change", syncComplimentaryFields);
+        document.getElementById("editPaymentPriceDue")?.addEventListener("input", function () { syncPaymentSplit("price"); });
+        document.getElementById("editPaymentDiscount")?.addEventListener("input", function () { syncPaymentSplit("price"); });
+        document.getElementById("editPaymentCash")?.addEventListener("input", function () { syncPaymentSplit("cash"); });
+        document.getElementById("editPaymentCard")?.addEventListener("input", function () { syncPaymentSplit("card"); });
+        paymentsModal?.addEventListener("click", function (e) {
+            if (e.target === paymentsModal) closePackagePaymentsModal();
+        });
+
+        document.getElementById("editPaymentSaveBtn")?.addEventListener("click", async function () {
+            var recordId = document.getElementById("editPaymentRecordId")?.value || "";
+            if (!recordId) return;
+            if (!(document.getElementById("editPaymentComplimentary")?.checked)) {
+                syncPaymentSplit(paymentSplitSource);
+            }
+            var payload = {
+                priceDue: Number(document.getElementById("editPaymentPriceDue")?.value || 0),
+                discountAmount: Number(document.getElementById("editPaymentDiscount")?.value || 0),
+                amountPaidCash: Number(document.getElementById("editPaymentCash")?.value || 0),
+                amountPaidCard: Number(document.getElementById("editPaymentCard")?.value || 0),
+                isComplimentary: !!document.getElementById("editPaymentComplimentary")?.checked
+            };
+            var btn = document.getElementById("editPaymentSaveBtn");
+            if (btn) btn.disabled = true;
+            try {
+                var res = await fetch("/admin/customers/package-payments/" + encodeURIComponent(recordId), {
+                    method: "PUT",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(data.error || "Yadda saxlanılmadı.");
+                if (currentPaymentsAthleteId) {
+                    await openPackagePaymentsModal(
+                        currentPaymentsAthleteId,
+                        paymentsAthlete?.textContent || "",
+                        recordId);
+                }
+                await loadList();
+                alert(data.message || "Ödəniş yeniləndi.");
+            } catch (err) {
+                alert(err && err.message ? err.message : "Yadda saxlanılmadı.");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        });
 
         async function loadList() {
             if (!form) return;
@@ -368,7 +740,7 @@
                 renderRows(items);
                 if (countLabel) countLabel.textContent = "Cəmi: " + items.length + " müştəri";
             } catch (e) {
-                if (tbody) tbody.innerHTML = '<tr><td colspan="11" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="12" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
             } finally {
                 if (tableCard) tableCard.classList.remove("loading");
             }

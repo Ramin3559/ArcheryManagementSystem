@@ -12,7 +12,7 @@ public sealed class ServicePackage
     public PackageSchedulingMode SchedulingMode { get; set; }
     public decimal Price { get; set; }
 
-    /// <summary>Hər sessiyanın default müddəti (dəqiqə).</summary>
+    /// <summary>Hər sessiyanın default müddəti (dəqiqə). 0 = müddətsiz (stop-a qədər).</summary>
     public int SessionDurationMinutes { get; set; }
 
     /// <summary>Sabit planda dövr ərzində cəmi dəqiqə (məs. aylıq 720 = 12 saat).</summary>
@@ -20,6 +20,9 @@ public sealed class ServicePackage
 
     /// <summary>Həftə günləri (0=Bazar … 6=Şənbə), məs: "1,3,5".</summary>
     public string? WeeklyDaysCsv { get; set; }
+
+    /// <summary>Aylıq/illik paketdə həftədə neçə gün seçilə bilər (1–7).</summary>
+    public int? WeeklyDaysCount { get; set; }
 
     /// <summary>Abunə müddəti (gün): aylıq 30, illik 365.</summary>
     public int? ValidityDays { get; set; }

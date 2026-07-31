@@ -1,4 +1,5 @@
 using EShooting.Application.Common.Interfaces;
+using EShooting.Domain.Enums;
 using MediatR;
 
 namespace EShooting.Application.Athletes.Commands;
@@ -21,10 +22,11 @@ public sealed class ReleaseInactiveAthleteIdentifiersCommandHandler(ITrainingCen
         }
 
         var card = AthleteRegistrationRules.NormalizeOptionalText(athlete.ClubCardNumber);
-        if (!string.IsNullOrWhiteSpace(card))
+        if (!string.IsNullOrWhiteSpace(card) && athlete.ClubCardType is ClubCardType cardType)
         {
             await repository.CloseOpenClubCardAssignmentAsync(
                 athlete.Id,
+                cardType,
                 card,
                 request.StaffId,
                 cancellationToken);
@@ -34,6 +36,7 @@ public sealed class ReleaseInactiveAthleteIdentifiersCommandHandler(ITrainingCen
         athlete.Email = null;
         athlete.IdCardNumber = null;
         athlete.ClubCardNumber = null;
+        athlete.ClubCardType = null;
         await repository.UpdateAthleteAsync(athlete, cancellationToken);
     }
 }

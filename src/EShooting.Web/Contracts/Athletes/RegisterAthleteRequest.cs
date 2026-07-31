@@ -13,6 +13,7 @@ public sealed class RegisterAthleteRequest
     public string Email { get; set; } = string.Empty;
     public string IdCardNumber { get; set; } = string.Empty;
     public string ClubCardNumber { get; set; } = string.Empty;
+    public ClubCardType? ClubCardType { get; set; }
 
     public CustomerCategory Category { get; set; } = CustomerCategory.Amateur;
 

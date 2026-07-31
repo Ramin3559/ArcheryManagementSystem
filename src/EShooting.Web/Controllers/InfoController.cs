@@ -1,6 +1,8 @@
 using System.Globalization;
+using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
+using EShooting.Domain.Enums;
 using EShooting.Web;
 using Microsoft.AspNetCore.Mvc;
 
@@ -104,6 +106,10 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .ToList();
 
         var occurrencesFlat = BuildFlatOccurrences(athlete.FullName ?? "", activeSchedules);
+        var todayIso = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
+        var remainingPlanned = occurrencesFlat.Count(o =>
+            o is OccurrenceRow row && string.CompareOrdinal(row.DateLocal, todayIso) >= 0);
+        var visitStats = BuildVisitStats(athlete.Id, sessions, activeSchedules, remainingPlanned);
 
         var lastSessions = sessions
             .Where(x => x.AthleteId == athlete.Id)
@@ -111,12 +117,8 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .Take(20)
             .Select(ses =>
             {
-                var startLocal = ses.StartTimeUtc.Kind == DateTimeKind.Utc
-                    ? ses.StartTimeUtc.ToLocalTime()
-                    : DateTime.SpecifyKind(ses.StartTimeUtc, DateTimeKind.Utc).ToLocalTime();
-                var endLocal = ses.EndTimeUtc.Kind == DateTimeKind.Utc
-                    ? ses.EndTimeUtc.ToLocalTime()
-                    : DateTime.SpecifyKind(ses.EndTimeUtc, DateTimeKind.Utc).ToLocalTime();
+                var startLocal = AzerbaijanTime.UtcToLocalDateTime(ses.StartTimeUtc);
+                var endLocal = AzerbaijanTime.UtcToLocalDateTime(ses.EndTimeUtc);
                 return new
                 {
                     dateLocal = startLocal.ToString("yyyy-MM-dd"),
@@ -138,6 +140,7 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             email = athlete.Email,
             idCardNumber = athlete.IdCardNumber,
             clubCardNumber = athlete.ClubCardNumber,
+            clubCardType = athlete.ClubCardType,
             category = athlete.Category,
             membershipType = athlete.MembershipType,
             isSubscriber = athlete.IsSubscriber,
@@ -146,14 +149,102 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             isActive = athlete.IsActive,
             packages,
             weeklySchedules,
-            occurrencesFlat,
+            occurrencesFlat = occurrencesFlat.Select(o => new
+            {
+                scheduleId = o.ScheduleId,
+                athleteFullName = o.AthleteFullName,
+                dateLocal = o.DateLocal,
+                dayLabel = o.DayLabel,
+                startTime = o.StartTime,
+                endTime = o.EndTime,
+                durationMinutes = o.DurationMinutes,
+                laneNumber = o.LaneNumber,
+                laneLabel = o.LaneLabel,
+                preferredLaneType = o.PreferredLaneType,
+                isFullPackage = o.IsFullPackage,
+                isRescheduled = o.IsRescheduled
+            }),
+            visitStats,
             lastSessions
         });
     }
 
-    private static List<object> BuildFlatOccurrences(string athleteFullName, List<SubscriptionSchedule> schedules)
+    private sealed record OccurrenceRow(
+        Guid ScheduleId,
+        string AthleteFullName,
+        string DateLocal,
+        string DayLabel,
+        string StartTime,
+        string EndTime,
+        int DurationMinutes,
+        int LaneNumber,
+        string LaneLabel,
+        int PreferredLaneType,
+        bool IsFullPackage,
+        bool IsRescheduled = false);
+
+    private static object BuildVisitStats(
+        Guid athleteId,
+        IReadOnlyCollection<TrainingSession> sessions,
+        List<SubscriptionSchedule> activeSchedules,
+        int remainingPlanned)
     {
-        var temp = new List<(string dateKey, string startKey, object row)>();
+        DateTime? periodFrom = null;
+        DateTime? periodTo = null;
+        if (activeSchedules.Count > 0)
+        {
+            periodFrom = activeSchedules.Min(s => s.ActiveFromDateLocal.Date);
+            periodTo = activeSchedules.Max(s => s.ActiveToDateLocal.Date);
+        }
+
+        var athleteSessions = sessions
+            .Where(s => s.AthleteId == athleteId)
+            .Where(s => s.Status is SessionStatus.Active or SessionStatus.Completed)
+            .Select(s => AzerbaijanTime.UtcToLocalDate(s.StartTimeUtc))
+            .ToList();
+
+        int visited;
+        if (periodFrom is DateTime from && periodTo is DateTime to)
+        {
+            visited = athleteSessions.Count(d => d >= from && d <= to);
+        }
+        else
+        {
+            visited = athleteSessions.Count;
+        }
+
+        var isUnlimited = activeSchedules.Any(s => s.IsFullPackage);
+        int? remaining = null;
+        string remainingLabel;
+        if (activeSchedules.Count == 0)
+        {
+            remainingLabel = "—";
+        }
+        else if (isUnlimited)
+        {
+            remainingLabel = "Limitsiz";
+        }
+        else
+        {
+            remaining = remainingPlanned;
+            remainingLabel = remainingPlanned.ToString();
+        }
+
+        return new
+        {
+            visited,
+            remaining,
+            remainingLabel,
+            isUnlimited,
+            hasActiveSubscription = activeSchedules.Count > 0,
+            periodFromLocal = periodFrom?.ToString("yyyy-MM-dd"),
+            periodToLocal = periodTo?.ToString("yyyy-MM-dd")
+        };
+    }
+
+    private static List<OccurrenceRow> BuildFlatOccurrences(string athleteFullName, List<SubscriptionSchedule> schedules)
+    {
+        var temp = new List<(string dateKey, string startKey, OccurrenceRow row)>();
         foreach (var s in schedules)
         {
             if (s.IsFullPackage) continue;
@@ -186,20 +277,18 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                 var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Zolaq təyin edilməyib";
                 var startKey = FormatTimeLocal(start);
                 var endKey = FormatTimeLocal(endT);
-                var row = new
-                {
-                    scheduleId = s.Id,
+                var row = new OccurrenceRow(
+                    s.Id,
                     athleteFullName,
-                    dateLocal = dateKey,
-                    dayLabel = DayLabelAz(s.DayOfWeek),
-                    startTime = startKey,
-                    endTime = endKey,
-                    durationMinutes = dur,
-                    laneNumber = lane,
+                    dateKey,
+                    DayLabelAz(s.DayOfWeek),
+                    startKey,
+                    endKey,
+                    dur,
+                    lane,
                     laneLabel,
-                    preferredLaneType = (int)s.PreferredLaneType,
-                    isFullPackage = s.IsFullPackage
-                };
+                    (int)s.PreferredLaneType,
+                    s.IsFullPackage);
                 temp.Add((dateKey, startKey, row));
                 addedDates.Add(dateKey);
             }
@@ -245,21 +334,19 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                 var laneLabel = lane > 0 ? $"Zolaq {lane}" : "Zolaq təyin edilməyib";
                 var startKey = FormatTimeLocal(start);
                 var endKey = FormatTimeLocal(endT);
-                var row = new
-                {
-                    scheduleId = s.Id,
+                var row = new OccurrenceRow(
+                    s.Id,
                     athleteFullName,
-                    dateLocal = dateKey,
-                    dayLabel = DayLabelAz((int)rescheduledDay.DayOfWeek),
-                    startTime = startKey,
-                    endTime = endKey,
-                    durationMinutes = dur,
-                    laneNumber = lane,
+                    dateKey,
+                    DayLabelAz((int)rescheduledDay.DayOfWeek),
+                    startKey,
+                    endKey,
+                    dur,
+                    lane,
                     laneLabel,
-                    preferredLaneType = (int)s.PreferredLaneType,
-                    isFullPackage = s.IsFullPackage,
-                    isRescheduled = true
-                };
+                    (int)s.PreferredLaneType,
+                    s.IsFullPackage,
+                    IsRescheduled: true);
                 temp.Add((dateKey, startKey, row));
                 addedDates.Add(dateKey);
             }
@@ -269,7 +356,6 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .OrderBy(x => x.dateKey, StringComparer.Ordinal)
             .ThenBy(x => x.startKey, StringComparer.Ordinal)
             .Select(x => x.row)
-            .Cast<object>()
             .ToList();
     }
 

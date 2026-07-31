@@ -34,7 +34,7 @@ public static class ServicePackageDisplayHelper
 
     public static string FormatMinutes(int? minutes)
     {
-        if (minutes is null or <= 0) return "—";
+        if (minutes is null or <= 0) return "Müddətsiz";
         if (minutes.Value % 60 == 0)
         {
             return $"{minutes.Value / 60} saat";

@@ -61,6 +61,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.Email = athlete.Email;
         existing.IdCardNumber = athlete.IdCardNumber;
         existing.ClubCardNumber = athlete.ClubCardNumber;
+        existing.ClubCardType = athlete.ClubCardType;
         existing.Category = athlete.Category;
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
@@ -116,6 +117,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.AmountPaidCard = record.AmountPaidCard;
         existing.AmountPaid = record.AmountPaid;
         existing.PriceDue = record.PriceDue;
+        existing.DiscountAmount = record.DiscountAmount;
         existing.IsComplimentary = record.IsComplimentary;
         existing.IsActive = record.IsActive;
         return Task.CompletedTask;
@@ -126,7 +128,8 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
 
     private readonly List<ClubCardAssignment> _clubCardAssignments = [];
 
-    public Task<Athlete?> FindAthleteByClubCardNumberAsync(
+    public Task<Athlete?> FindAthleteByClubCardAsync(
+        ClubCardType cardType,
         string cardNumber,
         Guid? excludeAthleteId,
         CancellationToken cancellationToken)
@@ -138,7 +141,8 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         }
 
         var holder = _athletes
-            .Where(a => !string.IsNullOrWhiteSpace(a.ClubCardNumber)
+            .Where(a => a.ClubCardType == cardType
+                && !string.IsNullOrWhiteSpace(a.ClubCardNumber)
                 && string.Equals(a.ClubCardNumber.Trim(), normalized, StringComparison.OrdinalIgnoreCase))
             .Where(a => excludeAthleteId is null || a.Id != excludeAthleteId.Value)
             .OrderByDescending(a => a.IsActive)
@@ -155,6 +159,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
 
     public Task CloseOpenClubCardAssignmentAsync(
         Guid athleteId,
+        ClubCardType cardType,
         string cardNumber,
         Guid? returnedByStaffId,
         CancellationToken cancellationToken)
@@ -163,6 +168,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         var now = DateTime.UtcNow;
         foreach (var row in _clubCardAssignments.Where(x =>
                      x.AthleteId == athleteId
+                     && x.CardType == cardType
                      && x.ReturnedAtUtc is null
                      && string.Equals(x.CardNumber.Trim(), normalized, StringComparison.OrdinalIgnoreCase)))
         {

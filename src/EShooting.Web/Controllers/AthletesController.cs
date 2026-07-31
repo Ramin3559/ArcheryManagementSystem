@@ -35,6 +35,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var emailQ = NormalizeText(request.Email);
         var idQ = NormalizeText(request.IdCardNumber);
         var clubCardQ = NormalizeText(request.ClubCardNumber);
+        var clubCardTypeQ = ResolveClubCardType(request.ClubCardType, clubCardQ);
         if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ))
         {
             var existing = await repository.FindAthleteByExactUniqueFieldsAsync(
@@ -68,10 +69,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
         if (!string.IsNullOrWhiteSpace(clubCardQ))
         {
-            var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCardQ, null, cancellationToken);
+            if (clubCardTypeQ is not ClubCardType cardType)
+            {
+                return BadRequest(new { error = "Kart növü seçin." });
+            }
+
+            var cardHolder = await repository.FindAthleteByClubCardAsync(cardType, clubCardQ, null, cancellationToken);
             if (cardHolder is not null)
             {
-                return Conflict(ClubCardHeldPayload(clubCardQ, cardHolder));
+                return Conflict(ClubCardHeldPayload(cardType, clubCardQ, cardHolder));
             }
         }
 
@@ -85,6 +91,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                     request.Email,
                     request.IdCardNumber,
                     request.ClubCardNumber,
+                    clubCardTypeQ,
                     request.Category,
                     request.IsSubscriber,
                     request.MembershipType,
@@ -104,12 +111,12 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
         catch (DbUpdateException)
         {
-            if (!string.IsNullOrWhiteSpace(clubCardQ))
+            if (!string.IsNullOrWhiteSpace(clubCardQ) && clubCardTypeQ is ClubCardType heldType)
             {
-                var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCardQ, null, cancellationToken);
+                var cardHolder = await repository.FindAthleteByClubCardAsync(heldType, clubCardQ, null, cancellationToken);
                 if (cardHolder is not null)
                 {
-                    return Conflict(ClubCardHeldPayload(clubCardQ, cardHolder));
+                    return Conflict(ClubCardHeldPayload(heldType, clubCardQ, cardHolder));
                 }
             }
 
@@ -156,6 +163,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.Email,
                 x.IdCardNumber,
                 x.ClubCardNumber,
+                x.ClubCardType,
                 x.IsSubscriber,
                 x.MembershipType,
                 x.Category,
@@ -347,6 +355,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
         var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
         var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+        var clubCardType = ResolveClubCardType(request.ClubCardType, clubCard);
         if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))
         {
             return BadRequest(new { error = AthleteRegistrationRules.RequiredFieldsMessage });
@@ -362,14 +371,22 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             }
 
             var previousCard = existing.ClubCardNumber;
-            if (!string.IsNullOrWhiteSpace(clubCard)
-                && !string.Equals(
-                    AthleteRegistrationRules.NormalizeText(previousCard),
-                    clubCard,
-                    StringComparison.OrdinalIgnoreCase))
+            var previousCardType = existing.ClubCardType;
+            var prevNorm = AthleteRegistrationRules.NormalizeText(previousCard);
+            var cardChanged =
+                !string.Equals(prevNorm, clubCard ?? "", StringComparison.OrdinalIgnoreCase)
+                || previousCardType != clubCardType;
+
+            if (!string.IsNullOrWhiteSpace(clubCard) && cardChanged)
             {
+                if (clubCardType is not ClubCardType type)
+                {
+                    return BadRequest(new { error = "Kart növü seçin." });
+                }
+
                 await ClubCardAssignmentService.EnsureCardAvailableAsync(
                     repository,
+                    type,
                     clubCard,
                     id,
                     cancellationToken);
@@ -385,6 +402,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 Email = email,
                 IdCardNumber = string.IsNullOrWhiteSpace(idCard) ? null : idCard,
                 ClubCardNumber = clubCard,
+                ClubCardType = clubCardType,
                 Category = request.Category,
                 IsSubscriber = request.IsSubscriber,
                 MembershipType = request.MembershipType,
@@ -399,7 +417,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 repository,
                 id,
                 previousCard,
+                previousCardType,
                 clubCard,
+                clubCardType,
                 User.GetStaffMemberId(),
                 cancellationToken);
 
@@ -415,12 +435,12 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
         catch (DbUpdateException)
         {
-            if (!string.IsNullOrWhiteSpace(clubCard))
+            if (!string.IsNullOrWhiteSpace(clubCard) && clubCardType is ClubCardType heldType)
             {
-                var cardHolder = await repository.FindAthleteByClubCardNumberAsync(clubCard, id, cancellationToken);
+                var cardHolder = await repository.FindAthleteByClubCardAsync(heldType, clubCard, id, cancellationToken);
                 if (cardHolder is not null)
                 {
-                    return Conflict(ClubCardHeldPayload(clubCard, cardHolder));
+                    return Conflict(ClubCardHeldPayload(heldType, clubCard, cardHolder));
                 }
             }
 
@@ -450,7 +470,10 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     }
 
     [HttpGet("club-card-holder")]
-    public async Task<IActionResult> GetClubCardHolder([FromQuery] string? cardNumber, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetClubCardHolder(
+        [FromQuery] string? cardNumber,
+        [FromQuery] ClubCardType? cardType,
+        CancellationToken cancellationToken)
     {
         var card = AthleteRegistrationRules.NormalizeText(cardNumber);
         if (string.IsNullOrWhiteSpace(card) || card.Length < 1)
@@ -458,7 +481,12 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return BadRequest(new { error = "Kart nömrəsi daxil edin." });
         }
 
-        var holder = await repository.FindAthleteByClubCardNumberAsync(card, null, cancellationToken);
+        if (cardType is not ClubCardType type)
+        {
+            return BadRequest(new { error = "Kart növü seçin." });
+        }
+
+        var holder = await repository.FindAthleteByClubCardAsync(type, card, null, cancellationToken);
         if (holder is null)
         {
             return Ok(new { held = false });
@@ -467,7 +495,9 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         return Ok(new
         {
             held = true,
-            error = ClubCardAssignmentService.FormatHeldByMessage(card, holder),
+            error = ClubCardAssignmentService.FormatHeldByMessage(type, card, holder),
+            clubCardType = type,
+            clubCardNumber = card,
             holder = MapExistingAthlete(holder)
         });
     }
@@ -549,6 +579,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 x.Athlete.Email,
                 x.Athlete.IdCardNumber,
                 x.Athlete.ClubCardNumber,
+                x.Athlete.ClubCardType,
                 x.Athlete.Category,
                 x.Athlete.MembershipType,
                 x.Athlete.IsSubscriber,
@@ -601,6 +632,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             best.Email,
             best.IdCardNumber,
             best.ClubCardNumber,
+            best.ClubCardType,
             best.Category,
             best.MembershipType,
             best.IsSubscriber,
@@ -678,6 +710,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         existing.Email,
         existing.IdCardNumber,
         existing.ClubCardNumber,
+        existing.ClubCardType,
         existing.Category,
         existing.MembershipType,
         existing.IsSubscriber,
@@ -686,15 +719,20 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         existing.IsActive
     };
 
-    private static object ClubCardHeldPayload(ClubCardHeldException ex) => ClubCardHeldPayload(ex.CardNumber, ex.Holder);
+    private static object ClubCardHeldPayload(ClubCardHeldException ex) =>
+        ClubCardHeldPayload(ex.CardType, ex.CardNumber, ex.Holder);
 
-    private static object ClubCardHeldPayload(string cardNumber, Domain.Entities.Athlete holder) => new
+    private static object ClubCardHeldPayload(ClubCardType cardType, string cardNumber, Domain.Entities.Athlete holder) => new
     {
-        error = ClubCardAssignmentService.FormatHeldByMessage(cardNumber, holder),
+        error = ClubCardAssignmentService.FormatHeldByMessage(cardType, cardNumber, holder),
         clubCardHeld = true,
+        clubCardType = cardType,
         clubCardNumber = cardNumber,
         holder = MapExistingAthlete(holder)
     };
+
+    private static ClubCardType? ResolveClubCardType(ClubCardType? requested, string? cardNumber) =>
+        string.IsNullOrWhiteSpace(cardNumber) ? null : requested;
 
     private static string NormalizeDigits(string? value)
     {

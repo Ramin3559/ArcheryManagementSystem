@@ -21,6 +21,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 request.Email,
                 request.IdCardNumber,
                 request.ClubCardNumber,
+                request.ClubCardType,
                 request.Category,
                 request.IsSubscriber,
                 request.MembershipType,

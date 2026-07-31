@@ -33,6 +33,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.IdCardNumber = athlete.IdCardNumber;
         existing.ClubCardNumber = athlete.ClubCardNumber;
         dbContext.Entry(existing).Property(x => x.ClubCardNumber).IsModified = true;
+        existing.ClubCardType = athlete.ClubCardType;
+        dbContext.Entry(existing).Property(x => x.ClubCardType).IsModified = true;
         existing.Category = athlete.Category;
         existing.IsSubscriber = athlete.IsSubscriber;
         existing.MembershipType = athlete.MembershipType;
@@ -521,6 +523,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.SessionDurationMinutes = package.SessionDurationMinutes;
         existing.PeriodMinutesQuota = package.PeriodMinutesQuota;
         existing.WeeklyDaysCsv = package.WeeklyDaysCsv;
+        existing.WeeklyDaysCount = package.WeeklyDaysCount;
         existing.ValidityDays = package.ValidityDays;
         existing.UnlimitedGym = package.UnlimitedGym;
         existing.IsActive = package.IsActive;
@@ -882,7 +885,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
     public async Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
         => await dbContext.CustomerPackageRecords.AsNoTracking().ToListAsync(cancellationToken);
 
-    public async Task<Athlete?> FindAthleteByClubCardNumberAsync(
+    public async Task<Athlete?> FindAthleteByClubCardAsync(
+        ClubCardType cardType,
         string cardNumber,
         Guid? excludeAthleteId,
         CancellationToken cancellationToken)
@@ -895,7 +899,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         var candidates = await dbContext.Athletes
             .AsNoTracking()
-            .Where(a => a.ClubCardNumber != null && a.ClubCardNumber != "")
+            .Where(a => a.ClubCardNumber != null && a.ClubCardNumber != "" && a.ClubCardType == cardType)
             .ToListAsync(cancellationToken);
 
         return candidates
@@ -917,6 +921,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
     public async Task CloseOpenClubCardAssignmentAsync(
         Guid athleteId,
+        ClubCardType cardType,
         string cardNumber,
         Guid? returnedByStaffId,
         CancellationToken cancellationToken)
@@ -928,7 +933,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         }
 
         var open = await dbContext.ClubCardAssignments
-            .Where(x => x.AthleteId == athleteId && x.ReturnedAtUtc == null)
+            .Where(x => x.AthleteId == athleteId && x.ReturnedAtUtc == null && x.CardType == cardType)
             .ToListAsync(cancellationToken);
 
         var now = DateTime.UtcNow;

@@ -35,6 +35,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.Email).HasMaxLength(200);
             entity.Property(x => x.IdCardNumber).HasMaxLength(60);
             entity.Property(x => x.ClubCardNumber).HasMaxLength(40);
+            entity.Property(x => x.ClubCardType).HasConversion<int>();
             entity.Property(x => x.Category)
                 .HasConversion<string>()
                 .HasMaxLength(20)
@@ -151,6 +152,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.SchedulingMode).HasConversion<string>().HasMaxLength(20);
             entity.Property(x => x.Price).HasPrecision(18, 2);
             entity.Property(x => x.WeeklyDaysCsv).HasMaxLength(30);
+            entity.Property(x => x.WeeklyDaysCount);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.UnlimitedGym).HasDefaultValue(false);
@@ -294,9 +296,11 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.ToTable("ClubCardAssignments");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.CardNumber).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.CardType).HasConversion<int>().HasDefaultValue(ClubCardType.Boz);
             entity.Property(x => x.IssuedAtUtc).HasDefaultValueSql("GETUTCDATE()");
             entity.HasIndex(x => x.AthleteId);
             entity.HasIndex(x => x.CardNumber);
+            entity.HasIndex(x => new { x.CardType, x.CardNumber });
             entity.HasIndex(x => new { x.CardNumber, x.ReturnedAtUtc });
             entity.HasOne<Athlete>()
                 .WithMany()

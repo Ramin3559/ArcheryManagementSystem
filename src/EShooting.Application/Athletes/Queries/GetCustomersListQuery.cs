@@ -139,7 +139,10 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 }
             }
 
-            var records = packageRecords.Where(r => r.AthleteId == athlete.Id && r.IsActive && !r.IsComplimentary).ToList();
+            var allActiveRecords = packageRecords
+                .Where(r => r.AthleteId == athlete.Id && r.IsActive)
+                .ToList();
+            var records = allActiveRecords.Where(r => !r.IsComplimentary).ToList();
 
             var lastSession = athleteSessions
                 .OrderByDescending(s => s.StartTimeUtc)
@@ -166,9 +169,44 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             }
 
             var latestRecord = records.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
+            var latestBilling = allActiveRecords.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
+            var paymentLabel = "—";
+            decimal? paid = null;
+            decimal? paidCash = null;
+            decimal? paidCard = null;
+            var complimentary = false;
+            if (latestBilling is not null)
+            {
+                complimentary = latestBilling.IsComplimentary;
+                paid = latestBilling.AmountPaid;
+                paidCash = latestBilling.AmountPaidCash;
+                paidCard = latestBilling.AmountPaidCard;
+                if (complimentary)
+                {
+                    paymentLabel = "Pulsuz";
+                }
+                else if (latestBilling.AmountPaidCash > 0m && latestBilling.AmountPaidCard > 0m)
+                {
+                    paymentLabel =
+                        $"{latestBilling.AmountPaid:0.##} AZN (nağd {latestBilling.AmountPaidCash:0.##} + kart {latestBilling.AmountPaidCard:0.##})";
+                }
+                else if (latestBilling.AmountPaidCard > 0m)
+                {
+                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (kart)";
+                }
+                else if (latestBilling.AmountPaidCash > 0m)
+                {
+                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (nağd)";
+                }
+                else
+                {
+                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN";
+                }
+            }
+
             var staffName = ResolveRegisteredByStaffName(
                 athlete.RegisteredByStaffId,
-                records,
+                allActiveRecords,
                 staffNameById);
             var deletedByName = ResolveDeletedByName(
                 athlete,
@@ -211,7 +249,14 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 LastLaneNumber = lastLaneNumber,
                 LastVisitLocal = lastLaneVisit,
                 ActiveLaneNumber = activeLane,
-                CurrentPackageName = latestRecord?.PackageName ?? (activeSub is not null ? "Abunə" : null)
+                CurrentPackageName = latestRecord?.PackageName ?? (activeSub is not null ? "Abunə" : null),
+                LatestAmountPaid = paid,
+                LatestAmountPaidCash = paidCash,
+                LatestAmountPaidCard = paidCard,
+                LatestPaymentIsComplimentary = complimentary,
+                LatestPaymentLabel = paymentLabel,
+                LatestPackageRecordId = latestBilling?.Id,
+                HasPackagePayments = allActiveRecords.Count > 0
             });
         }
 

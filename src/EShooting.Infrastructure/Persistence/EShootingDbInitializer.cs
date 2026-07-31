@@ -153,6 +153,10 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             BEGIN
                 ALTER TABLE [dbo].[Athletes] ADD [ClubCardNumber] NVARCHAR(40) NULL;
             END
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'ClubCardType') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Athletes] ADD [ClubCardType] INT NULL;
+            END
             IF COL_LENGTH(N'[dbo].[Athletes]', N'CreatedAtUtc') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[Athletes] ADD [CreatedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_Athletes_CreatedAtUtc] DEFAULT (GETUTCDATE());
@@ -206,19 +210,36 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 [ClubCardNumber] = NULLIF(LTRIM(RTRIM([ClubCardNumber])), '')
             WHERE 1=1;
 
-            -- Duplicate club cards: keep one athlete, clear others (so unique index can be created).
+            -- Mövcud açıq kartlar üçün növ yoxdursa Boz (0).
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'ClubCardType') IS NOT NULL
+            BEGIN
+                UPDATE [dbo].[Athletes]
+                SET [ClubCardType] = 0
+                WHERE [ClubCardNumber] IS NOT NULL
+                  AND LTRIM(RTRIM([ClubCardNumber])) <> N''
+                  AND [ClubCardType] IS NULL;
+
+                UPDATE [dbo].[Athletes]
+                SET [ClubCardType] = NULL
+                WHERE ([ClubCardNumber] IS NULL OR LTRIM(RTRIM([ClubCardNumber])) = N'')
+                  AND [ClubCardType] IS NOT NULL;
+            END
+
+            -- Eyni növ + nömrə dublikatı: birini saxla, digərlərini azad et.
             ;WITH dupCards AS (
                 SELECT [Id],
                        ROW_NUMBER() OVER (
-                           PARTITION BY LOWER(LTRIM(RTRIM([ClubCardNumber])))
+                           PARTITION BY [ClubCardType], LOWER(LTRIM(RTRIM([ClubCardNumber])))
                            ORDER BY [CreatedAtUtc], [Id]
                        ) AS rn
                 FROM [dbo].[Athletes]
                 WHERE [ClubCardNumber] IS NOT NULL
                   AND LTRIM(RTRIM([ClubCardNumber])) <> N''
+                  AND [ClubCardType] IS NOT NULL
             )
             UPDATE a
-            SET a.[ClubCardNumber] = NULL
+            SET a.[ClubCardNumber] = NULL,
+                a.[ClubCardType] = NULL
             FROM [dbo].[Athletes] a
             INNER JOIN dupCards d ON d.[Id] = a.[Id]
             WHERE d.rn > 1;
@@ -265,18 +286,26 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 WHERE [IdCardNumber] IS NOT NULL AND [IdCardNumber] <> '';
             END;
 
-            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_ClubCardNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+            -- Köhnə qlobal unikal indeks → növ+nömrə.
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_ClubCardNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+            BEGIN
+                DROP INDEX [UX_Athletes_ClubCardNumber] ON [dbo].[Athletes];
+            END;
+
+            IF COL_LENGTH(N'[dbo].[Athletes]', N'ClubCardType') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_ClubCardType_Number' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
                AND NOT EXISTS (
                     SELECT 1
                     FROM [dbo].[Athletes]
                     WHERE [ClubCardNumber] IS NOT NULL AND LTRIM(RTRIM([ClubCardNumber])) <> N''
-                    GROUP BY LOWER(LTRIM(RTRIM([ClubCardNumber])))
+                      AND [ClubCardType] IS NOT NULL
+                    GROUP BY [ClubCardType], LOWER(LTRIM(RTRIM([ClubCardNumber])))
                     HAVING COUNT(*) > 1
                )
             BEGIN
-                CREATE UNIQUE INDEX [UX_Athletes_ClubCardNumber]
-                ON [dbo].[Athletes]([ClubCardNumber])
-                WHERE [ClubCardNumber] IS NOT NULL AND [ClubCardNumber] <> '';
+                CREATE UNIQUE INDEX [UX_Athletes_ClubCardType_Number]
+                ON [dbo].[Athletes]([ClubCardType], [ClubCardNumber])
+                WHERE [ClubCardNumber] IS NOT NULL AND [ClubCardNumber] <> '' AND [ClubCardType] IS NOT NULL;
             END;
             """;
 
@@ -503,6 +532,12 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             BEGIN
                 ALTER TABLE [dbo].[ServicePackages] ADD [WeeklyDaysCsv] NVARCHAR(30) NULL;
             END
+
+            IF OBJECT_ID(N'[dbo].[ServicePackages]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ServicePackages]', N'WeeklyDaysCount') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[ServicePackages] ADD [WeeklyDaysCount] INT NULL;
+            END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(alterSql, cancellationToken);
     }
@@ -539,6 +574,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 SessionDurationMinutes = 90,
                 PeriodMinutesQuota = 720,
                 WeeklyDaysCsv = "1,3,5",
+                WeeklyDaysCount = 3,
                 ValidityDays = 30,
                 IsActive = true,
                 CreatedAtUtc = now,
@@ -1541,12 +1577,15 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
 
     private async Task EnsureClubCardAssignmentsTableAsync(CancellationToken cancellationToken)
     {
-        const string sql = """
+        // SQL Server IF COL_LENGTH ... BEGIN <CardType istifadə> END batch-ini əvvəlcədən
+        // compile edir — sütun yoxdursa 207 verir. Ona görə CardType istinadları EXEC(...) ilə.
+        const string createSql = """
             IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NULL
             BEGIN
                 CREATE TABLE [dbo].[ClubCardAssignments](
                     [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
                     [CardNumber] NVARCHAR(40) NOT NULL,
+                    [CardType] INT NOT NULL CONSTRAINT [DF_ClubCardAssignments_CardType] DEFAULT (0),
                     [AthleteId] UNIQUEIDENTIFIER NOT NULL,
                     [IssuedAtUtc] DATETIME2 NOT NULL,
                     [ReturnedAtUtc] DATETIME2 NULL,
@@ -1559,35 +1598,70 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     ON [dbo].[ClubCardAssignments]([AthleteId]);
                 CREATE INDEX [IX_ClubCardAssignments_CardNumber]
                     ON [dbo].[ClubCardAssignments]([CardNumber]);
+                CREATE INDEX [IX_ClubCardAssignments_CardType_Number]
+                    ON [dbo].[ClubCardAssignments]([CardType], [CardNumber]);
                 CREATE INDEX [IX_ClubCardAssignments_CardNumber_Returned]
                     ON [dbo].[ClubCardAssignments]([CardNumber], [ReturnedAtUtc]);
             END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(createSql, cancellationToken);
 
-            -- Mövcud açıq kartları tarixçəyə köçür (bir dəfəlik backfill).
+        const string addCardTypeSql = """
             IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ClubCardAssignments]', N'CardType') IS NULL
             BEGIN
-                INSERT INTO [dbo].[ClubCardAssignments]
-                    ([Id], [CardNumber], [AthleteId], [IssuedAtUtc], [ReturnedAtUtc], [IssuedByStaffId], [ReturnedByStaffId])
-                SELECT
-                    NEWID(),
-                    LTRIM(RTRIM(a.[ClubCardNumber])),
-                    a.[Id],
-                    ISNULL(a.[CreatedAtUtc], GETUTCDATE()),
-                    NULL,
-                    a.[RegisteredByStaffId],
-                    NULL
-                FROM [dbo].[Athletes] a
-                WHERE a.[ClubCardNumber] IS NOT NULL
-                  AND LTRIM(RTRIM(a.[ClubCardNumber])) <> N''
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM [dbo].[ClubCardAssignments] c
-                      WHERE c.[AthleteId] = a.[Id]
-                        AND c.[ReturnedAtUtc] IS NULL
-                        AND LOWER(LTRIM(RTRIM(c.[CardNumber]))) = LOWER(LTRIM(RTRIM(a.[ClubCardNumber])))
-                  );
+                EXEC(N'
+                    ALTER TABLE [dbo].[ClubCardAssignments]
+                        ADD [CardType] INT NOT NULL CONSTRAINT [DF_ClubCardAssignments_CardType] DEFAULT (0);
+                ');
             END
             """;
-        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(addCardTypeSql, cancellationToken);
+
+        const string indexSql = """
+            IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ClubCardAssignments]', N'CardType') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ClubCardAssignments_CardType_Number' AND object_id = OBJECT_ID(N'[dbo].[ClubCardAssignments]'))
+            BEGIN
+                EXEC(N'
+                    CREATE INDEX [IX_ClubCardAssignments_CardType_Number]
+                        ON [dbo].[ClubCardAssignments]([CardType], [CardNumber]);
+                ');
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(indexSql, cancellationToken);
+
+        // Mövcud açıq kartları tarixçəyə köçür (bir dəfəlik backfill).
+        const string backfillSql = """
+            IF OBJECT_ID(N'[dbo].[ClubCardAssignments]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ClubCardAssignments]', N'CardType') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    INSERT INTO [dbo].[ClubCardAssignments]
+                        ([Id], [CardNumber], [CardType], [AthleteId], [IssuedAtUtc], [ReturnedAtUtc], [IssuedByStaffId], [ReturnedByStaffId])
+                    SELECT
+                        NEWID(),
+                        LTRIM(RTRIM(a.[ClubCardNumber])),
+                        ISNULL(a.[ClubCardType], 0),
+                        a.[Id],
+                        ISNULL(a.[CreatedAtUtc], GETUTCDATE()),
+                        NULL,
+                        a.[RegisteredByStaffId],
+                        NULL
+                    FROM [dbo].[Athletes] a
+                    WHERE a.[ClubCardNumber] IS NOT NULL
+                      AND LTRIM(RTRIM(a.[ClubCardNumber])) <> N''''
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM [dbo].[ClubCardAssignments] c
+                          WHERE c.[AthleteId] = a.[Id]
+                            AND c.[ReturnedAtUtc] IS NULL
+                            AND c.[CardType] = ISNULL(a.[ClubCardType], 0)
+                            AND LOWER(LTRIM(RTRIM(c.[CardNumber]))) = LOWER(LTRIM(RTRIM(a.[ClubCardNumber])))
+                      );
+                ');
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(backfillSql, cancellationToken);
     }
 }

@@ -301,7 +301,7 @@
 
 <div class="card hesabat-panel">
     <div class="panel-head">
-        <div class="section-title">Müştəri detalları (seans üzrə)</div>
+        <div class="section-title">Müştəri detalları (ödəniş üzrə)</div>
         <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="customerDetailsBody" data-sheet-name="Müştəri detalları">Excel-ə çıxart</a>
     </div>
     <div class="tableWrap tableWrap--compact">
@@ -309,64 +309,57 @@
             <thead>
                 <tr class="hesabat-header-labels">
                     <th>Tarix</th>
+                    <th>Vaxt</th>
                     <th>Müştəri adı</th>
                     <th>Telefon</th>
-                    <th>Resepsiya (qeydiyyatçı)</th>
-                    <th>Nəzarətçi (planşet)</th>
+                    <th>Resepsiya</th>
                     <th>Paket adı</th>
-                    <th>Yazılış vaxtı</th>
-                    <th>Zolaq</th>
-                    <th>Başlama</th>
-                    <th>Bitmə</th>
-                    <th>Oyun müddəti</th>
-                    <th>Ödənilməli (₼)</th>
+                    <th>Paket qiyməti (₼)</th>
+                    <th>Avadanlıq (₼)</th>
+                    <th>Endirim (₼)</th>
                     <th>Nağd (₼)</th>
                     <th>Kart (₼)</th>
                     <th>Ödənilib (₼)</th>
-                    <th>Endirim (₼)</th>
                     <th>Ödənişsiz</th>
                 </tr>
             </thead>
-            <tbody id="customerDetailsBody" data-filter-table="1" data-sum-cols="11,12,13,14,15">
+            <tbody id="customerDetailsBody" data-filter-table="1" data-sum-cols="6,7,8,9,10,11">
                 @if (a?.CustomerVisitDetails is { Count: > 0 } visitRows)
                 {
                     foreach (var row in visitRows)
                     {
                         <tr>
                             <td>@row.DateLocal</td>
+                            <td>@row.RecordedAtLocal</td>
                             <td>@row.CustomerName</td>
                             <td>@row.Phone</td>
                             <td>@row.ReceptionStaffName</td>
-                            <td>@row.SupervisorStaffName</td>
                             <td>@row.PackageName</td>
-                            <td>@row.RecordedAtLocal</td>
-                            <td>@(row.LaneNumber is int laneNo ? $"Zolaq {laneNo}" : "—")</td>
-                            <td>@row.StartTimeLocal</td>
-                            <td>@row.EndTimeLocal</td>
-                            <td>@row.DurationLabel</td>
                             <td>@row.PriceDue.ToString("0.00")</td>
+                            <td>@row.EquipmentAmount.ToString("0.00")</td>
+                            <td>@row.DiscountAmount.ToString("0.00")</td>
                             <td>@row.AmountPaidCash.ToString("0.00")</td>
                             <td>@row.AmountPaidCard.ToString("0.00")</td>
                             <td>@row.AmountPaid.ToString("0.00")</td>
-                            <td>@row.DiscountAmount.ToString("0.00")</td>
                             <td>@(row.IsComplimentary ? "Bəli" : "Xeyr")</td>
                         </tr>
                     }
                     var cv = visitRows.ToList();
                     <tr class="daily-total-row hesabat-sum-row">
                         <td>Cəmi</td>
-                        <td colspan="10"></td>
+                        <td colspan="5"></td>
                         <td>@cv.Sum(x => x.PriceDue).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.EquipmentAmount).ToString("0.00")</td>
+                        <td>@cv.Sum(x => x.DiscountAmount).ToString("0.00")</td>
                         <td>@cv.Sum(x => x.AmountPaidCash).ToString("0.00")</td>
                         <td>@cv.Sum(x => x.AmountPaidCard).ToString("0.00")</td>
                         <td>@cv.Sum(x => x.AmountPaid).ToString("0.00")</td>
-                        <td>@cv.Sum(x => x.DiscountAmount).ToString("0.00")</td>
                         <td></td>
                     </tr>
                 }
                 else
                 {
-                    <tr><td colspan="17" style="color:var(--muted);">Seçilmiş aralıqda seans qeydi yoxdur.</td></tr>
+                    <tr><td colspan="13" style="color:var(--muted);">Seçilmiş aralıqda ödəniş qeydi yoxdur.</td></tr>
                 }
             </tbody>
         </table>
@@ -698,28 +691,24 @@
             if (!body) return;
             const list = Array.isArray(rows) ? rows : [];
             if (!list.length) {
-                body.innerHTML = '<tr><td colspan="17" style="color:var(--muted);">Seçilmiş aralıqda seans qeydi yoxdur.</td></tr>';
+                body.innerHTML = '<tr><td colspan="13" style="color:var(--muted);">Seçilmiş aralıqda ödəniş qeydi yoxdur.</td></tr>';
                 if (window.HesabatTableFilters) HesabatTableFilters.refreshById("customerDetailsBody");
                 return;
             }
             body.innerHTML = list.map(function (row) {
                 return "<tr>"
                     + "<td>" + (row.dateLocal || "—") + "</td>"
+                    + "<td>" + (row.recordedAtLocal || "—") + "</td>"
                     + "<td>" + (row.customerName || "—") + "</td>"
                     + "<td>" + (row.phone || "—") + "</td>"
                     + "<td>" + (row.receptionStaffName || "—") + "</td>"
-                    + "<td>" + (row.supervisorStaffName || "—") + "</td>"
                     + "<td>" + (row.packageName || "—") + "</td>"
-                    + "<td>" + (row.recordedAtLocal || "—") + "</td>"
-                    + "<td>" + (row.laneNumber ? ("Zolaq " + row.laneNumber) : "—") + "</td>"
-                    + "<td>" + (row.startTimeLocal || "—") + "</td>"
-                    + "<td>" + (row.endTimeLocal || "—") + "</td>"
-                    + "<td>" + (row.durationLabel || "—") + "</td>"
                     + "<td>" + dailyCell(row.priceDue, true) + "</td>"
+                    + "<td>" + dailyCell(row.equipmentAmount, true) + "</td>"
+                    + "<td>" + dailyCell(row.discountAmount, true) + "</td>"
                     + "<td>" + dailyCell(row.amountPaidCash, true) + "</td>"
                     + "<td>" + dailyCell(row.amountPaidCard, true) + "</td>"
                     + "<td>" + dailyCell(row.amountPaid, true) + "</td>"
-                    + "<td>" + dailyCell(row.discountAmount, true) + "</td>"
                     + "<td>" + (row.isComplimentary ? "Bəli" : "Xeyr") + "</td>"
                     + "</tr>";
             }).join("");

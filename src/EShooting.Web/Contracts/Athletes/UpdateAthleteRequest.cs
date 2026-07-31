@@ -10,6 +10,7 @@ public sealed class UpdateAthleteRequest
     public string Email { get; set; } = "";
     public string IdCardNumber { get; set; } = "";
     public string ClubCardNumber { get; set; } = "";
+    public ClubCardType? ClubCardType { get; set; }
     public CustomerCategory Category { get; set; }
     public bool IsSubscriber { get; set; }
     public MembershipType MembershipType { get; set; }

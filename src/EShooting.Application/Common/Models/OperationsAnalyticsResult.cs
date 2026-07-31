@@ -147,26 +147,22 @@ public sealed class EquipmentSaleDetailRow
     public string SaleSource { get; init; } = "";
 }
 
+/// <summary>Ödəniş jurnalı sətri: bir paket və/və ya avadanlıq ödənişi.</summary>
 public sealed class CustomerVisitDetailRow
 {
     public string DateLocal { get; init; } = "";
+    public string RecordedAtLocal { get; init; } = "";
     public string CustomerName { get; init; } = "";
     public string Phone { get; init; } = "";
-    /// <summary>Resepsiyada zolağa yazılışı edən işçi (qeydiyyatçı).</summary>
     public string ReceptionStaffName { get; init; } = "";
-    /// <summary>Planşetdə (zalda) nəzarət edən işçi.</summary>
-    public string SupervisorStaffName { get; init; } = "";
     public string PackageName { get; init; } = "";
-    public string RecordedAtLocal { get; init; } = "";
-    public int? LaneNumber { get; init; }
-    public string StartTimeLocal { get; init; } = "";
-    public string EndTimeLocal { get; init; } = "";
-    public double DurationHours { get; init; }
-    public string DurationLabel { get; init; } = "";
+    /// <summary>Paket qiyməti (siyahı).</summary>
     public decimal PriceDue { get; init; }
+    /// <summary>Həmin ödənişdə alınan avadanlığın cəmi qiyməti.</summary>
+    public decimal EquipmentAmount { get; init; }
+    public decimal DiscountAmount { get; init; }
     public decimal AmountPaidCash { get; init; }
     public decimal AmountPaidCard { get; init; }
     public decimal AmountPaid { get; init; }
-    public decimal DiscountAmount { get; init; }
     public bool IsComplimentary { get; init; }
 }

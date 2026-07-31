@@ -12,6 +12,7 @@ public sealed record RegisterAthleteCommand(
     string Email,
     string IdCardNumber,
     string ClubCardNumber,
+    ClubCardType? ClubCardType,
     CustomerCategory Category,
     bool IsSubscriber,
     MembershipType MembershipType,
@@ -29,6 +30,7 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
         var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
         var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
         var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+        ClubCardType? clubCardType = string.IsNullOrWhiteSpace(clubCard) ? null : request.ClubCardType;
 
         if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))
         {
@@ -37,8 +39,14 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
 
         if (!string.IsNullOrWhiteSpace(clubCard))
         {
+            if (clubCardType is not ClubCardType type)
+            {
+                throw new InvalidOperationException("Kart növü seçin.");
+            }
+
             await ClubCardAssignmentService.EnsureCardAvailableAsync(
                 repository,
+                type,
                 clubCard,
                 excludeAthleteId: null,
                 cancellationToken);
@@ -52,6 +60,7 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
             Email = email,
             IdCardNumber = idCard,
             ClubCardNumber = clubCard,
+            ClubCardType = clubCardType,
             Category = request.Category,
             FullName = $"{first} {last}".Trim(),
             IsSubscriber = request.IsSubscriber,
@@ -64,11 +73,12 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
 
         var created = await repository.AddAthleteAsync(athlete, cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(clubCard))
+        if (!string.IsNullOrWhiteSpace(clubCard) && clubCardType is ClubCardType issuedType)
         {
             await repository.AddClubCardAssignmentAsync(new ClubCardAssignment
             {
                 CardNumber = clubCard,
+                CardType = issuedType,
                 AthleteId = created.Id,
                 IssuedAtUtc = DateTime.UtcNow,
                 IssuedByStaffId = request.RegisteredByStaffId

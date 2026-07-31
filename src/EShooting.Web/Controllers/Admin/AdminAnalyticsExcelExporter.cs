@@ -305,9 +305,9 @@ public static class AdminAnalyticsExcelExporter
 
         var headers = new[]
         {
-            "Tarix", "Müştəri adı", "Telefon", "Resepsiya (qeydiyyatçı)", "Nəzarətçi (planşet)",
-            "Paket adı", "Yazılış vaxtı", "Zolaq", "Başlama", "Bitmə", "Oyun müddəti",
-            "Ödənilməli (₼)", "Nağd (₼)", "Kart (₼)", "Ödənilib (₼)", "Endirim (₼)", "Ödənişsiz"
+            "Tarix", "Vaxt", "Müştəri adı", "Telefon", "Resepsiya",
+            "Paket adı", "Paket qiyməti (₼)", "Avadanlıq (₼)", "Endirim (₼)",
+            "Nağd (₼)", "Kart (₼)", "Ödənilib (₼)", "Ödənişsiz"
         };
 
         for (var c = 0; c < headers.Length; c++)
@@ -319,28 +319,36 @@ public static class AdminAnalyticsExcelExporter
         foreach (var row in data.CustomerVisitDetails)
         {
             ws.Cell(rowIdx, 1).Value = row.DateLocal;
-            ws.Cell(rowIdx, 2).Value = row.CustomerName;
-            ws.Cell(rowIdx, 3).Value = row.Phone;
-            ws.Cell(rowIdx, 4).Value = row.ReceptionStaffName;
-            ws.Cell(rowIdx, 5).Value = row.SupervisorStaffName;
+            ws.Cell(rowIdx, 2).Value = row.RecordedAtLocal;
+            ws.Cell(rowIdx, 3).Value = row.CustomerName;
+            ws.Cell(rowIdx, 4).Value = row.Phone;
+            ws.Cell(rowIdx, 5).Value = row.ReceptionStaffName;
             ws.Cell(rowIdx, 6).Value = row.PackageName;
-            ws.Cell(rowIdx, 7).Value = row.RecordedAtLocal;
-            ws.Cell(rowIdx, 8).Value = row.LaneNumber.HasValue ? $"Zolaq {row.LaneNumber}" : "—";
-            ws.Cell(rowIdx, 9).Value = row.StartTimeLocal;
-            ws.Cell(rowIdx, 10).Value = row.EndTimeLocal;
-            ws.Cell(rowIdx, 11).Value = row.DurationLabel;
-            ws.Cell(rowIdx, 12).Value = row.PriceDue;
-            ws.Cell(rowIdx, 13).Value = row.AmountPaidCash;
-            ws.Cell(rowIdx, 14).Value = row.AmountPaidCard;
-            ws.Cell(rowIdx, 15).Value = row.AmountPaid;
-            ws.Cell(rowIdx, 16).Value = row.DiscountAmount;
-            ws.Cell(rowIdx, 17).Value = row.IsComplimentary ? "Bəli" : "Xeyr";
+            ws.Cell(rowIdx, 7).Value = row.PriceDue;
+            ws.Cell(rowIdx, 8).Value = row.EquipmentAmount;
+            ws.Cell(rowIdx, 9).Value = row.DiscountAmount;
+            ws.Cell(rowIdx, 10).Value = row.AmountPaidCash;
+            ws.Cell(rowIdx, 11).Value = row.AmountPaidCard;
+            ws.Cell(rowIdx, 12).Value = row.AmountPaid;
+            ws.Cell(rowIdx, 13).Value = row.IsComplimentary ? "Bəli" : "Xeyr";
             rowIdx++;
         }
 
         if (data.CustomerVisitDetails.Count == 0)
         {
-            ws.Cell(4, 1).Value = "Seçilmiş aralıqda seans qeydi yoxdur";
+            ws.Cell(4, 1).Value = "Seçilmiş aralıqda ödəniş qeydi yoxdur";
+        }
+        else
+        {
+            var sumRow = rowIdx;
+            ws.Cell(sumRow, 1).Value = "Cəmi";
+            ws.Cell(sumRow, 7).Value = data.CustomerVisitDetails.Sum(x => x.PriceDue);
+            ws.Cell(sumRow, 8).Value = data.CustomerVisitDetails.Sum(x => x.EquipmentAmount);
+            ws.Cell(sumRow, 9).Value = data.CustomerVisitDetails.Sum(x => x.DiscountAmount);
+            ws.Cell(sumRow, 10).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaidCash);
+            ws.Cell(sumRow, 11).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaidCard);
+            ws.Cell(sumRow, 12).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaid);
+            ws.Range(sumRow, 1, sumRow, headers.Length).Style.Font.Bold = true;
         }
 
         StyleHeader(ws.Range(3, 1, 3, headers.Length));

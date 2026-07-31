@@ -34,6 +34,7 @@ public sealed class ServicePackagesController(IMediator mediator) : ControllerBa
             p.SessionDurationMinutes,
             p.PeriodMinutesQuota,
             p.WeeklyDaysCsv,
+            p.WeeklyDaysCount,
             p.ValidityDays,
             schedulingMode = p.SchedulingMode.ToString(),
             p.UnlimitedGym,

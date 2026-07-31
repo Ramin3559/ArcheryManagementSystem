@@ -1,5 +1,6 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Application.Common.Models;
+using EShooting.Application.Customers;
 using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
@@ -160,17 +161,11 @@ public sealed class GetOperationsAnalyticsQueryHandler(ITrainingCenterRepository
 
         var dailyTotals = BuildDailyTotals(dailyBreakdown, uniqueAthleteIds, newCustomerCount);
 
-        var packageBySessionId = packageRecords
-            .Where(r => r.SessionId.HasValue)
-            .GroupBy(r => r.SessionId!.Value)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedAtUtc).First());
-
-        var customerVisitDetails = BuildCustomerVisitDetails(
-            rangeSessions,
-            athletesById,
-            laneNoById,
-            packageBySessionId,
+        var customerVisitDetails = BuildCustomerPaymentDetails(
+            rangePackages,
+            rangeReceipts,
             issues,
+            athletesById,
             staffNameById);
 
         return new OperationsAnalyticsResult
@@ -551,12 +546,11 @@ public sealed class GetOperationsAnalyticsQueryHandler(ITrainingCenterRepository
             .ToList();
     }
 
-    private static List<CustomerVisitDetailRow> BuildCustomerVisitDetails(
-        IReadOnlyCollection<TrainingSession> rangeSessions,
-        IReadOnlyDictionary<Guid, Athlete> athletesById,
-        IReadOnlyDictionary<Guid, int> laneNoById,
-        IReadOnlyDictionary<Guid, CustomerPackageRecord> packageBySessionId,
+    private static List<CustomerVisitDetailRow> BuildCustomerPaymentDetails(
+        IReadOnlyCollection<CustomerPackageRecord> rangePackages,
+        IReadOnlyCollection<EquipmentSaleReceipt> rangeReceipts,
         IReadOnlyCollection<SessionEquipmentIssue> allIssues,
+        IReadOnlyDictionary<Guid, Athlete> athletesById,
         IReadOnlyDictionary<Guid, string> staffNameById)
     {
         string StaffName(Guid? id) =>
@@ -564,98 +558,127 @@ public sealed class GetOperationsAnalyticsQueryHandler(ITrainingCenterRepository
                 ? name
                 : "—";
 
-        return rangeSessions
-            .OrderByDescending(s => StartUtc(s))
-            .Select(session =>
+        var saleReceipts = rangeReceipts
+            .Where(r => r.Type == EquipmentSaleReceiptType.Sale)
+            .OrderBy(r => AssumedUtc(r.CreatedAtUtc))
+            .ToList();
+        var usedReceiptIds = new HashSet<Guid>();
+        var rows = new List<CustomerVisitDetailRow>();
+
+        foreach (var package in rangePackages.OrderByDescending(p => AssumedUtc(p.CreatedAtUtc)))
+        {
+            athletesById.TryGetValue(package.AthleteId, out var athlete);
+            var packageUtc = AssumedUtc(package.CreatedAtUtc);
+            var recordedLocal = ToLocalDateTime(packageUtc);
+
+            EquipmentSaleReceipt? linked = null;
+            var equipmentAmount = 0m;
+
+            if (package.SessionId is Guid sessionId)
             {
-                athletesById.TryGetValue(session.AthleteId, out var athlete);
-                laneNoById.TryGetValue(session.LaneId, out var laneNo);
-                packageBySessionId.TryGetValue(session.Id, out var package);
+                var sessionSaleTotal = allIssues
+                    .Where(i => i.SessionId == sessionId && i.IssueType == EquipmentIssueType.Sale)
+                    .Sum(i => i.UnitPrice * Math.Max(1, i.Quantity));
 
-                var startUtc = StartUtc(session);
-                var endUtc = AssumedUtc(session.EndTimeUtc);
-                var startLocal = ToLocalDateTime(startUtc);
-                var endLocal = ToLocalDateTime(endUtc);
-                var hours = SessionDurationHours(session);
-
-                var recordedUtc = package?.CreatedAtUtc ?? startUtc;
-                var recordedLocal = ToLocalDateTime(AssumedUtc(recordedUtc));
-
-                return new CustomerVisitDetailRow
+                if (sessionSaleTotal > PaymentSettlementRules.Tolerance)
                 {
-                    DateLocal = startLocal.ToString("yyyy-MM-dd"),
-                    CustomerName = athlete?.FullName ?? "—",
-                    Phone = athlete?.PhoneNumber ?? "—",
-                    ReceptionStaffName = StaffName(package?.CreatedByStaffId),
-                    SupervisorStaffName = StaffName(ResolveSupervisorStaffId(session.Id, allIssues)),
-                    PackageName = package?.PackageName ?? "—",
-                    RecordedAtLocal = recordedLocal.ToString("yyyy-MM-dd HH:mm"),
-                    LaneNumber = laneNo > 0 ? laneNo : null,
-                    StartTimeLocal = startLocal.ToString("HH:mm"),
-                    EndTimeLocal = endLocal.ToString("HH:mm"),
-                    DurationHours = RoundHours(hours),
-                    DurationLabel = FormatDuration(hours),
-                    PriceDue = package?.PriceDue ?? 0m,
-                    AmountPaidCash = package?.AmountPaidCash ?? 0m,
-                    AmountPaidCard = package?.AmountPaidCard ?? 0m,
-                    AmountPaid = package?.AmountPaid ?? 0m,
-                    DiscountAmount = package?.DiscountAmount ?? 0m,
-                    IsComplimentary = package?.IsComplimentary ?? false
-                };
-            })
+                    linked = FindLinkedEquipmentReceipt(
+                        saleReceipts,
+                        usedReceiptIds,
+                        package.AthleteId,
+                        packageUtc,
+                        sessionSaleTotal);
+                    equipmentAmount = linked?.TotalAmount ?? sessionSaleTotal;
+                }
+            }
+
+            if (linked is not null)
+            {
+                usedReceiptIds.Add(linked.Id);
+            }
+
+            var cash = package.AmountPaidCash + (linked?.AmountPaidCash ?? 0m);
+            var card = package.AmountPaidCard + (linked?.AmountPaidCard ?? 0m);
+            var discount = package.DiscountAmount + (linked?.DiscountAmount ?? 0m);
+
+            rows.Add(new CustomerVisitDetailRow
+            {
+                DateLocal = recordedLocal.ToString("yyyy-MM-dd"),
+                RecordedAtLocal = recordedLocal.ToString("yyyy-MM-dd HH:mm"),
+                CustomerName = athlete?.FullName ?? "—",
+                Phone = athlete?.PhoneNumber ?? "—",
+                ReceptionStaffName = StaffName(package.CreatedByStaffId),
+                PackageName = string.IsNullOrWhiteSpace(package.PackageName) ? "—" : package.PackageName,
+                PriceDue = package.PriceDue,
+                EquipmentAmount = equipmentAmount,
+                DiscountAmount = discount,
+                AmountPaidCash = cash,
+                AmountPaidCard = card,
+                AmountPaid = cash + card,
+                IsComplimentary = package.IsComplimentary
+            });
+        }
+
+        foreach (var receipt in saleReceipts
+                     .Where(r => !usedReceiptIds.Contains(r.Id))
+                     .OrderByDescending(r => AssumedUtc(r.CreatedAtUtc)))
+        {
+            athletesById.TryGetValue(receipt.AthleteId, out var athlete);
+            var recordedLocal = ToLocalDateTime(AssumedUtc(receipt.CreatedAtUtc));
+            rows.Add(new CustomerVisitDetailRow
+            {
+                DateLocal = recordedLocal.ToString("yyyy-MM-dd"),
+                RecordedAtLocal = recordedLocal.ToString("yyyy-MM-dd HH:mm"),
+                CustomerName = athlete?.FullName ?? "—",
+                Phone = athlete?.PhoneNumber ?? "—",
+                ReceptionStaffName = StaffName(receipt.CreatedByStaffId),
+                PackageName = "Yalnız avadanlıq",
+                PriceDue = 0m,
+                EquipmentAmount = receipt.TotalAmount,
+                DiscountAmount = receipt.DiscountAmount,
+                AmountPaidCash = receipt.AmountPaidCash,
+                AmountPaidCard = receipt.AmountPaidCard,
+                AmountPaid = receipt.AmountPaid,
+                IsComplimentary = false
+            });
+        }
+
+        return rows
+            .OrderByDescending(r => r.RecordedAtLocal)
+            .ThenBy(r => r.CustomerName)
             .ToList();
     }
 
-    private static Guid? ResolveSupervisorStaffId(
-        Guid sessionId,
-        IReadOnlyCollection<SessionEquipmentIssue> allIssues)
+    private static EquipmentSaleReceipt? FindLinkedEquipmentReceipt(
+        IReadOnlyList<EquipmentSaleReceipt> saleReceipts,
+        HashSet<Guid> usedReceiptIds,
+        Guid athleteId,
+        DateTime packageUtc,
+        decimal sessionSaleTotal)
     {
-        var rentals = allIssues
-            .Where(x => x.SessionId == sessionId && x.IssueType == EquipmentIssueType.Rental)
+        var candidates = saleReceipts
+            .Where(r => r.AthleteId == athleteId && !usedReceiptIds.Contains(r.Id))
+            .Where(r => Math.Abs((AssumedUtc(r.CreatedAtUtc) - packageUtc).TotalMinutes) <= 5)
             .ToList();
-        if (rentals.Count == 0)
+
+        if (candidates.Count == 0)
         {
             return null;
         }
 
-        var issued = rentals
-            .Where(x => x.IssuedByStaffId is Guid)
-            .OrderBy(x => x.CreatedAtUtc)
-            .Select(x => x.IssuedByStaffId)
+        var amountMatch = candidates
+            .Where(r => Math.Abs(r.TotalAmount - sessionSaleTotal) <= 0.05m)
+            .OrderBy(r => Math.Abs((AssumedUtc(r.CreatedAtUtc) - packageUtc).TotalSeconds))
             .FirstOrDefault();
-        if (issued is Guid issuerId)
+        if (amountMatch is not null)
         {
-            return issuerId;
+            return amountMatch;
         }
 
-        return rentals
-            .Where(x => x.ReturnedByStaffId is Guid)
-            .OrderByDescending(x => x.ReturnedAtUtc)
-            .Select(x => x.ReturnedByStaffId)
+        return candidates
+            .Where(r => Math.Abs((AssumedUtc(r.CreatedAtUtc) - packageUtc).TotalMinutes) <= 2)
+            .OrderBy(r => Math.Abs((AssumedUtc(r.CreatedAtUtc) - packageUtc).TotalSeconds))
             .FirstOrDefault();
-    }
-
-    private static string FormatDuration(double hours)
-    {
-        if (hours <= 0)
-        {
-            return "0 dəq";
-        }
-
-        var totalMinutes = (int)Math.Round(hours * 60);
-        var h = totalMinutes / 60;
-        var m = totalMinutes % 60;
-        if (h > 0 && m > 0)
-        {
-            return $"{h} saat {m} dəq";
-        }
-
-        if (h > 0)
-        {
-            return $"{h} saat";
-        }
-
-        return $"{m} dəq";
     }
 
     private static List<LaneActivityRow> BuildLaneActivity(

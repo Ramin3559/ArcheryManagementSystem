@@ -38,6 +38,14 @@ public sealed class CustomerListItem
     public string? LastVisitLocal { get; init; }
     public int? ActiveLaneNumber { get; init; }
     public string? CurrentPackageName { get; init; }
+    /// <summary>Son paket ödənişinin ümumi məbləği (AZN).</summary>
+    public decimal? LatestAmountPaid { get; init; }
+    public decimal? LatestAmountPaidCash { get; init; }
+    public decimal? LatestAmountPaidCard { get; init; }
+    public bool LatestPaymentIsComplimentary { get; init; }
+    public string LatestPaymentLabel { get; init; } = "—";
+    public Guid? LatestPackageRecordId { get; init; }
+    public bool HasPackagePayments { get; init; }
 }
 
 public sealed class CustomersListResult

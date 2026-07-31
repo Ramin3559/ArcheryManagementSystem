@@ -1,4 +1,5 @@
 using EShooting.Domain.Entities;
+using EShooting.Domain.Enums;
 
 namespace EShooting.Application.Common.Interfaces;
 
@@ -97,13 +98,15 @@ public interface ITrainingCenterRepository
     Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken);
 
-    Task<Athlete?> FindAthleteByClubCardNumberAsync(
+    Task<Athlete?> FindAthleteByClubCardAsync(
+        ClubCardType cardType,
         string cardNumber,
         Guid? excludeAthleteId,
         CancellationToken cancellationToken);
     Task AddClubCardAssignmentAsync(ClubCardAssignment assignment, CancellationToken cancellationToken);
     Task CloseOpenClubCardAssignmentAsync(
         Guid athleteId,
+        ClubCardType cardType,
         string cardNumber,
         Guid? returnedByStaffId,
         CancellationToken cancellationToken);

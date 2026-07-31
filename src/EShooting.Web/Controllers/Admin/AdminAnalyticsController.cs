@@ -199,22 +199,17 @@ public sealed class AdminAnalyticsController(IMediator mediator) : Controller
         customerVisitDetails = result.CustomerVisitDetails.Select(x => new
         {
             dateLocal = x.DateLocal,
+            recordedAtLocal = x.RecordedAtLocal,
             customerName = x.CustomerName,
             phone = x.Phone,
             receptionStaffName = x.ReceptionStaffName,
-            supervisorStaffName = x.SupervisorStaffName,
             packageName = x.PackageName,
-            recordedAtLocal = x.RecordedAtLocal,
-            laneNumber = x.LaneNumber,
-            startTimeLocal = x.StartTimeLocal,
-            endTimeLocal = x.EndTimeLocal,
-            durationHours = x.DurationHours,
-            durationLabel = x.DurationLabel,
             priceDue = x.PriceDue,
+            equipmentAmount = x.EquipmentAmount,
+            discountAmount = x.DiscountAmount,
             amountPaidCash = x.AmountPaidCash,
             amountPaidCard = x.AmountPaidCard,
             amountPaid = x.AmountPaid,
-            discountAmount = x.DiscountAmount,
             isComplimentary = x.IsComplimentary
         })
     };

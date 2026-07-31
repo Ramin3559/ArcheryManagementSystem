@@ -52,6 +52,7 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
             BillingType = item.BillingType,
             Price = item.Price,
             SessionDurationMinutes = item.SessionDurationMinutes,
+            WeeklyDaysCount = item.WeeklyDaysCount,
             IsActive = item.IsActive
         });
     }
@@ -111,7 +112,16 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
             ModelState.AddModelError(nameof(model.Name), "Paket adı mütləqdir.");
         }
 
-        model.IsActive = Request.Form.ContainsKey("IsActive");
+        // Formda Aktiv checkbox yoxdur — yeni paket aktiv; redaktədə mövcud status qalır.
+        if (model.Id is null || model.Id == Guid.Empty)
+        {
+            model.IsActive = true;
+        }
+        else
+        {
+            var existing = await mediator.Send(new GetServicePackageByIdQuery(model.Id.Value), cancellationToken);
+            model.IsActive = existing?.IsActive ?? true;
+        }
 
         if (InvariantDecimalParser.ParseOptional(Request.Form["Price"].ToString()) is { } parsedPrice)
         {
@@ -125,6 +135,16 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
             int sessionDuration;
             int? validity;
             var unlimitedGym = false;
+
+            // Müddətsiz = 0; vaxtlı paketdə 1–600 dəq.
+            if (model.BillingType != PackageBillingType.Vip)
+            {
+                if (model.SessionDurationMinutes < 0 || model.SessionDurationMinutes > 600)
+                {
+                    ModelState.AddModelError(nameof(model.SessionDurationMinutes), "Sessiya müddəti 0 (müddətsiz) və ya 1–600 dəqiqə olmalıdır.");
+                    return View("~/Views/Admin/Packages/Form.cshtml", model);
+                }
+            }
 
             switch (model.BillingType)
             {
@@ -166,6 +186,17 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                     break;
             }
 
+            int? weeklyDaysCount = null;
+            if (scheduling == PackageSchedulingMode.FixedWeekly && sessionDuration > 0)
+            {
+                weeklyDaysCount = model.WeeklyDaysCount;
+                if (weeklyDaysCount is null or < 1 or > 7)
+                {
+                    ModelState.AddModelError(nameof(model.WeeklyDaysCount), "Həftədə gün sayı 1–7 arası seçilməlidir.");
+                    return View("~/Views/Admin/Packages/Form.cshtml", model);
+                }
+            }
+
             var id = await mediator.Send(new UpsertServicePackageCommand(
                 model.Id,
                 model.Name,
@@ -176,13 +207,14 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                 sessionDuration,
                 PeriodMinutesQuota: null,
                 WeeklyDaysCsv: null,
+                WeeklyDaysCount: weeklyDaysCount,
                 validity,
                 unlimitedGym,
                 model.IsActive), cancellationToken);
 
             TempData["PackageNotice"] = model.Id is null
-                ? (model.IsActive ? "Paket yaradıldı və aktiv edildi." : "Paket yaradıldı.")
-                : (model.IsActive ? "Paket yeniləndi və aktivdir." : "Paket yeniləndi.");
+                ? "Paket yaradıldı."
+                : "Paket yeniləndi.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)

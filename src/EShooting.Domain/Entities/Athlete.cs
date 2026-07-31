@@ -13,6 +13,8 @@ public sealed class Athlete
     public string? IdCardNumber { get; set; }
     /// <summary>Klubun verdiyi fiziki müştəri kartının nömrəsi.</summary>
     public string? ClubCardNumber { get; set; }
+    /// <summary>Kart növü (Boz/Qırmızı/Qara/VIP-Qızılı). Kart yoxdursa null.</summary>
+    public ClubCardType? ClubCardType { get; set; }
     public CustomerCategory Category { get; set; } = CustomerCategory.Amateur;
     public bool IsSubscriber { get; set; }
     public MembershipType MembershipType { get; set; } = MembershipType.FullCombo;

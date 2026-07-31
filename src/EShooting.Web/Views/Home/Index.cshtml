@@ -1403,7 +1403,6 @@
                        placeholder="Ad, telefon, email və ya Ş/V ilə axtarın…"
                        autocomplete="off" />
                 <button id="addCustomerBtn" type="button" class="btn btn-primary" @(canRegisterCustomers ? "" : "disabled hidden")>Müştəri əlavə et</button>
-                <button id="manageCustomerBtn" type="button" class="btn btn-update" @(canEditCustomers ? "" : "disabled hidden")>Məlumatları yenilə</button>
                 @if (canViewCustomers) {
                     <a href="/qeydiyyat/musteriler" class="btn btn-secondary">Müştərilər</a>
                 }
@@ -1453,6 +1452,13 @@
                 <input id="email" />
                 <input id="idCardNumber" />
                 <input id="clubCardNumber" />
+                <select id="clubCardType">
+                    <option value=""></option>
+                    <option value="0">Boz</option>
+                    <option value="1">Qırmızı</option>
+                    <option value="2">Qara</option>
+                    <option value="3">VIP-Qızılı</option>
+                </select>
                 <select id="category">
                     <option value="" selected disabled>Kateqoriya seçin</option>
                     <option value="0">Həvəskar</option>
@@ -1538,7 +1544,7 @@
                 VIP abunə — sessiya müddəti yoxdur. Qeydiyyatda neçə ay olduğunu qeyd edin; gəldikdə zolaq seçib «Zolağa yaz» basın.
             </div>
             <div id="bookingSubscriptionScheduleRow" style="display:none;">
-                <div class="notice" style="margin-bottom:8px;">Həftə günlərini seçin. Seçdiyin hər gün üçün aşağıda ayrıca saat və zolaq təyin edin.</div>
+                <div id="bookingSubscriptionDaysHint" class="notice" style="margin-bottom:8px;">Həftə günlərini seçin. Seçdiyin hər gün üçün aşağıda ayrıca saat və zolaq təyin edin.</div>
                 <div id="bookingSubscriptionDays" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
                     <label class="checkbox-chip"><input type="checkbox" value="1" class="booking-sub-day" /> B.e</label>
                     <label class="checkbox-chip"><input type="checkbox" value="2" class="booking-sub-day" /> Ç.a</label>
@@ -1704,6 +1710,13 @@
                    maxlength="20" />
             <input id="modalEmail" type="email" placeholder="Email (istəyə bağlı)" maxlength="200" />
             <input id="modalIdCardNumber" placeholder="Ş/V nömrəsi (mütləq)" maxlength="60" autocomplete="off" required />
+            <select id="modalClubCardType" title="Kart növü">
+                <option value="" selected>Kart növü</option>
+                <option value="0">Boz</option>
+                <option value="1">Qırmızı</option>
+                <option value="2">Qara</option>
+                <option value="3">VIP-Qızılı</option>
+            </select>
             <input id="modalClubCardNumber" placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" />
             <select id="modalCategory" title="Kateqoriya">
                 <option value="" selected disabled>Kateqoriya seçin</option>
@@ -1728,7 +1741,7 @@
      style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.45); backdrop-filter: blur(5px); z-index:9999; padding:12px; overflow-y:auto;">
     <div id="infoModalPanel" style="max-width:920px; margin:12px auto 24px; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:16px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
-            <div style="font-weight:900; color:#1a2650; font-size:18px;">Məlumatları yenilə</div>
+            <div style="font-weight:900; color:#1a2650; font-size:18px;">Müştəri məlumatları</div>
             <button id="infoCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
         </div>
         <p class="section-hint" style="margin:8px 0 0;">Müştərini tapın, məlumatlarını dəyişin, abunəlik və seans vaxtlarını idarə edin.</p>
@@ -1748,6 +1761,13 @@
                 <input id="infoPhoneEdit" placeholder="Telefon (mütləq)" inputmode="tel" maxlength="20" />
                 <input id="infoEmailEdit" type="email" placeholder="E-mail (istəyə bağlı)" maxlength="200" />
                 <input id="infoIdCardEdit" placeholder="Ş/V nömrəsi (mütləq)" maxlength="60" autocomplete="off" />
+                <select id="infoClubCardType" title="Kart növü">
+                    <option value="" selected>Kart növü</option>
+                    <option value="0">Boz</option>
+                    <option value="1">Qırmızı</option>
+                    <option value="2">Qara</option>
+                    <option value="3">VIP-Qızılı</option>
+                </select>
                 <input id="infoClubCardEdit" placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" />
                 <select id="infoCategory" title="Kateqoriya">
                     <option value="" disabled>Kateqoriya seçin</option>
@@ -1777,8 +1797,9 @@
         </div>
 
         <div class="notice" id="infoResultHint" style="margin-top:10px; display:none;"></div>
+        <div id="infoVisitStats" style="display:none; margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.14); font-size:13px; color:#253060; font-weight:700; line-height:1.45;"></div>
         <div id="infoPackagesSummary" style="margin-top:10px; display:none; font-size:13px; color:#4a5a78; line-height:1.45;"></div>
-        <p id="infoOccurrencesHint" class="section-hint" style="margin:10px 0 0; display:none;">Hər sətir abunə ayının konkret günüdür — yalnız həmin günün saatını və zolağını dəyişə bilərsiniz (bütün paket yenilənmir).</p>
+        <p id="infoOccurrencesHint" class="section-hint" style="margin:10px 0 0; display:none;">Hər sətir abunənin konkret günüdür — «Dəyişdir» ilə tarixi (bu gün və ya paket sonuna qədər), saatı və zolağı dəyişə bilərsiniz. Keçmiş günlər göstərilmir.</p>
         <div class="table-wrap" style="margin-top:8px; max-height:280px; overflow-y:auto; display:none;" id="infoTableWrap">
             <table class="subscription-table">
                 <thead>
@@ -1940,14 +1961,14 @@
 
         <div class="row" style="margin-top:14px; gap:10px;">
             <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:200px;">
-                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Ləğv olunacaq abunə günü</span>
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Hansı seansı dəyişirəm</span>
                 <select id="occurrenceEditDateSelect"></select>
             </label>
         </div>
-        <div id="occurrenceEditRescheduleRow" style="display:none; margin-top:10px;">
+        <div id="occurrenceEditRescheduleRow" style="margin-top:10px;">
             <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:200px;">
-                <span style="font-size:12px; color:#7a86a8; font-weight:700;">İndi yazılacaq gün</span>
-                <input id="occurrenceEditTargetDate" type="date" readonly style="background:#f4f6fb;" />
+                <span style="font-size:12px; color:#7a86a8; font-weight:700;">Seans tarixi</span>
+                <input id="occurrenceEditTargetDate" type="date" />
             </label>
         </div>
         <div id="occurrenceEditDateHint" class="section-hint" style="margin-top:6px;"></div>
@@ -2120,6 +2141,7 @@
     const modalPhoneNumber = document.getElementById("modalPhoneNumber");
     const modalEmail = document.getElementById("modalEmail");
     const modalIdCardNumber = document.getElementById("modalIdCardNumber");
+    const modalClubCardType = document.getElementById("modalClubCardType");
     const modalClubCardNumber = document.getElementById("modalClubCardNumber");
     const modalCategory = document.getElementById("modalCategory");
     const modalIsVip = document.getElementById("modalIsVip");
@@ -2128,6 +2150,7 @@
     const emailInput = document.getElementById("email");
     const idCardNumberInput = document.getElementById("idCardNumber");
     const clubCardNumberInput = document.getElementById("clubCardNumber");
+    const clubCardTypeInput = document.getElementById("clubCardType");
     const categoryInput = document.getElementById("category");
     const registrationModeInput = document.getElementById("registrationMode");
     const bookingPackageSelect = document.getElementById("bookingPackage");
@@ -2145,7 +2168,6 @@
     const laneBookingHint = document.getElementById("laneBookingHint");
     const GYM_LANE_NUMBER = 12;
     const bookingSubscriptionLaneTypesByDayEl = document.getElementById("bookingSubscriptionLaneTypesByDay");
-    const manageCustomerBtn = document.getElementById("manageCustomerBtn");
     const membershipTypeInput = document.getElementById("membershipType");
     const includesLaneInput = document.getElementById("includesLane");
     const includesShootingInput = document.getElementById("includesShooting");
@@ -2187,6 +2209,7 @@
     const infoPhoneEdit = document.getElementById("infoPhoneEdit");
     const infoEmailEdit = document.getElementById("infoEmailEdit");
     const infoIdCardEdit = document.getElementById("infoIdCardEdit");
+    const infoClubCardType = document.getElementById("infoClubCardType");
     const infoClubCardEdit = document.getElementById("infoClubCardEdit");
     const infoCategory = document.getElementById("infoCategory");
     const infoMembershipType = document.getElementById("infoMembershipType");
@@ -2241,6 +2264,7 @@
     const infoTableWrap = document.getElementById("infoTableWrap");
     const infoTableBody = document.getElementById("infoTableBody");
     const infoPackagesSummary = document.getElementById("infoPackagesSummary");
+    const infoVisitStats = document.getElementById("infoVisitStats");
     const infoOccurrencesHint = document.getElementById("infoOccurrencesHint");
     const cancelSubscriptionModal = document.getElementById("cancelSubscriptionModal");
     const cancelSubscriptionCloseBtn = document.getElementById("cancelSubscriptionCloseBtn");
@@ -2364,7 +2388,9 @@
     function populateBookingPackageSelect() {
         if (!(bookingPackageSelect instanceof HTMLSelectElement)) return;
         const prev = bookingPackageSelect.value;
-        const filtered = filterPackagesForBooking(bookingPackagesCache);
+        const filtered = filterPackagesForBooking(bookingPackagesCache)
+            .slice()
+            .sort((a, b) => Number(a?.price ?? 0) - Number(b?.price ?? 0));
         bookingPackageSelect.innerHTML = '<option value="" selected disabled>Paket seçin</option>';
         for (const p of filtered) {
             const opt = document.createElement("option");
@@ -2372,9 +2398,8 @@
             const price = p.price != null && p.price !== "" ? ` · ${p.price} ₼` : "";
             const durLabel = Number(p.sessionDurationMinutes) > 0
                 ? ` · ${p.sessionDurationMinutes} dəq`
-                : (isVipBillingPackage(p) ? " · müddətsiz" : "");
-            const unlimitedLabel = isUnlimitedBillingPackage(p) ? " [Limitsiz]" : "";
-            opt.textContent = `${p.name} (${p.billingTypeLabel})${unlimitedLabel}${durLabel}${price}`;
+                : " · müddətsiz";
+            opt.textContent = `${p.name}${durLabel}${price}`;
             bookingPackageSelect.appendChild(opt);
         }
         if (prev && filtered.some(x => String(x.id) === String(prev))) {
@@ -2385,7 +2410,12 @@
     }
 
     function isWalkInPackage(pkg) {
-        return isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg);
+        if (!pkg) return false;
+        if (isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg)) return true;
+        // Birdefəlik müddətsiz — birbaşa zolağa yazılır (abunə walk-in deyil)
+        if (String(pkg.billingType) === "OneTime") return false;
+        // Digər növlər müddətsizdirsə — həftəlik plan yox, gələndə yazılır
+        return Number(pkg.sessionDurationMinutes) === 0;
     }
 
     function calcSubscriptionEndDateLocal(startIso, pkg) {
@@ -2404,11 +2434,13 @@
     }
 
     function shouldUseOpenEndedSession() {
+        // Limitsiz (vaxtlı) aktiv abunə — hər gəlişdə dəqiqə sayılır.
         if (_receptionWalkIn?.isActive && _receptionWalkIn?.isUnlimited) return false;
         if (isActiveVipReception()) return true;
         const pkg = getSelectedBookingPackage();
-        if (isUnlimitedBillingPackage(pkg)) return false;
-        return isVipBillingPackage(pkg);
+        if (!pkg) return false;
+        // Paketdə sessiya müddəti 0 = müddətsiz (VIP kimi stop-a qədər).
+        return Number(pkg.sessionDurationMinutes) === 0;
     }
 
     function resolveSessionDurationMinutes() {
@@ -2500,10 +2532,14 @@
         const isVip = isVipBillingPackage(pkg);
         const isUnlimited = isUnlimitedBillingPackage(pkg);
         const gymMode = isGymBookingMode();
-        const hideWeeklySchedule = isVip || isUnlimited || (pkg && isGymPackage(pkg));
+        const hideWeeklySchedule = isWalkIn || (pkg && isGymPackage(pkg));
         if (packageDurationHint instanceof HTMLElement) {
             if (!pkg) packageDurationHint.textContent = "";
-            else if (isVip) packageDurationHint.textContent = "VIP — müddətsiz full paket";
+            else if (Number(pkg.sessionDurationMinutes) === 0) {
+                packageDurationHint.textContent = isVip
+                    ? "VIP — müddətsiz full paket"
+                    : (isUnlimited ? "Limitsiz — müddətsiz (stop-a qədər)" : "Müddətsiz — stop edilənə qədər");
+            }
             else if (isUnlimited) packageDurationHint.textContent = `Limitsiz — hər gəliş ${pkg.sessionDurationMinutes} dəq`;
             else packageDurationHint.textContent = `Müddət: ${pkg.sessionDurationMinutes} dəq`;
         }
@@ -2562,6 +2598,7 @@
         syncComplimentaryCheckboxUi(pkg);
         syncPaymentFieldsUi(pkg);
         syncRegistrationModeUi();
+        syncBookingSubscriptionDayLimit();
     }
 
     function isOneTimeBookingPackage(pkg) {
@@ -2982,6 +3019,40 @@
             .filter(n => Number.isInteger(n) && n >= 0 && n <= 6);
     }
 
+    function getPackageWeeklyDaysLimit(pkg) {
+        const n = Number(pkg?.weeklyDaysCount ?? 0);
+        return Number.isInteger(n) && n >= 1 && n <= 7 ? n : null;
+    }
+
+    function syncBookingSubscriptionDayLimit() {
+        const pkg = getSelectedBookingPackage();
+        const limit = getPackageWeeklyDaysLimit(pkg);
+        const hint = document.getElementById("bookingSubscriptionDaysHint");
+        const boxes = Array.from(document.querySelectorAll("#bookingSubscriptionDays .booking-sub-day"))
+            .filter(el => el instanceof HTMLInputElement);
+        if (limit == null) {
+            boxes.forEach(b => { b.disabled = false; });
+            if (hint instanceof HTMLElement) {
+                hint.textContent = "Həftə günlərini seçin. Seçdiyin hər gün üçün aşağıda ayrıca saat və zolaq təyin edin.";
+            }
+            return;
+        }
+        if (hint instanceof HTMLElement) {
+            hint.textContent = `Bu paket həftədə ${limit} gün üçündür — ${limit} gün seçin. Seçdiyin hər gün üçün aşağıda saat və zolaq təyin edin.`;
+        }
+        let checked = boxes.filter(b => b.checked);
+        if (checked.length > limit) {
+            for (let i = limit; i < checked.length; i++) {
+                checked[i].checked = false;
+            }
+            checked = boxes.filter(b => b.checked);
+        }
+        const atLimit = checked.length >= limit;
+        boxes.forEach(b => {
+            b.disabled = atLimit && !b.checked;
+        });
+    }
+
     function formatWeeklyDayLabels(csv) {
         const labels = { 0: "Bazar", 1: "B.e", 2: "Ç.a", 3: "Ç", 4: "C.a", 5: "C", 6: "Ş" };
         return parseWeeklyDaysCsv(csv).map(d => labels[d] ?? String(d)).join(", ");
@@ -3161,6 +3232,11 @@
             return "Həftə günlərini seçin.";
         }
 
+        const dayLimit = getPackageWeeklyDaysLimit(package);
+        if (dayLimit != null && selectedDays.length !== dayLimit) {
+            return `Bu paket həftədə ${dayLimit} gün üçündür — dəqiq ${dayLimit} gün seçin.`;
+        }
+
         const missingTimes = selectedDays.filter(d => !/^\d{2}:\d{2}$/.test(timeByDay[String(d)] ?? ""));
         if (missingTimes.length) {
             return "Hər seçilən gün üçün saat təyin edin (HH:mm).";
@@ -3257,8 +3333,8 @@
 
         const periodStart = bookingSubStartDate?.value ?? "";
         const periodEnd = calcSubscriptionEndDateLocal(periodStart, pkg) || bookingSubEndDate?.value || "";
-        const sessionMinutes = Number(pkg?.sessionDurationMinutes ?? 60);
-        if (!Number.isInteger(sessionMinutes) || sessionMinutes <= 0) {
+        const sessionMinutes = Number(pkg?.sessionDurationMinutes ?? 0);
+        if (!Number.isInteger(sessionMinutes) || sessionMinutes < 0) {
             alert("Zal paketinin müddəti düzgün deyil.");
             return false;
         }
@@ -3302,7 +3378,7 @@
                 alert(periodError);
                 return false;
             }
-            const walkInDuration = isUnlimitedBillingPackage(pkg) ? Number(pkg.sessionDurationMinutes || 0) : 0;
+            const walkInDuration = Number(pkg.sessionDurationMinutes || 0);
             const response = await apiFetch("/subscriptions/packages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -3773,6 +3849,7 @@
         if (infoPhoneEdit instanceof HTMLInputElement) infoPhoneEdit.value = data?.phoneNumber ?? "";
         if (infoEmailEdit instanceof HTMLInputElement) infoEmailEdit.value = data?.email ?? "";
         if (infoIdCardEdit instanceof HTMLInputElement) infoIdCardEdit.value = data?.idCardNumber ?? "";
+        if (infoClubCardType instanceof HTMLSelectElement) infoClubCardType.value = clubCardTypeToSelectValue(data?.clubCardType);
         if (infoClubCardEdit instanceof HTMLInputElement) infoClubCardEdit.value = data?.clubCardNumber ?? "";
         if (infoCategory instanceof HTMLSelectElement) infoCategory.value = categoryToSelectValue(data?.category);
         if (infoMembershipType instanceof HTMLSelectElement) infoMembershipType.value = membershipToSelectValue(data?.membershipType);
@@ -3780,11 +3857,12 @@
         ensureInfoProfileCategoryEditable();
         _currentInfoIsActive = data?.isActive !== false;
         syncInfoManageActionButtons();
-        syncInfoClubCardUi(data?.clubCardNumber);
+        syncInfoClubCardUi(data?.clubCardNumber, data?.clubCardType);
     }
 
-    function syncInfoClubCardUi(clubCardNumber) {
+    function syncInfoClubCardUi(clubCardNumber, clubCardType) {
         const card = (clubCardNumber ?? infoClubCardEdit?.value ?? "").toString().trim();
+        const type = clubCardType ?? infoClubCardType?.value ?? "";
         const hasCard = Boolean(card);
         if (infoReturnClubCardBtn instanceof HTMLButtonElement) {
             infoReturnClubCardBtn.style.display = hasCard && _currentInfoAthleteId ? "" : "none";
@@ -3792,7 +3870,7 @@
         if (infoClubCardWarning instanceof HTMLElement) {
             if (hasCard) {
                 infoClubCardWarning.style.display = "";
-                infoClubCardWarning.textContent = `Kart hələ qaytarılmayıb: ${card}`;
+                infoClubCardWarning.textContent = `Kart hələ qaytarılmayıb: ${formatClubCardDisplay(type, card)}`;
             } else {
                 infoClubCardWarning.style.display = "none";
                 infoClubCardWarning.textContent = "";
@@ -3866,12 +3944,14 @@
         const email = infoEmailEdit?.value?.trim() ?? "";
         const idCardNumber = infoIdCardEdit?.value?.trim() ?? "";
         const clubCardNumber = infoClubCardEdit?.value?.trim() ?? "";
+        const clubCardType = readClubCardTypeValue(infoClubCardType);
         const categoryRaw = infoCategory?.value ?? "";
         const membershipTypeRaw = infoMembershipType?.value ?? "";
         if (!firstName || !lastName || !phoneNumber || !idCardNumber) {
             alert(customerRequiredFieldsMessage);
             return false;
         }
+        if (!validateClubCardFields(clubCardNumber, clubCardType)) return false;
         if (!categoryRaw) { alert("Kateqoriya seçin."); return false; }
         if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return false; }
 
@@ -3885,6 +3965,7 @@
                 email,
                 idCardNumber,
                 clubCardNumber,
+                clubCardType,
                 category: Number(categoryRaw),
                 isSubscriber: Boolean(dataIsSubscriberForInfo()),
                 membershipType: Number(membershipTypeRaw),
@@ -3911,6 +3992,7 @@
             email,
             idCardNumber,
             clubCardNumber,
+            clubCardType,
             category: Number(categoryRaw),
             membershipType: Number(membershipTypeRaw),
             isSubscriber: dataIsSubscriberForInfo(),
@@ -3935,6 +4017,136 @@
     }
 
     const customerRequiredFieldsMessage = "Ad, Soyad, Telefon və Ş/V nömrəsi mütləqdir.";
+
+    function clubCardTypeToSelectValue(value) {
+        if (value === null || value === undefined || value === "") return "";
+        if (typeof value === "number" && Number.isFinite(value)) return String(value);
+        const s = String(value).trim().toLowerCase();
+        if (s === "0" || s === "boz") return "0";
+        if (s === "1" || s === "qirmizi" || s === "qırmızı") return "1";
+        if (s === "2" || s === "qara") return "2";
+        if (s === "3" || s === "vipqizili" || s === "vip-qızılı" || s === "vip-qizili") return "3";
+        const n = Number(value);
+        return Number.isFinite(n) ? String(n) : "";
+    }
+
+    function clubCardTypeLabel(value) {
+        const v = clubCardTypeToSelectValue(value);
+        if (v === "0") return "Boz";
+        if (v === "1") return "Qırmızı";
+        if (v === "2") return "Qara";
+        if (v === "3") return "VIP-Qızılı";
+        return "";
+    }
+
+    function formatClubCardDisplay(type, number) {
+        const card = (number ?? "").toString().trim();
+        if (!card) return "";
+        const label = clubCardTypeLabel(type);
+        return label ? `${label} · ${card}` : card;
+    }
+
+    function readClubCardTypeValue(selectEl) {
+        const raw = selectEl?.value ?? "";
+        if (raw === "" || raw === null || raw === undefined) return null;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function validateClubCardFields(cardNumber, cardType) {
+        const card = (cardNumber ?? "").toString().trim();
+        if (!card) return true;
+        if (cardType === null || cardType === undefined || cardType === "") {
+            alert("Kart növü seçin.");
+            return false;
+        }
+        return true;
+    }
+
+    function receptionHasClubCardAssigned() {
+        const card = (clubCardNumberInput?.value ?? "").toString().trim();
+        const type = readClubCardTypeValue(clubCardTypeInput);
+        return Boolean(card) && type !== null;
+    }
+
+    function athletePayloadHasClubCard(data) {
+        const card = (data?.clubCardNumber ?? "").toString().trim();
+        if (!card) return false;
+        const type = readClubCardTypeValue({ value: clubCardTypeToSelectValue(data?.clubCardType) });
+        return type !== null;
+    }
+
+    function promptClubCardRequired(detailMessage) {
+        alert(detailMessage || "Kart daxil edin. Zolağa yazılmazdan əvvəl kart növü və nömrəsi verilməlidir.");
+        try {
+            openCustomerModal(Boolean(receptionMatchedAthleteId));
+        } catch { /* ignore */ }
+    }
+
+    async function fetchAthleteClubCardStatus(athleteId) {
+        if (!athleteId) return { hasCard: false };
+        try {
+            const res = await apiFetch(`/athletes/${encodeURIComponent(athleteId)}`, { timeoutMs: 20000 });
+            if (!res.ok) return { hasCard: false };
+            const data = await res.json();
+            return {
+                hasCard: athletePayloadHasClubCard(data),
+                clubCardNumber: data?.clubCardNumber ?? "",
+                clubCardType: data?.clubCardType
+            };
+        } catch {
+            return { hasCard: false };
+        }
+    }
+
+    async function ensureClubCardBeforeLaneWrite(athleteId) {
+        if (receptionHasClubCardAssigned()) return true;
+
+        const id = athleteId || receptionMatchedAthleteId;
+        if (id) {
+            const status = await fetchAthleteClubCardStatus(id);
+            if (status.hasCard) {
+                if (clubCardNumberInput instanceof HTMLInputElement) {
+                    clubCardNumberInput.value = status.clubCardNumber || "";
+                }
+                if (clubCardTypeInput instanceof HTMLSelectElement) {
+                    clubCardTypeInput.value = clubCardTypeToSelectValue(status.clubCardType);
+                }
+                try { refreshSelectedCustomerCard(); } catch { }
+                return true;
+            }
+        }
+
+        promptClubCardRequired();
+        return false;
+    }
+
+    async function ensureGroupMembersHaveClubCards() {
+        const missing = [];
+        for (const m of groupMembers) {
+            const name = String(m.fullName || "").trim() || "Adsız";
+            if (m.clubCardNumber && m.clubCardType !== null && m.clubCardType !== undefined && m.clubCardType !== "") {
+                continue;
+            }
+            if (!m.athleteId) {
+                missing.push(name);
+                continue;
+            }
+            const status = await fetchAthleteClubCardStatus(m.athleteId);
+            if (status.hasCard) {
+                m.clubCardNumber = status.clubCardNumber;
+                m.clubCardType = status.clubCardType;
+                continue;
+            }
+            missing.push(name);
+        }
+        if (missing.length === 0) return true;
+        alert(
+            "Qrup üzvlərinə kart verilməyib. Əvvəlcə kart növü və nömrəsini daxil edin:\n\n• "
+            + missing.join("\n• ")
+        );
+        return false;
+    }
 
     function hasRequiredCustomerContactFields() {
         const first = firstNameInput?.value?.trim() ?? "";
@@ -4106,6 +4318,7 @@
         if (emailInput instanceof HTMLInputElement) emailInput.value = "";
         if (idCardNumberInput instanceof HTMLInputElement) idCardNumberInput.value = "";
         if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = "";
+        if (clubCardTypeInput instanceof HTMLSelectElement) clubCardTypeInput.value = "";
         if (categoryInput instanceof HTMLSelectElement) categoryInput.value = "";
         if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "";
         if (isVipInput instanceof HTMLInputElement) isVipInput.checked = false;
@@ -4155,8 +4368,14 @@
         const member = {
             athleteId: ensured.athleteId,
             fullName: ensured.fullName,
-            phone: ensured.phone
+            phone: ensured.phone,
+            clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+            clubCardType: readClubCardTypeValue(clubCardTypeInput)
         };
+        if (!member.clubCardNumber || member.clubCardType === null) {
+            promptClubCardRequired(`${member.fullName}: qrupa əlavə etməzdən əvvəl kart növü və nömrəsini daxil edin.`);
+            return;
+        }
         if (!pushGroupMember(member, { clearForm: true })) {
             alert("Bu müştəri artıq qrupdadır.");
             return;
@@ -4249,6 +4468,9 @@
             openCustomerModal(false);
             return { ok: false, error: "Kateqoriya və abunəlik növünü «Müştəri əlavə et» pəncərəsindən seçin." };
         }
+        if (!validateClubCardFields(clubCardNumberInput?.value, readClubCardTypeValue(clubCardTypeInput))) {
+            return { ok: false, error: "Kart növü seçin." };
+        }
 
         const athleteResponse = await apiFetch("/athletes", {
             method: "POST",
@@ -4261,6 +4483,7 @@
                 email: emailInput?.value?.trim() || "",
                 idCardNumber: idCardNumberInput?.value?.trim() || "",
                 clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                clubCardType: readClubCardTypeValue(clubCardTypeInput),
                 category: Number(categoryRaw),
                 isSubscriber: false,
                 membershipType: Number(membershipTypeRaw),
@@ -4539,6 +4762,7 @@
         if (modalPhoneNumber instanceof HTMLInputElement) modalPhoneNumber.value = phoneNumberInput?.value ?? "";
         if (modalEmail instanceof HTMLInputElement) modalEmail.value = emailInput?.value ?? "";
         if (modalIdCardNumber instanceof HTMLInputElement) modalIdCardNumber.value = idCardNumberInput?.value ?? "";
+        if (modalClubCardType instanceof HTMLSelectElement) modalClubCardType.value = clubCardTypeInput?.value ?? "";
         if (modalClubCardNumber instanceof HTMLInputElement) modalClubCardNumber.value = clubCardNumberInput?.value ?? "";
         if (modalCategory instanceof HTMLSelectElement) modalCategory.value = categoryInput?.value ?? "";
         if (modalIsVip instanceof HTMLInputElement && isVipInput instanceof HTMLInputElement) {
@@ -4562,6 +4786,9 @@
         }
         if (idCardNumberInput instanceof HTMLInputElement && modalIdCardNumber instanceof HTMLInputElement) {
             idCardNumberInput.value = modalIdCardNumber.value;
+        }
+        if (clubCardTypeInput instanceof HTMLSelectElement && modalClubCardType instanceof HTMLSelectElement) {
+            clubCardTypeInput.value = modalClubCardType.value;
         }
         if (clubCardNumberInput instanceof HTMLInputElement && modalClubCardNumber instanceof HTMLInputElement) {
             clubCardNumberInput.value = modalClubCardNumber.value;
@@ -4606,9 +4833,10 @@
         const em = (emailInput?.value ?? "").trim();
         const idc = (idCardNumberInput?.value ?? "").trim();
         const club = (clubCardNumberInput?.value ?? "").trim();
+        const clubType = clubCardTypeInput?.value ?? "";
         if (em) parts.push(em);
         if (idc) parts.push(`Ş/V: ${idc}`);
-        if (club) parts.push(`Kart: ${club} (qaytarılmayıb)`);
+        if (club) parts.push(`Kart: ${formatClubCardDisplay(clubType, club)} (qaytarılmayıb)`);
         selectedCustomerMeta.textContent = parts.join(" · ");
     }
 
@@ -4634,11 +4862,13 @@
         const email = modalEmail?.value?.trim() ?? "";
         const idCardNumber = modalIdCardNumber?.value?.trim() ?? "";
         const clubCardNumber = modalClubCardNumber?.value?.trim() ?? "";
+        const clubCardType = readClubCardTypeValue(modalClubCardType);
         const categoryRaw = modalCategory?.value ?? "";
         if (!firstName || !lastName || !phoneNumber || !idCardNumber) {
             alert(customerRequiredFieldsMessage);
             return;
         }
+        if (!validateClubCardFields(clubCardNumber, clubCardType)) return;
         if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
 
         copyModalToCustomerStore();
@@ -4666,6 +4896,7 @@
                             email: modalEmail?.value?.trim() || "",
                             idCardNumber: modalIdCardNumber?.value?.trim() || "",
                             clubCardNumber: modalClubCardNumber?.value?.trim() || "",
+                            clubCardType: readClubCardTypeValue(modalClubCardType),
                             category: Number(categoryRaw),
                             isSubscriber: false,
                             membershipType: Number(membershipTypeRaw),
@@ -4690,6 +4921,7 @@
                         email: modalEmail?.value?.trim() || "",
                         idCardNumber: modalIdCardNumber?.value?.trim() || "",
                         clubCardNumber: modalClubCardNumber?.value?.trim() || "",
+                        clubCardType: readClubCardTypeValue(modalClubCardType),
                         category: Number(categoryRaw),
                         isSubscriber: false,
                         membershipType: Number(membershipTypeRaw),
@@ -5410,6 +5642,7 @@
             if (emailInput instanceof HTMLInputElement) emailInput.value = best.email ?? "";
             if (idCardNumberInput instanceof HTMLInputElement) idCardNumberInput.value = best.idCardNumber ?? "";
             if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = best.clubCardNumber ?? "";
+            if (clubCardTypeInput instanceof HTMLSelectElement) clubCardTypeInput.value = clubCardTypeToSelectValue(best.clubCardType);
             if (categoryInput instanceof HTMLSelectElement && best.category !== undefined && best.category !== null && String(best.category) !== "") {
                 // server returns enum as string (e.g., "Amateur") OR number; handle both
                 const catVal = typeof best.category === "number"
@@ -5463,6 +5696,10 @@
         if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return false; }
         if (!categoryRaw) { alert("Kateqoriya seçin."); return false; }
 
+        const clubCardNumber = clubCardNumberInput?.value?.trim() || "";
+        const clubCardType = readClubCardTypeValue(clubCardTypeInput);
+        if (!validateClubCardFields(clubCardNumber, clubCardType)) return false;
+
         const response = await apiFetch(`/athletes/${encodeURIComponent(id)}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -5472,7 +5709,8 @@
                 phoneNumber,
                 email: emailInput?.value?.trim() || "",
                 idCardNumber: idCardNumberInput?.value?.trim() || "",
-                clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                clubCardNumber,
+                clubCardType,
                 category: Number(categoryRaw),
                 isSubscriber: registrationModeInput?.value === "subscription",
                 membershipType: Number(membershipTypeRaw),
@@ -5534,6 +5772,9 @@
             }
             if (clubCardNumberInput instanceof HTMLInputElement) {
                 clubCardNumberInput.value = best.clubCardNumber || "";
+            }
+            if (clubCardTypeInput instanceof HTMLSelectElement) {
+                clubCardTypeInput.value = clubCardTypeToSelectValue(best.clubCardType);
             }
 
             if (categoryInput instanceof HTMLSelectElement && best.category !== undefined && best.category !== null && String(best.category) !== "") {
@@ -5875,6 +6116,10 @@
             infoPackagesSummary.style.display = "none";
             infoPackagesSummary.innerHTML = "";
         }
+        if (infoVisitStats instanceof HTMLElement) {
+            infoVisitStats.style.display = "none";
+            infoVisitStats.innerHTML = "";
+        }
         if (infoOccurrencesHint instanceof HTMLElement) {
             infoOccurrencesHint.style.display = "none";
         }
@@ -6112,6 +6357,22 @@
         _currentInfoIsSubscriber = Boolean(data?.isSubscriber);
         fillInfoProfileForm(data);
 
+        if (infoVisitStats instanceof HTMLElement) {
+            const vs = data?.visitStats;
+            if (vs && (vs.hasActiveSubscription || Number(vs.visited) > 0)) {
+                const visited = Number(vs.visited ?? 0);
+                const rem = vs.remainingLabel != null ? String(vs.remainingLabel) : "—";
+                infoVisitStats.style.display = "block";
+                infoVisitStats.innerHTML =
+                    `Gəlib: <strong>${visited}</strong> dəfə` +
+                    ` &nbsp;·&nbsp; Qalıb: <strong>${escapeHtml2(rem)}</strong>` +
+                    (vs.isUnlimited ? " <span style=\"color:#7a86a8;font-weight:600;\">(limitsiz abunə)</span>" : "");
+            } else {
+                infoVisitStats.style.display = "none";
+                infoVisitStats.innerHTML = "";
+            }
+        }
+
         if (infoPackagesSummary instanceof HTMLElement) {
             if (packages.length) {
                 infoPackagesSummary.style.display = "block";
@@ -6145,7 +6406,7 @@
 
         const todayIso = getTodayLocalIso();
         const futureOcc = occ.filter(o => String(o?.dateLocal ?? "") >= todayIso);
-        const rowsToShow = futureOcc.length ? futureOcc : occ;
+        const rowsToShow = futureOcc;
 
         if (rowsToShow.length) {
             if (infoOccurrencesHint instanceof HTMLElement) {
@@ -6180,9 +6441,14 @@
             if (infoOccurrencesHint instanceof HTMLElement) {
                 infoOccurrencesHint.style.display = "none";
             }
-            const emptyMsg = _currentInfoIsSubscriber
-                ? "Aktiv abunə planı tapılmadı. Resepsiyadan yeni abunə qeyd edə bilərsiniz."
-                : "Aktiv abunə planı yoxdur.";
+            let emptyMsg;
+            if (occ.length > 0) {
+                emptyMsg = "Gələcək seans qalmayıb. Keçmiş tarixlər burada göstərilmir.";
+            } else if (_currentInfoIsSubscriber) {
+                emptyMsg = "Aktiv abunə planı tapılmadı. Resepsiyadan yeni abunə qeyd edə bilərsiniz.";
+            } else {
+                emptyMsg = "Aktiv abunə planı yoxdur.";
+            }
             infoTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#7a86a8;">${emptyMsg}</td></tr>`;
         }
 
@@ -6389,6 +6655,53 @@
         }
     }
 
+    function getOccurrenceEditDateBounds(scheduleId) {
+        const today = getTodayLocalIso();
+        const meta = _infoSchedulesById[String(scheduleId || "")];
+        let min = today;
+        let max = "";
+        if (meta?.activeFromDateLocal && String(meta.activeFromDateLocal) > min) {
+            min = String(meta.activeFromDateLocal);
+        }
+        if (meta?.activeToDateLocal) {
+            max = String(meta.activeToDateLocal);
+        }
+        return { min, max };
+    }
+
+    function applyOccurrenceEditDateBounds(scheduleId) {
+        const targetDateEl = document.getElementById("occurrenceEditTargetDate");
+        if (!(targetDateEl instanceof HTMLInputElement)) return;
+        const bounds = getOccurrenceEditDateBounds(scheduleId);
+        targetDateEl.min = bounds.min || "";
+        targetDateEl.max = bounds.max || "";
+        try {
+            if (targetDateEl._flatpickr) {
+                if (bounds.min) targetDateEl._flatpickr.set("minDate", bounds.min);
+                if (bounds.max) targetDateEl._flatpickr.set("maxDate", bounds.max);
+                else targetDateEl._flatpickr.set("maxDate", null);
+            }
+        } catch { /* ignore */ }
+    }
+
+    function syncOccurrenceEditDateHint() {
+        const dEl = document.getElementById("occurrenceEditDateLocal");
+        const targetDateEl = document.getElementById("occurrenceEditTargetDate");
+        const dateHint = document.getElementById("occurrenceEditDateHint");
+        if (!(dateHint instanceof HTMLElement)) return;
+        const source = dEl instanceof HTMLInputElement ? dEl.value.trim() : "";
+        const target = targetDateEl instanceof HTMLInputElement ? targetDateEl.value.trim() : "";
+        if (!target) {
+            dateHint.textContent = "Tarix seçin (bu gün və ya paket sonuna qədər).";
+            return;
+        }
+        if (target === source) {
+            dateHint.textContent = "Eyni tarix: yalnız saat və zolaq dəyişir. Başqa gün seçsəniz seans ora köçürüləcək.";
+            return;
+        }
+        dateHint.textContent = `«${formatDateOnly(source)}» abunə günü ləğv olunacaq, seans «${formatDateOnly(target)}» tarixinə köçürüləcək. Zolaq doludursa saxlanmayacaq.`;
+    }
+
     function syncOccurrenceEditFieldsFromRow(row, prefill) {
         if (!row) return;
         var sidEl = document.getElementById("occurrenceEditScheduleId");
@@ -6397,7 +6710,6 @@
         var dur = document.getElementById("occurrenceEditDuration");
         var lane = document.getElementById("occurrenceEditLaneNumber");
         var pkgHint = document.getElementById("occurrenceEditPackageHint");
-        var dateHint = document.getElementById("occurrenceEditDateHint");
         var rescheduleRow = document.getElementById("occurrenceEditRescheduleRow");
         var targetDateEl = document.getElementById("occurrenceEditTargetDate");
         if (sidEl instanceof HTMLInputElement) sidEl.value = String(row.scheduleId);
@@ -6410,22 +6722,23 @@
         if (pkgHint instanceof HTMLElement) {
             pkgHint.textContent = "Paket vaxtı: " + (row.startTime || "—") + "–" + (row.endTime || "—") + " (müddət paketdən gəlir, dəyişdirilmir)";
         }
-        var rescheduleTarget = prefill?.rescheduleTargetDate || "";
-        if (rescheduleRow instanceof HTMLElement && targetDateEl instanceof HTMLInputElement) {
-            if (rescheduleTarget && String(rescheduleTarget) !== String(row.dateLocal)) {
-                rescheduleRow.style.display = "block";
-                targetDateEl.value = String(rescheduleTarget);
-                if (dateHint instanceof HTMLElement) {
-                    dateHint.textContent = "Seçilmiş abunə günü ləğv olunacaq, seans yeni tarixə köçürüləcək.";
-                }
-            } else {
-                rescheduleRow.style.display = "none";
-                targetDateEl.value = "";
-                if (dateHint instanceof HTMLElement) {
-                    dateHint.textContent = "Yalnız gələcək abunə günləri göstərilir. Gəlməyəcəyiniz günü «Ləğv et» ilə bağlaya bilərsiniz.";
-                }
-            }
+        if (rescheduleRow instanceof HTMLElement) {
+            rescheduleRow.style.display = "block";
         }
+        applyOccurrenceEditDateBounds(row.scheduleId);
+        var preferredTarget = prefill?.rescheduleTargetDate || row.dateLocal;
+        var bounds = getOccurrenceEditDateBounds(row.scheduleId);
+        if (bounds.min && String(preferredTarget) < bounds.min) preferredTarget = bounds.min;
+        if (bounds.max && String(preferredTarget) > bounds.max) preferredTarget = bounds.max;
+        if (targetDateEl instanceof HTMLInputElement) {
+            targetDateEl.value = String(preferredTarget || "");
+            try {
+                if (targetDateEl._flatpickr) {
+                    targetDateEl._flatpickr.setDate(targetDateEl.value, false);
+                }
+            } catch { /* ignore */ }
+        }
+        syncOccurrenceEditDateHint();
         if (lane instanceof HTMLSelectElement) {
             var prefillLane = Number(prefill?.laneNumber ?? 0);
             var laneVal = prefillLane > 0 ? prefillLane : Number(row.laneNumber);
@@ -6443,15 +6756,11 @@
         var row = getFutureOccurrences().find(function (o) {
             return String(o.scheduleId) === String(sid) && String(o.dateLocal) === String(d);
         });
-        var targetDateEl = document.getElementById("occurrenceEditTargetDate");
-        var prefill = null;
-        if (targetDateEl instanceof HTMLInputElement && targetDateEl.value) {
-            prefill = { rescheduleTargetDate: targetDateEl.value };
-            var st = document.getElementById("occurrenceEditStartTime");
-            var lane = document.getElementById("occurrenceEditLaneNumber");
-            if (st instanceof HTMLInputElement && st.value) prefill.startTime = st.value;
-            if (lane instanceof HTMLSelectElement && lane.value) prefill.laneNumber = Number(lane.value);
-        }
+        var st = document.getElementById("occurrenceEditStartTime");
+        var lane = document.getElementById("occurrenceEditLaneNumber");
+        var prefill = {};
+        if (st instanceof HTMLInputElement && st.value) prefill.startTime = st.value;
+        if (lane instanceof HTMLSelectElement && lane.value) prefill.laneNumber = Number(lane.value);
         if (row) syncOccurrenceEditFieldsFromRow(row, prefill);
     }
 
@@ -6481,6 +6790,8 @@
         if (typeof window.applyFlatpickrAz === "function") {
             window.applyFlatpickrAz(modal);
         }
+        applyOccurrenceEditDateBounds(scheduleId);
+        syncOccurrenceEditDateHint();
     }
 
     async function createSessionAfterOccurrenceEdit(dateLocal, startTimeLocal, durationMinutes, laneNumber) {
@@ -6540,11 +6851,22 @@
         var duration = Number(document.getElementById("occurrenceEditDuration")?.value || 0);
         var laneNumber = Number(document.getElementById("occurrenceEditLaneNumber")?.value || 0);
         if (!sid || !sourceDateLocal) return;
+        if (!targetDateLocal) { setOccurrenceEditHint("Seans tarixini seçin.", "error"); return; }
         if (!startTimeLocal) { setOccurrenceEditHint("Saatı daxil edin.", "error"); return; }
         if (!Number.isInteger(duration) || duration <= 0) { setOccurrenceEditHint("Paket müddəti tapılmadı.", "error"); return; }
         if (!Number.isInteger(laneNumber) || laneNumber <= 0) { setOccurrenceEditHint("Zolaq seçin.", "error"); return; }
 
-        var isReschedule = Boolean(targetDateLocal && targetDateLocal !== sourceDateLocal);
+        var bounds = getOccurrenceEditDateBounds(sid);
+        if (bounds.min && targetDateLocal < bounds.min) {
+            setOccurrenceEditHint("Tarix bu gündən əvvəl ola bilməz.", "error");
+            return;
+        }
+        if (bounds.max && targetDateLocal > bounds.max) {
+            setOccurrenceEditHint("Tarix paket sonundan sonra ola bilməz.", "error");
+            return;
+        }
+
+        var isReschedule = targetDateLocal !== sourceDateLocal;
         var sessionDateLocal = isReschedule ? targetDateLocal : sourceDateLocal;
         var createSession = _occurrenceEditCreateSessionAfterSave;
         setOccurrenceEditHint("Yadda saxlanılır...", "warn");
@@ -6630,6 +6952,7 @@
         if (emailInput instanceof HTMLInputElement) emailInput.value = "";
         if (idCardNumberInput instanceof HTMLInputElement) idCardNumberInput.value = "";
         if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = "";
+        if (clubCardTypeInput instanceof HTMLSelectElement) clubCardTypeInput.value = "";
         if (categoryInput instanceof HTMLSelectElement) categoryInput.value = "";
         if (registrationModeInput instanceof HTMLInputElement) registrationModeInput.value = "";
         if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "";
@@ -7721,6 +8044,7 @@
                 const categoryRaw = categoryInput?.value ?? "";
                 if (!membershipTypeRaw) { alert("Abunəlik növünü seçin."); return; }
                 if (!categoryRaw) { alert("Kateqoriya seçin."); return; }
+                if (!validateClubCardFields(clubCardNumberInput?.value, readClubCardTypeValue(clubCardTypeInput))) return;
 
                 const athleteResponse = await apiFetch("/athletes", {
                     method: "POST",
@@ -7732,6 +8056,7 @@
                         email: emailInput?.value?.trim() || "",
                         idCardNumber: idCardNumberInput?.value?.trim() || "",
                         clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                        clubCardType: readClubCardTypeValue(clubCardTypeInput),
                         category: Number(categoryRaw),
                         isSubscriber: true,
                         membershipType: Number(membershipTypeRaw),
@@ -8096,6 +8421,10 @@
                 return;
             }
 
+            if (!(await ensureGroupMembersHaveClubCards())) {
+                return;
+            }
+
             const laneNumber = Number(laneNumberInput?.value ?? "0");
             const durationMinutes = Number(durationMinutesInput?.value ?? "0");
             if (!Number.isInteger(laneNumber) || laneNumber <= 0) {
@@ -8403,6 +8732,9 @@
 
             // 2) Tapılmadısa yeni idmançı yaradılır
             if (!athleteId) {
+                if (!validateClubCardFields(clubCardNumberInput?.value, readClubCardTypeValue(clubCardTypeInput))) {
+                    return;
+                }
                 const registerAthleteBody = () => JSON.stringify({
                     firstName,
                     lastName,
@@ -8410,6 +8742,7 @@
                     email: emailInput?.value?.trim() || "",
                     idCardNumber: idCardNumberInput?.value?.trim() || "",
                     clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                    clubCardType: readClubCardTypeValue(clubCardTypeInput),
                     category: Number(categoryRaw),
                     isSubscriber,
                     membershipType: isGymBookingMode() ? 1 : Number(membershipTypeRaw),
@@ -8483,6 +8816,20 @@
             }
 
             const athleteFullName = `${firstName} ${lastName}`.trim();
+
+            // Abunə yalnız qeydiyyat (VIP/Limitsiz/həftəlik plan) — kart indi məcburi deyil.
+            // Zolağa/zala dərhal yazılacaqsa (və ya artıq aktiv VIP/Limitsiz gəlibdirsə) kart olmalıdır.
+            const writesToLaneNow =
+                isActiveVipReception()
+                || isActiveUnlimitedReception()
+                || !(isSubscriber && selectedPkg)
+                || (isGymPackage(selectedPkg) && isGymBookingMode());
+
+            if (writesToLaneNow) {
+                if (!(await ensureClubCardBeforeLaneWrite(athleteId))) {
+                    return;
+                }
+            }
 
             if (isGymBookingMode()) {
                 if (membershipTypeInput instanceof HTMLSelectElement) membershipTypeInput.value = "1";
@@ -8953,7 +9300,10 @@
     } catch (e) { console.error(e); }
     try {
         const bookingDaysRoot = document.getElementById("bookingSubscriptionDays");
-        bookingDaysRoot?.addEventListener("change", () => { renderBookingSubscriptionLaneTypesByDay(); });
+        bookingDaysRoot?.addEventListener("change", () => {
+            syncBookingSubscriptionDayLimit();
+            renderBookingSubscriptionLaneTypesByDay();
+        });
         categoryInput?.addEventListener("change", () => { renderBookingSubscriptionLaneTypesByDay(); });
     } catch (e) { console.error(e); }
     try { pickEquipmentBtn?.addEventListener("click", openEquipmentPickerModal); } catch (e) { console.error(e); }
@@ -8978,7 +9328,6 @@
             closeEquipmentPickerModal();
         });
     } catch (e) { console.error(e); }
-    try { manageCustomerBtn?.addEventListener("click", openManageCustomerModal); } catch (e) { console.error(e); }
     try {
         infoManageEditBtn?.addEventListener("click", async () => {
             if (infoManageEditBtn instanceof HTMLButtonElement) {
@@ -9002,11 +9351,12 @@
                 return;
             }
             const card = (infoClubCardEdit?.value ?? "").trim();
+            const typeLabel = formatClubCardDisplay(infoClubCardType?.value, card) || card;
             if (!card) {
                 alert("Bu müştəridə qaytarılacaq kart yoxdur.");
                 return;
             }
-            const ok = window.confirm(`Kart «${card}» qaytarılsın?\nNömrə azad olacaq və yeni müştəriyə verilə bilər.`);
+            const ok = window.confirm(`Kart «${typeLabel}» qaytarılsın?\nNömrə azad olacaq və yeni müştəriyə verilə bilər.`);
             if (!ok) return;
 
             if (infoReturnClubCardBtn instanceof HTMLButtonElement) {
@@ -9023,9 +9373,12 @@
                 }
                 const data = await response.json().catch(() => ({}));
                 if (infoClubCardEdit instanceof HTMLInputElement) infoClubCardEdit.value = "";
+                if (infoClubCardType instanceof HTMLSelectElement) infoClubCardType.value = "";
                 if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = "";
+                if (clubCardTypeInput instanceof HTMLSelectElement) clubCardTypeInput.value = "";
                 if (modalClubCardNumber instanceof HTMLInputElement) modalClubCardNumber.value = "";
-                syncInfoClubCardUi("");
+                if (modalClubCardType instanceof HTMLSelectElement) modalClubCardType.value = "";
+                syncInfoClubCardUi("", "");
                 refreshSelectedCustomerCard();
                 allAthletesCache = [];
                 athletesCacheLoadedAtMs = 0;
@@ -9040,7 +9393,8 @@
         });
     } catch (e) { console.error(e); }
     try {
-        infoClubCardEdit?.addEventListener("input", () => syncInfoClubCardUi(infoClubCardEdit?.value));
+        infoClubCardEdit?.addEventListener("input", () => syncInfoClubCardUi(infoClubCardEdit?.value, infoClubCardType?.value));
+        infoClubCardType?.addEventListener("change", () => syncInfoClubCardUi(infoClubCardEdit?.value, infoClubCardType?.value));
     } catch (e) { console.error(e); }
     try {
         infoManageReactivateBtn?.addEventListener("click", async () => {
@@ -9175,6 +9529,8 @@
         document.getElementById("occurrenceEditCancelBtn")?.addEventListener("click", closeOccurrenceEditModal);
         document.getElementById("occurrenceEditSaveBtn")?.addEventListener("click", saveOccurrenceOverride);
         document.getElementById("occurrenceEditDateSelect")?.addEventListener("change", onOccurrenceEditDateSelectChange);
+        document.getElementById("occurrenceEditTargetDate")?.addEventListener("change", syncOccurrenceEditDateHint);
+        document.getElementById("occurrenceEditTargetDate")?.addEventListener("input", syncOccurrenceEditDateHint);
         document.getElementById("occurrenceEditModal")?.addEventListener("click", function (e) {
             if (e.target && e.target.id === "occurrenceEditModal") closeOccurrenceEditModal();
         });
