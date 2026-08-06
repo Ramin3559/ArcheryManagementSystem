@@ -13,7 +13,7 @@ public static class ClubCardAssignmentService
             : holder.FullName.Trim();
         var phone = string.IsNullOrWhiteSpace(holder.PhoneNumber) ? "" : $" ({holder.PhoneNumber})";
         var label = ClubCardTypeLabels.FormatCard(cardType, cardNumber);
-        return $"Kart «{label}» hazırda {name}{phone} nəzdindədir. Əvvəlcə kartı qaytarın.";
+        return $"Kart «{label}» hazırda {name}{phone} adlı müştəridədir";
     }
 
     public static async Task EnsureCardAvailableAsync(

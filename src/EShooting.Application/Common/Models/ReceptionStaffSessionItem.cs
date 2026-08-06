@@ -23,6 +23,8 @@ public sealed class ReceptionStaffSessionItem
     public bool CanReturnEquipment { get; init; }
     public bool CanAccessPlanset { get; init; }
     public bool CanIssueEquipmentRental { get; init; }
+    public bool CanChangeLane { get; init; }
     public bool CanViewHistory { get; init; }
     public bool CanDeleteRestoreCustomers { get; init; }
+    public bool CanChangeCustomerPackage { get; init; }
 }

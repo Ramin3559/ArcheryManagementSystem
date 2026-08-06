@@ -14,24 +14,39 @@ public static class ServicePackageRules
         PackageSchedulingMode schedulingMode,
         int sessionDurationMinutes)
     {
-        if (scope == PackageScope.Vip || billingType == PackageBillingType.Vip)
-        {
-            return true;
-        }
-
-        return schedulingMode == PackageSchedulingMode.WalkInFlexible && sessionDurationMinutes == 0;
+        // VIP yalnız paket növü/scope ilə — müddətsiz Limitsiz VIP sayılmır.
+        _ = schedulingMode;
+        _ = sessionDurationMinutes;
+        return scope == PackageScope.Vip || billingType == PackageBillingType.Vip;
     }
 
     public static bool IsUnlimitedPackage(ServicePackage package) =>
-        IsUnlimitedPackage(package.BillingType, package.SchedulingMode, package.SessionDurationMinutes);
+        IsUnlimitedPackage(package.BillingType, package.SchedulingMode, package.SessionDurationMinutes, package.Scope);
 
     public static bool IsUnlimitedPackage(
         PackageBillingType billingType,
         PackageSchedulingMode schedulingMode,
         int sessionDurationMinutes)
+        => IsUnlimitedPackage(billingType, schedulingMode, sessionDurationMinutes, PackageScope.Archery);
+
+    public static bool IsUnlimitedPackage(
+        PackageBillingType billingType,
+        PackageSchedulingMode schedulingMode,
+        int sessionDurationMinutes,
+        PackageScope scope)
     {
+        if (IsVipPackage(billingType, scope, schedulingMode, sessionDurationMinutes))
+        {
+            return false;
+        }
+
         if (billingType == PackageBillingType.Unlimited)
+        {
             return true;
-        return schedulingMode == PackageSchedulingMode.WalkInFlexible && sessionDurationMinutes > 0;
+        }
+
+        // Köhnə walk-in full paketlər (vaxtlı və ya müddətsiz).
+        _ = sessionDurationMinutes;
+        return schedulingMode == PackageSchedulingMode.WalkInFlexible;
     }
 }

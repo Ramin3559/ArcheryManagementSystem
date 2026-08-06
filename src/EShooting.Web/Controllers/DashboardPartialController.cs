@@ -1,4 +1,5 @@
 using EShooting.Web.Auth;
+using EShooting.Web.Extensions;
 using EShooting.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +27,7 @@ public sealed class DashboardPartialController(CachedLaneDashboardService laneDa
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> LaneGridReadOnly(CancellationToken cancellationToken)
     {
+        ViewBag.CanChangeLane = User.CanChangeLane();
         var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
         return PartialView("Lanes/_LaneGridReadOnly", lanes);
     }

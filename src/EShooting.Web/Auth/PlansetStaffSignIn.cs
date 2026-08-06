@@ -23,6 +23,11 @@ public static class PlansetStaffSignIn
             claims.Add(new Claim(PlansetStaffClaims.CanIssueEquipmentRental, "1"));
         }
 
+        if (staff.CanChangeLane)
+        {
+            claims.Add(new Claim(PlansetStaffClaims.CanChangeLane, "1"));
+        }
+
         var identity = new ClaimsIdentity(
             claims,
             PlansetAuthDefaults.Scheme,

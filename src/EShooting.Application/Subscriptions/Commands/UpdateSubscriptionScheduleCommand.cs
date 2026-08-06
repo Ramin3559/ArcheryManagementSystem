@@ -49,11 +49,12 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
                 "Seçilmiş həftə günü/saat üçün abunə müddətində cari vaxtdan sonra keçərli tarix qalmayıb.");
         }
 
-        if (request.LaneNumber is < 0 or > 11)
+        if (!GymLaneRules.IsValidScheduleLaneNumber(request.LaneNumber))
         {
-            throw new InvalidOperationException("LaneNumber must be between 0 and 11.");
+            throw new InvalidOperationException("LaneNumber must be between 0 and 11, or 12 (Trenajor).");
         }
 
+        var isGymLane = GymLaneRules.IsGymLane(request.LaneNumber);
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
         var existing = schedules.FirstOrDefault(x => x.Id == request.ScheduleId)
             ?? throw new InvalidOperationException("Subscription schedule not found.");
@@ -62,7 +63,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
         var athlete = athletes.FirstOrDefault(x => x.Id == existing.AthleteId)
             ?? throw new InvalidOperationException("Athlete must be registered first.");
 
-        if (athlete.Category == CustomerCategory.Amateur)
+        if (!isGymLane && athlete.Category == CustomerCategory.Amateur)
         {
             if (request.LaneNumber >= 9)
             {
@@ -94,7 +95,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
             => aStart < bEnd && bStart < aEnd;
 
         // Global reservation protection for subscription schedules on a specific lane (exclude self).
-        if (!request.IsFullPackage && request.LaneNumber > 0 && request.DurationMinutes > 0)
+        if (!request.IsFullPackage && request.LaneNumber > 0 && request.DurationMinutes > 0 && !isGymLane)
         {
             var requestedStart = request.StartTimeLocal;
             var requestedEnd = request.StartTimeLocal
@@ -135,7 +136,7 @@ public sealed class UpdateSubscriptionScheduleCommandHandler(ITrainingCenterRepo
         existing.IsFullPackage = request.IsFullPackage;
 
         // Validate chosen lane (if specified) has capacity for next occurrence.
-        if (!request.IsFullPackage)
+        if (!request.IsFullPackage && !isGymLane)
         {
             var lanes = await repository.GetLanesAsync(cancellationToken);
             var sessions = await repository.GetSessionsAsync(cancellationToken);

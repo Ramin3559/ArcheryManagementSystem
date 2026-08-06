@@ -54,11 +54,6 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = "Bitmə tarixi başlanğıcdan əvvəl ola bilməz." });
         }
 
-        if (request.LaneNumber <= 0)
-        {
-            return BadRequest(new { error = "Konflikt həlledicisi üçün konkret zolaq seçin." });
-        }
-
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var athlete = request.AthleteId is not null
             ? athletes.FirstOrDefault(x => x.Id == request.AthleteId.Value)
@@ -68,9 +63,17 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = "Müştəri tapılmadı." });
         }
 
+        var preferred = SubscriptionPoolCapacity.NormalizeForAthlete(athlete.Category, request.PreferredLaneType);
+        var usePool = request.LaneNumber <= 0;
+
         var laneAllowed = athlete.Category == Domain.Enums.CustomerCategory.Amateur
             ? Enumerable.Range(1, 8).ToArray()
-            : Enumerable.Range(1, 11).ToArray();
+            : preferred switch
+            {
+                PreferredLaneType.Short => Enumerable.Range(1, 8).ToArray(),
+                PreferredLaneType.Long => Enumerable.Range(9, 3).ToArray(),
+                _ => Enumerable.Range(1, 11).ToArray()
+            };
 
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var sessions = await repository.GetSessionsAsync(cancellationToken);
@@ -110,21 +113,39 @@ public sealed class SubscriptionsController(
                     request.DurationMinutes,
                     nowUtc);
 
-            var baseBusy = IsLaneBusy(request.LaneNumber);
+            bool IsPoolBusyAt(TimeSpan slotStart)
+            {
+                var snap = SubscriptionPoolCapacity.CountForSlot(
+                    schedules,
+                    day,
+                    slotStart,
+                    request.DurationMinutes);
+                return !snap.CanFit(preferred);
+            }
 
-            var busyLanesSameTime = laneAllowed
-                .Where(IsLaneBusy)
-                .ToArray();
-            var freeLanesSameTime = laneAllowed
-                .Where(n => !busyLanesSameTime.Contains(n))
-                .ToArray();
+            var poolSnapshot = usePool
+                ? SubscriptionPoolCapacity.CountForSlot(schedules, day, startTimeLocal, request.DurationMinutes)
+                : default;
 
-            // Eyni zolaqda boş alternativ saatlar (30 dəq addım, Bakı vaxtı).
+            var baseBusy = usePool
+                ? !poolSnapshot.CanFit(preferred)
+                : IsLaneBusy(request.LaneNumber);
+
+            var busyLanesSameTime = usePool
+                ? Array.Empty<int>()
+                : laneAllowed.Where(IsLaneBusy).ToArray();
+            var freeLanesSameTime = usePool
+                ? laneAllowed
+                : laneAllowed.Where(n => !busyLanesSameTime.Contains(n)).ToArray();
+
+            // Boş alternativ saatlar (30 dəq addım, Bakı vaxtı).
             var altTimes = new List<string>();
             for (var minuteOfDay = 0; minuteOfDay <= 24 * 60 - request.DurationMinutes; minuteOfDay += 30)
             {
                 var altStart = TimeSpan.FromMinutes(minuteOfDay);
-                if (SubscriptionSlotConflict.IsLaneSlotBusy(
+                var altBusy = usePool
+                    ? IsPoolBusyAt(altStart)
+                    : SubscriptionSlotConflict.IsLaneSlotBusy(
                         sessions,
                         schedules,
                         lanes,
@@ -132,7 +153,8 @@ public sealed class SubscriptionsController(
                         day,
                         altStart,
                         request.DurationMinutes,
-                        nowUtc))
+                        nowUtc);
+                if (altBusy)
                 {
                     continue;
                 }
@@ -145,6 +167,12 @@ public sealed class SubscriptionsController(
             {
                 dateLocal = day.ToString("yyyy-MM-dd"),
                 isBusy = baseBusy,
+                poolMode = usePool,
+                preferredLaneType = (int)preferred,
+                poolShortUsed = poolSnapshot.ShortUsed,
+                poolLongUsed = poolSnapshot.LongUsed,
+                poolAnyUsed = poolSnapshot.AnyUsed,
+                poolSummary = usePool ? poolSnapshot.FormatAz() : null,
                 allowedLaneNumbers = laneAllowed,
                 busyLaneNumbersSameTime = busyLanesSameTime,
                 freeLaneNumbersSameTime = freeLanesSameTime,
@@ -1048,7 +1076,8 @@ public sealed class SubscriptionsController(
                     request.StartDateLocal,
                     request.EndDateLocal,
                     request.PreferredLaneTypesByDayOfWeek,
-                    request.IsFullPackage),
+                    request.IsFullPackage,
+                    request.ServicePackageId),
                 cancellationToken);
 
             if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)

@@ -54,8 +54,23 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                 continue;
             }
 
+            var hadActivation = SessionActivationRules.HasActivation(stale);
+            var athleteId = stale.AthleteId;
+            var dayLocal = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(stale.StartTimeUtc));
             SessionHousekeeping.MarkCompleted(stale, nowUtc);
             await repository.UpdateSessionAsync(stale, cancellationToken);
+
+            if (hadActivation)
+            {
+                await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+                    repository,
+                    sessions,
+                    athleteId,
+                    dayLocal,
+                    excludeSessionId: stale.Id,
+                    nowUtc,
+                    cancellationToken);
+            }
         }
 
         var athletes = await repository.GetAthletesAsync(cancellationToken);
@@ -80,6 +95,8 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                 var laneSessions = laneAllSessions
                     .Where(x => x.Status != SessionStatus.Completed)
                     .Where(x => IsRelevantForLaneDisplay(x, nowUtc, localNow))
+                    // Aylıq pool (zolaqsız) planlar zolaq kartında «Planlaşdırılıb» göstərilmir.
+                    .Where(x => !IsUnassignedPoolScheduleSession(x, subscriptionSchedules, localNow.Date))
                     .OrderByDescending(x => x.StartTimeUtc)
                     .ToList();
 
@@ -212,6 +229,30 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             .ToList();
 
         return result;
+    }
+
+    private static bool IsUnassignedPoolScheduleSession(
+        EShooting.Domain.Entities.TrainingSession session,
+        IReadOnlyCollection<EShooting.Domain.Entities.SubscriptionSchedule> schedules,
+        DateTime dayLocal)
+    {
+        if (HasActivation(session))
+        {
+            return false;
+        }
+
+        if (session.SubscriptionScheduleId is not Guid sid)
+        {
+            return false;
+        }
+
+        var schedule = schedules.FirstOrDefault(s => s.Id == sid);
+        if (schedule is null)
+        {
+            return false;
+        }
+
+        return SubscriptionPoolCapacity.ResolveExplicitLaneNumber(schedule, dayLocal) <= 0;
     }
 
     private static bool IsPendingActivationWindow(EShooting.Domain.Entities.TrainingSession session, DateTime nowUtc)

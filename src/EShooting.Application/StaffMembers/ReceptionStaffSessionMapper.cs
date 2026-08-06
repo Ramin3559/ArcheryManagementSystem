@@ -26,7 +26,9 @@ public static class ReceptionStaffSessionMapper
         CanReturnEquipment = profile.CanReturnEquipment,
         CanAccessPlanset = profile.CanAccessPlanset,
         CanIssueEquipmentRental = profile.CanIssueEquipmentRental,
+        CanChangeLane = profile.CanChangeLane,
         CanViewHistory = profile.CanViewHistory,
-        CanDeleteRestoreCustomers = profile.CanDeleteRestoreCustomers
+        CanDeleteRestoreCustomers = profile.CanDeleteRestoreCustomers,
+        CanChangeCustomerPackage = profile.CanChangeCustomerPackage
     };
 }

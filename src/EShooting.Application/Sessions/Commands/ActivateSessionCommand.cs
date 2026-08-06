@@ -36,6 +36,18 @@ public sealed class ActivateSessionCommandHandler(
         var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
         var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
 
+        var dayLocal = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(session.StartTimeUtc));
+        var linkedSchedule = session.SubscriptionScheduleId is Guid sid
+            ? subscriptionSchedules.FirstOrDefault(s => s.Id == sid)
+            : null;
+        var needsLanePick = linkedSchedule is not null
+            && SubscriptionPoolCapacity.ResolveExplicitLaneNumber(linkedSchedule, dayLocal) <= 0;
+
+        if (needsLanePick && request.LaneNumber <= 0)
+        {
+            throw new InvalidOperationException("Bu plan üçün zolaq seçilməlidir — zolaq hələ təyin olunmayıb.");
+        }
+
         var duration = SessionTimingRules.ResolvePlannedDuration(session);
         var requestedStartUtc = nowUtc;
         var requestedEndUtc = duration > TimeSpan.Zero ? nowUtc.Add(duration) : nowUtc;
@@ -58,6 +70,7 @@ public sealed class ActivateSessionCommandHandler(
 
             var hasOverlap = allSessions
                 .Where(x => x.Id != session.Id && x.LaneId == lane.Id)
+                .Where(x => !SubscriptionPoolCapacity.IsUnassignedPoolSession(x, subscriptionSchedules, dayLocal))
                 .Any(x => LaneReservationRules.OverlapsSession(x, requestedStartUtc, requestedEndUtc, nowUtc));
 
             if (hasOverlap)
@@ -69,6 +82,16 @@ public sealed class ActivateSessionCommandHandler(
         session.LaneId = lane.Id;
         SessionActivationRules.MarkActivated(session, nowUtc);
         await repository.UpdateSessionAsync(session, cancellationToken);
+
+        var dayLocalForCleanup = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(session.StartTimeUtc));
+        await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+            repository,
+            allSessions,
+            session.AthleteId,
+            dayLocalForCleanup,
+            excludeSessionId: session.Id,
+            nowUtc,
+            cancellationToken);
 
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);
         return lane.Number;

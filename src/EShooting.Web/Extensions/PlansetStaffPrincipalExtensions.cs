@@ -11,6 +11,9 @@ public static class PlansetStaffPrincipalExtensions
     public static bool CanIssueEquipmentRental(this ClaimsPrincipal user) =>
         user.HasClaim(PlansetStaffClaims.CanIssueEquipmentRental, "1");
 
+    public static bool CanChangeLane(this ClaimsPrincipal user) =>
+        user.HasClaim(PlansetStaffClaims.CanChangeLane, "1");
+
     public static Guid? GetPlansetStaffMemberId(this ClaimsPrincipal user)
     {
         if (!user.IsPlansetSupervisor())

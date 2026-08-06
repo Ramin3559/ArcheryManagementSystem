@@ -15,7 +15,8 @@ public sealed record CreateSubscriptionPackageCommand(
     DateTime StartDateLocal,
     DateTime? EndDateLocal,
     IReadOnlyDictionary<int, PreferredLaneType> PreferredLaneTypesByDayOfWeek,
-    bool IsFullPackage) : IRequest<CreateSubscriptionPackageResult>;
+    bool IsFullPackage,
+    Guid? ServicePackageId = null) : IRequest<CreateSubscriptionPackageResult>;
 
 public sealed record CreateSubscriptionPackageResult(
     int CreatedCount,
@@ -75,10 +76,18 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
 
             athlete.IsSubscriber = true;
             athlete.IsFullPackage = true;
-            if (durationMinutes == 0)
+            // VIP yalnız VIP paket növündə; Limitsiz müddətsiz (DurationMinutes=0) VIP sayılmır.
+            var markAsVip = false;
+            if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)
             {
-                athlete.IsVip = true;
+                var soldPackage = await repository.GetServicePackageByIdAsync(pkgId, cancellationToken);
+                if (soldPackage is not null)
+                {
+                    markAsVip = ServicePackageRules.IsVipPackage(soldPackage);
+                }
             }
+
+            athlete.IsVip = markAsVip;
             await repository.UpdateAthleteAsync(athlete, cancellationToken);
 
             await repository.AddSubscriptionScheduleAsync(new SubscriptionSchedule

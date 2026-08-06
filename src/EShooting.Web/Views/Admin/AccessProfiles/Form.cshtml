@@ -52,6 +52,7 @@
                 <h3>Paket və ödəniş</h3>
                 <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanManageSubscriptions" value="true" @(Model.CanManageSubscriptions ? "checked" : "") /> Paket / abunə satışı</label>
+                    <label class="perm-item"><input type="checkbox" name="CanChangeCustomerPackage" value="true" @(Model.CanChangeCustomerPackage ? "checked" : "") /> Paketi dəyiş</label>
                     <label class="perm-item"><input type="checkbox" name="CanApplyDiscount" value="true" @(Model.CanApplyDiscount ? "checked" : "") /> Endirim tətbiqi</label>
                     <label class="perm-item"><input type="checkbox" name="CanGrantComplimentarySession" value="true" @(Model.CanGrantComplimentarySession ? "checked" : "") /> Ödənişsiz zolağa yazma</label>
                 </div>
@@ -78,6 +79,7 @@
                 <div class="perm-grid">
                     <label class="perm-item"><input type="checkbox" name="CanAccessPlanset" value="true" @(Model.CanAccessPlanset ? "checked" : "") /> Planşetə daxil olma</label>
                     <label class="perm-item"><input type="checkbox" name="CanIssueEquipmentRental" value="true" @(Model.CanIssueEquipmentRental ? "checked" : "") /> Planşetdən avadanlıq icarə vermə</label>
+                    <label class="perm-item"><input type="checkbox" name="CanChangeLane" value="true" @(Model.CanChangeLane ? "checked" : "") /> Planşetdə zolaq dəyişmə</label>
                 </div>
             </div>
 

@@ -234,7 +234,6 @@
 
     <section class="card">
         <h2 class="section-title">Filtr</h2>
-        <p class="section-hint">Tarix filtri <strong>qeydiyyata alınma</strong> tarixinə görədir (zolağa yazılma deyil). İlk açılışda bugün qeydiyyata alınanlar göstərilir.</p>
         <form id="filterForm">
             <div class="filter-grid">
                 <label class="field">
@@ -242,11 +241,11 @@
                     <input name="search" id="search" type="search" placeholder="Ad, telefon…" autocomplete="off" />
                 </label>
                 <label class="field">
-                    <span class="field__label">Qeydiyyata alınma (başlanğıc)</span>
+                    <span class="field__label">Son zolağa yazılma (başlanğıc)</span>
                     <input type="date" name="registeredFrom" id="registeredFrom" value="@today" />
                 </label>
                 <label class="field">
-                    <span class="field__label">Qeydiyyata alınma (son)</span>
+                    <span class="field__label">Son zolağa yazılma (son)</span>
                     <input type="date" name="registeredTo" id="registeredTo" value="@today" />
                 </label>
                 <div class="field field--presets">
@@ -275,6 +274,7 @@
                 <tr>
                     <th>Ad Soyad</th>
                     <th>Telefon</th>
+                    <th>Kart</th>
                     <th>VIP</th>
                     <th>Paket</th>
                     <th>Abunə müddəti</th>
@@ -405,19 +405,21 @@
             const tbody = document.getElementById("tbody");
             tbody.innerHTML = "";
             if (items.length === 0) {
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
             } else {
                 for (const x of items) {
                     const tr = document.createElement("tr");
                     tr.dataset.id = x.id;
                     const sub = x.subscriptionFromLocal ? `${x.subscriptionFromLocal} — ${x.subscriptionToLocal}` : "—";
                     const vip = x.isVip ? '<span class="badge-vip">VIP</span>' : "—";
+                    const card = x.clubCardLabel || x.clubCardNumber || "—";
                     const lastLane = x.lastLaneVisitLocal
                         ? `${x.lastLaneVisitLocal}${x.lastLaneNumber ? ` · Zolaq ${x.lastLaneNumber}` : ""}`
                         : "—";
                     tr.innerHTML = `
                         <td class="name-cell">${escapeHtml(x.fullName)}</td>
                         <td>${escapeHtml(x.phoneNumber)}</td>
+                        <td>${escapeHtml(card)}</td>
                         <td>${vip}</td>
                         <td>${escapeHtml(x.packageTypeLabel)}</td>
                         <td>${escapeHtml(sub)}</td>

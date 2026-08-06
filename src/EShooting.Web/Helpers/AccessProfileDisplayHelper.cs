@@ -19,8 +19,10 @@ public static class AccessProfileDisplayHelper
         if (profile.CanReturnEquipment) parts.Add("Geri qaytarma");
         if (profile.CanAccessPlanset) parts.Add("Planşet");
         if (profile.CanIssueEquipmentRental) parts.Add("İcarə");
+        if (profile.CanChangeLane) parts.Add("Zolaq dəyiş");
         if (profile.CanViewHistory) parts.Add("Tarixçə");
         if (profile.CanDeleteRestoreCustomers) parts.Add("Sil/Bərpa");
+        if (profile.CanChangeCustomerPackage) parts.Add("Paket dəyiş");
         return parts.Count == 0 ? "—" : string.Join(", ", parts);
     }
 }

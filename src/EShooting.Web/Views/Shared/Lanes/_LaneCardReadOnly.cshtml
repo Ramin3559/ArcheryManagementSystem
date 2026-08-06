@@ -81,6 +81,19 @@
              data-pending-rental="@(Model.HasPendingRentalEquipment ? "1" : "0")">
             @if (effectiveStatus == "Active" && hasSession)
             {
+                <button type="button"
+                        class="lane-equip-btn lane-equip-btn--score"
+                        data-action="open-score"
+                        data-athlete-name="@displayAthlete"
+                        data-total-score="@Model.TotalScore"
+                        data-score-count="@Model.ScoreCount">Xal</button>
+                @if (ViewBag.CanChangeLane == true)
+                {
+                    <button type="button"
+                            class="lane-equip-btn lane-equip-btn--move"
+                            data-action="change-lane"
+                            data-athlete-name="@displayAthlete">Zolaq dəyiş</button>
+                }
                 <button type="button" class="lane-equip-btn lane-equip-btn--issue" data-action="issue-equipment">İcarə ver</button>
             }
             @if (Model.HasPendingRentalEquipment)

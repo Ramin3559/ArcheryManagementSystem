@@ -1,7 +1,9 @@
 using EShooting.Application.Athletes.Commands;
 using EShooting.Application.Athletes.Queries;
+using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Enums;
 using EShooting.Web.Auth;
+using EShooting.Web.Contracts.Athletes;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -34,7 +36,7 @@ public sealed class UpdateCustomerPackagePaymentRequest
 [Authorize(Policy = AdminAuthDefaults.Policy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/customers")]
-public sealed class AdminCustomersController(IMediator mediator) : Controller
+public sealed class AdminCustomersController(IMediator mediator, ITrainingCenterRepository repository) : Controller
 {
     [HttpGet("")]
     public IActionResult Index()
@@ -120,6 +122,80 @@ public sealed class AdminCustomersController(IMediator mediator) : Controller
                     request.IsComplimentary),
                 cancellationToken);
             return Ok(new { message = "Ödəniş qeydi yeniləndi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/change-package/preview")]
+    public async Task<IActionResult> PreviewChangePackage(
+        Guid id,
+        [FromQuery] Guid newServicePackageId,
+        [FromQuery] decimal discountAmount,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var preview = await ChangeCustomerPackageCommandHandler.BuildPreviewAsync(
+                repository,
+                id,
+                newServicePackageId,
+                discountAmount,
+                cancellationToken);
+            return Ok(new
+            {
+                athleteId = preview.AthleteId,
+                athleteName = preview.AthleteName,
+                oldPackageName = preview.OldPackageName,
+                oldAmountPaid = preview.OldAmountPaid,
+                newServicePackageId = preview.NewServicePackageId,
+                newPackageName = preview.NewPackageName,
+                newListPrice = preview.NewListPrice,
+                discountAmount = preview.DiscountAmount,
+                newPayable = preview.NewPayable,
+                appliedCredit = preview.AppliedCredit,
+                additionalDue = preview.AdditionalDue,
+                refundDue = preview.RefundDue,
+                differenceKind = preview.DifferenceKind
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/change-package")]
+    public async Task<IActionResult> ChangePackage(
+        Guid id,
+        [FromBody] ChangeCustomerPackageRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await mediator.Send(
+                new ChangeCustomerPackageCommand(
+                    id,
+                    request.NewServicePackageId,
+                    request.PeriodStartLocal,
+                    request.PeriodEndLocal,
+                    request.DiscountAmount,
+                    request.AmountPaidCash,
+                    request.AmountPaidCard,
+                    request.IsComplimentary,
+                    request.ConfirmDifference,
+                    CreatedByStaffId: null,
+                    CanApplyDiscount: true,
+                    CanGrantComplimentary: true),
+                cancellationToken);
+            return Ok(new
+            {
+                newPackageRecordId = result.NewPackageRecordId,
+                refundRecordId = result.RefundRecordId,
+                message = result.Message
+            });
         }
         catch (InvalidOperationException ex)
         {

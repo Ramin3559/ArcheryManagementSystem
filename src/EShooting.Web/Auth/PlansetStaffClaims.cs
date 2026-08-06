@@ -7,4 +7,5 @@ public static class PlansetStaffClaims
     public const string StaffId = "planset_staff_id";
     public const string PositionName = "planset_staff_position";
     public const string CanIssueEquipmentRental = "planset_perm_issue_rental";
+    public const string CanChangeLane = "planset_perm_change_lane";
 }

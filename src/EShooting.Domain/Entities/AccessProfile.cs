@@ -20,8 +20,12 @@ public sealed class AccessProfile
     public bool CanReturnEquipment { get; set; }
     public bool CanAccessPlanset { get; set; }
     public bool CanIssueEquipmentRental { get; set; }
+    /// <summary>Planşetdə aktiv sessiyanı başqa zolağa köçürmək / yer dəyişmək.</summary>
+    public bool CanChangeLane { get; set; }
     public bool CanViewHistory { get; set; }
     public bool CanDeleteRestoreCustomers { get; set; }
+    /// <summary>Müştərinin aktiv paketini dəyişmək (ödəniş fərqi ilə).</summary>
+    public bool CanChangeCustomerPackage { get; set; }
 
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;

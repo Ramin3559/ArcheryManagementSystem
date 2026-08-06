@@ -7,7 +7,7 @@ namespace EShooting.Application.Common;
 public enum SubscriptionSessionEnsureMode
 {
     /// <summary>
-    /// Açıq seans yoxdursa yaradır / tamamlanıb, amma təqvimdə hələ aktivdirsə yenidən açır.
+    /// Açıq seans yoxdursa yaradır. Eyni gün tamamlanmış / aktiv seansa toxunmur.
     /// </summary>
     MissingOnly,
 
@@ -53,7 +53,15 @@ public static class SubscriptionPlannedSessionSync
 
             if (laneNumber <= 0)
             {
-                laneNumber = ResolveFallbackLaneNumber(schedule, lanes);
+                laneNumber = ResolveProvisionalLaneNumber(
+                    schedule,
+                    lanes,
+                    sessions,
+                    schedules,
+                    day,
+                    startTimeLocal,
+                    durationMinutes,
+                    nowUtc);
             }
 
             if (laneNumber <= 0 || !laneByNumber.TryGetValue(laneNumber, out var lane))
@@ -71,6 +79,9 @@ public static class SubscriptionPlannedSessionSync
                 .OrderByDescending(s => DateTimeAssumedUtc.AsUtc(s.StartTimeUtc))
                 .ToList();
 
+            var explicitLane = SubscriptionPoolCapacity.ResolveExplicitLaneNumber(schedule, day);
+            var provisionalPool = explicitLane <= 0;
+
             var slotBusy = SubscriptionSlotConflict.IsLaneSlotBusy(
                 sessions,
                 schedules,
@@ -85,13 +96,19 @@ public static class SubscriptionPlannedSessionSync
             var open = sameDay.FirstOrDefault(s => s.Status != SessionStatus.Completed);
             if (open is not null)
             {
+                // Aktiv seansın zolağı/vaxtı sync ilə dəyişməsin (fors-major / Başlat seçimi qorunsun).
+                if (SessionActivationRules.HasActivation(open))
+                {
+                    continue;
+                }
+
                 if (mode == SubscriptionSessionEnsureMode.ForceOpen
                     || NeedsResync(open, lane.Id, startUtc, endUtc))
                 {
                     if (NeedsResync(open, lane.Id, startUtc, endUtc))
                     {
-                        // Do not move onto an occupied slot.
-                        if (slotBusy)
+                        // Pool abunədə konkret zolaq Başlat-da seçilir — dolu olsa belə siyahı üçün saxlanır.
+                        if (slotBusy && !provisionalPool)
                         {
                             continue;
                         }
@@ -107,13 +124,19 @@ public static class SubscriptionPlannedSessionSync
                 continue;
             }
 
-            // Create / reopen onto lane only when slot is free.
-            if (slotBusy)
+            // MissingOnly: bu gün artıq oynayıb bitibsə yenidən plan açma.
+            var completed = sameDay.FirstOrDefault(s => s.Status == SessionStatus.Completed);
+            if (completed is not null && mode == SubscriptionSessionEnsureMode.MissingOnly)
             {
                 continue;
             }
 
-            var completed = sameDay.FirstOrDefault(s => s.Status == SessionStatus.Completed);
+            // Create / reopen onto lane only when slot is free (pool üçün istisna).
+            if (slotBusy && !provisionalPool)
+            {
+                continue;
+            }
+
             if (completed is not null)
             {
                 completed.Status = SessionStatus.Scheduled;
@@ -173,22 +196,54 @@ public static class SubscriptionPlannedSessionSync
            || DateTimeAssumedUtc.AsUtc(open.StartTimeUtc) != startUtc
            || DateTimeAssumedUtc.AsUtc(open.EndTimeUtc) != endUtc;
 
-    private static int ResolveFallbackLaneNumber(
+    private static int ResolveProvisionalLaneNumber(
         SubscriptionSchedule schedule,
-        IReadOnlyCollection<Lane> lanes)
+        IReadOnlyCollection<Lane> lanes,
+        IReadOnlyCollection<TrainingSession> sessions,
+        IReadOnlyCollection<SubscriptionSchedule> schedules,
+        DateTime dayLocal,
+        TimeSpan startTimeLocal,
+        int durationMinutes,
+        DateTime nowUtc)
     {
         if (schedule.LastAssignedLaneNumber is > 0)
         {
-            return schedule.LastAssignedLaneNumber.Value;
+            var last = schedule.LastAssignedLaneNumber.Value;
+            if (!SubscriptionSlotConflict.IsLaneSlotBusy(
+                    sessions,
+                    schedules,
+                    lanes,
+                    last,
+                    dayLocal,
+                    startTimeLocal,
+                    durationMinutes,
+                    nowUtc,
+                    excludeScheduleId: schedule.Id))
+            {
+                return last;
+            }
         }
 
-        var ordered = lanes.OrderBy(x => x.Number).Select(x => x.Number).ToList();
-        if (schedule.PreferredLaneType == PreferredLaneType.Long)
+        var candidates = LaneReservationRules.FilterLanesByPreferredType(lanes, schedule.PreferredLaneType)
+            .OrderBy(x => x.Number);
+        foreach (var lane in candidates)
         {
-            return ordered.FirstOrDefault(n => n >= 9);
+            if (!SubscriptionSlotConflict.IsLaneSlotBusy(
+                    sessions,
+                    schedules,
+                    lanes,
+                    lane.Number,
+                    dayLocal,
+                    startTimeLocal,
+                    durationMinutes,
+                    nowUtc,
+                    excludeScheduleId: schedule.Id))
+            {
+                return lane.Number;
+            }
         }
 
-        // Həvəskar / qısa: 1–8
-        return ordered.FirstOrDefault(n => n is >= 1 and <= 8);
+        // Hələ boş konkret zolaq yoxdur — Başlat-da seçiləcək; siyahı üçün pool-un ilk zolağı.
+        return candidates.Select(x => x.Number).FirstOrDefault();
     }
 }

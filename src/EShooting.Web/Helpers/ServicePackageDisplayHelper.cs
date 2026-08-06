@@ -10,7 +10,7 @@ public static class ServicePackageDisplayHelper
         PackageBillingType.Monthly => "Aylıq",
         PackageBillingType.Yearly => "İllik",
         PackageBillingType.Vip => "VIP",
-        PackageBillingType.Gym => "Zal",
+        PackageBillingType.Gym => "Trenajor (köhnə)",
         PackageBillingType.Unlimited => "Limitsiz",
         _ => value.ToString()
     };
@@ -18,8 +18,8 @@ public static class ServicePackageDisplayHelper
     public static string Scope(PackageScope value) => value switch
     {
         PackageScope.Archery => "Yalnız oxatma",
-        PackageScope.Gym => "Yalnız zal",
-        PackageScope.Full => "Full (oxatma + zal)",
+        PackageScope.Gym => "Yalnız Trenajor",
+        PackageScope.Full => "Hər ikisi (oxatma + Trenajor)",
         PackageScope.Vip => "VIP",
         _ => value.ToString()
     };

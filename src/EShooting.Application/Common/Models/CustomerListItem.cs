@@ -10,6 +10,9 @@ public sealed class CustomerListItem
     public string? Email { get; init; }
     public string? IdCardNumber { get; init; }
     public string? ClubCardNumber { get; init; }
+    /// <summary>Kart növü + nömrə (məs. «Boz · 12345»), yoxdursa null.</summary>
+    public string? ClubCardLabel { get; init; }
+    public bool HasClubCard { get; init; }
     public CustomerCategory Category { get; init; }
     public string CategoryLabel { get; init; } = "";
     public bool IsVip { get; init; }

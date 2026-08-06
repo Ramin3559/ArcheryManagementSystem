@@ -2,7 +2,7 @@ using EShooting.Domain.Entities;
 
 namespace EShooting.Application.Common;
 
-/// <summary>VIP / limitsiz full paket abunəsi (müddətsiz sessiya, zolağı resepsiya seçir).</summary>
+/// <summary>Full paket walk-in abunəsi (VIP və ya Limitsiz — zolağı resepsiya seçir).</summary>
 public static class WalkInSubscriptionRules
 {
     public static SubscriptionSchedule? GetActiveWalkInSchedule(
@@ -23,7 +23,10 @@ public static class WalkInSubscriptionRules
             .FirstOrDefault();
     }
 
-    /// <summary>Yalnız VIP (müddətsiz) aktiv abunə — çevik/90 dəq full paket daxil deyil.</summary>
+    /// <summary>
+    /// Müddətsiz sessiya abunəsi (DurationMinutes = 0) — VIP və ya Limitsiz müddətsiz.
+    /// Etiket üçün müştərinin <c>IsVip</c> bayrağına baxın.
+    /// </summary>
     public static SubscriptionSchedule? GetActiveVipSchedule(
         IReadOnlyCollection<SubscriptionSchedule> schedules,
         Guid athleteId,

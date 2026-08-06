@@ -17,7 +17,9 @@ public sealed class AccessProfileFormModel
     public bool CanReturnEquipment { get; set; }
     public bool CanAccessPlanset { get; set; }
     public bool CanIssueEquipmentRental { get; set; }
+    public bool CanChangeLane { get; set; }
     public bool CanViewHistory { get; set; }
     public bool CanDeleteRestoreCustomers { get; set; }
+    public bool CanChangeCustomerPackage { get; set; }
     public bool IsActive { get; set; } = true;
 }

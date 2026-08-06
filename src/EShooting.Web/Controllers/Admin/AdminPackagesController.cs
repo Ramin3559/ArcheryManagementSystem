@@ -49,7 +49,14 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
         {
             Id = item.Id,
             Name = item.Name,
-            BillingType = item.BillingType,
+            BillingType = item.BillingType == PackageBillingType.Gym
+                ? PackageBillingType.Monthly
+                : item.BillingType == PackageBillingType.Vip
+                    ? PackageBillingType.Unlimited
+                    : item.BillingType,
+            Scope = item.BillingType == PackageBillingType.Gym && item.Scope == PackageScope.Archery
+                ? PackageScope.Gym
+                : item.Scope,
             Price = item.Price,
             SessionDurationMinutes = item.SessionDurationMinutes,
             WeeklyDaysCount = item.WeeklyDaysCount,
@@ -130,14 +137,27 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
 
         try
         {
-            PackageScope scope;
+            // Köhnə «Zal» billing tipi artıq yoxdur — Aylıq + Yalnız Trenajor kimi saxlanır.
+            if (model.BillingType == PackageBillingType.Gym)
+            {
+                model.BillingType = PackageBillingType.Monthly;
+                model.Scope = PackageScope.Gym;
+            }
+
+            PackageScope scope = model.Scope;
             PackageSchedulingMode scheduling;
             int sessionDuration;
             int? validity;
             var unlimitedGym = false;
 
+            // Köhnə VIP paket növü artıq yoxdur — Limitsiz kimi saxlanır (VIP müştəri bayrağı ayrıdır).
+            if (model.BillingType == PackageBillingType.Vip)
+            {
+                model.BillingType = PackageBillingType.Unlimited;
+            }
+
             // Müddətsiz = 0; vaxtlı paketdə 1–600 dəq.
-            if (model.BillingType != PackageBillingType.Vip)
+            if (model.BillingType != PackageBillingType.Unlimited || model.SessionDurationMinutes > 0)
             {
                 if (model.SessionDurationMinutes < 0 || model.SessionDurationMinutes > 600)
                 {
@@ -146,35 +166,31 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                 }
             }
 
+            if (scope is not (PackageScope.Archery or PackageScope.Gym or PackageScope.Full or PackageScope.Vip))
+            {
+                scope = PackageScope.Archery;
+            }
+
             switch (model.BillingType)
             {
-                case PackageBillingType.Vip:
-                    scope = PackageScope.Vip;
-                    scheduling = PackageSchedulingMode.WalkInFlexible;
-                    sessionDuration = 0;
-                    validity = null;
-                    unlimitedGym = true;
-                    break;
                 case PackageBillingType.Unlimited:
-                    scope = PackageScope.Archery;
+                    if (scope == PackageScope.Vip) scope = PackageScope.Archery;
                     scheduling = PackageSchedulingMode.WalkInFlexible;
                     sessionDuration = model.SessionDurationMinutes;
                     validity = null;
-                    break;
-                case PackageBillingType.Gym:
-                    scope = PackageScope.Gym;
-                    scheduling = PackageSchedulingMode.None;
-                    sessionDuration = model.SessionDurationMinutes;
-                    validity = null;
+                    // Limitsiz oxatma / full — Trenajor hüququ avtomatik.
+                    unlimitedGym = scope != PackageScope.Gym;
                     break;
                 case PackageBillingType.OneTime:
-                    scope = PackageScope.Archery;
+                    if (scope == PackageScope.Vip) scope = PackageScope.Archery;
                     scheduling = PackageSchedulingMode.None;
                     sessionDuration = model.SessionDurationMinutes;
                     validity = null;
+                    unlimitedGym = scope is PackageScope.Full or PackageScope.Gym;
                     break;
                 default:
-                    scope = PackageScope.Archery;
+                    // Aylıq / İllik
+                    if (scope == PackageScope.Vip) scope = PackageScope.Archery;
                     scheduling = PackageSchedulingMode.FixedWeekly;
                     sessionDuration = model.SessionDurationMinutes;
                     validity = model.BillingType switch
@@ -183,6 +199,8 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                         PackageBillingType.Yearly => 365,
                         _ => null
                     };
+                    // Aylıq oxatma və «Hər ikisi» — Trenajor hüququ avtomatik; yalnız Trenajor — yox.
+                    unlimitedGym = scope != PackageScope.Gym;
                     break;
             }
 

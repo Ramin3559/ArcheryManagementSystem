@@ -1,4 +1,5 @@
 using EShooting.Web.Contracts.Sessions;
+using EShooting.Application.Athletes;
 using EShooting.Application.Common;
 using EShooting.Application.Customers;
 using EShooting.Application.Equipment;
@@ -11,6 +12,7 @@ using EShooting.Web.Auth;
 using EShooting.Web.Helpers;
 using EShooting.Web.Extensions;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -40,14 +42,33 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         [FromQuery] DateTime dateLocal,
         CancellationToken cancellationToken)
     {
-        // Query string tarixini Bakı kalendar günü kimi götürürük (server Local TZ-dən asılı deyil).
         var day = dateLocal.Date;
         await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, day, cancellationToken);
 
-        var sessions = await repository.GetSessionsAsync(cancellationToken);
+        var sessions = (await repository.GetSessionsAsync(cancellationToken)).ToList();
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
+        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
         var nowUtc = DateTime.UtcNow;
+
+        // Aktiv (zolaqda) olan müştərinin eyni gün qalıq abunə planını bağla — Planlaşdırılanlarda qalmasın.
+        var activatedToday = sessions
+            .Where(s => SessionActivationRules.HasActivation(s)
+                        && s.Status != SessionStatus.Completed
+                        && AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(s.StartTimeUtc)) == day)
+            .GroupBy(s => s.AthleteId)
+            .ToList();
+        foreach (var group in activatedToday)
+        {
+            await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+                repository,
+                sessions,
+                group.Key,
+                day,
+                excludeSessionId: group.First().Id,
+                nowUtc,
+                cancellationToken);
+        }
 
         var items = sessions
             .Where(s => AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(s.StartTimeUtc)) == day)
@@ -59,10 +80,22 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 var effectiveStartUtc = HasActivation(s) ? ResolveEffectiveStartUtc(s) : sStartUtc;
                 var effectiveEndUtc = HasActivation(s) ? ResolveEffectiveEndUtc(s) : sEndUtc;
                 var laneNumber = lanes.FirstOrDefault(l => l.Id == s.LaneId)?.Number ?? 0;
-                var athleteName = athletes.FirstOrDefault(a => a.Id == s.AthleteId)?.FullName ?? "—";
+                var athlete = athletes.FirstOrDefault(a => a.Id == s.AthleteId);
+                var athleteName = athlete?.FullName ?? "—";
                 var kind = s.SubscriptionScheduleId is not null
                     ? "Abunə"
                     : (LaneDisplayHelper.IsGroupAthleteName(athleteName) ? "Qrup" : "Anlıq");
+                var needsLanePick = false;
+                if (!HasActivation(s) && s.SubscriptionScheduleId is Guid sid)
+                {
+                    var sch = schedules.FirstOrDefault(x => x.Id == sid);
+                    if (sch is not null
+                        && SubscriptionPoolCapacity.ResolveExplicitLaneNumber(sch, day) <= 0)
+                    {
+                        needsLanePick = true;
+                        laneNumber = 0;
+                    }
+                }
                 var derivedStatus = s.Status;
                 if (derivedStatus != SessionStatus.Completed)
                 {
@@ -89,7 +122,12 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                     sessionId = s.Id,
                     athleteId = s.AthleteId,
                     athleteName,
+                    athleteCategory = athlete is null ? (int?)null : (int)athlete.Category,
+                    athleteCategoryLabel = athlete is null
+                        ? null
+                        : CustomerDisplayHelper.FormatCategory(athlete.Category),
                     laneNumber,
+                    needsLanePick,
                     startTimeUtc = effectiveStartUtc,
                     endTimeUtc = effectiveEndUtc,
                     status = derivedStatus.ToString(),
@@ -174,7 +212,8 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 equipmentIssues,
                 User.GetStaffMemberId(),
                 request.ForceOpenEnded,
-                request.ActivateImmediately), cancellationToken);
+                request.ActivateImmediately,
+                request.AllowAmateurOnProLane), cancellationToken);
 
             var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
             var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -306,6 +345,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
     /// Secilmis sessiyaya xal deyerini gonderir.
     /// </summary>
     [HttpPost("{sessionId:guid}/scores")]
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme + "," + PlansetAuthDefaults.Scheme)]
     public async Task<IActionResult> SubmitScore(
         Guid sessionId,
         [FromBody] SubmitScoreRequest request,
@@ -583,6 +623,59 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         return Ok(new { ok = true });
     }
 
+    /// <summary>
+    /// Planşet: aktiv sessiyanı başqa zolağa köçürür və ya iki aktiv sessiya arasında yer dəyişir.
+    /// Vaxt / ActivatedAtUtc toxunulmur — yalnız LaneId dəyişir.
+    /// </summary>
+    [HttpPost("{sessionId:guid}/move-lane")]
+    [Authorize(Policy = PlansetAuthDefaults.Policy)]
+    public async Task<IActionResult> MoveLane(
+        [FromRoute] Guid sessionId,
+        [FromBody] MoveSessionLaneRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!User.CanChangeLane())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Zolaq dəyişmək üçün icazəniz yoxdur." });
+        }
+
+        try
+        {
+            var result = await mediator.Send(
+                new MoveSessionLaneCommand(
+                    sessionId,
+                    request.LaneNumber,
+                    request.AllowSwap,
+                    request.AllowAmateurOnProLane),
+                cancellationToken);
+
+            if (!result.Ok)
+            {
+                return Conflict(new
+                {
+                    code = result.Code,
+                    error = result.Message,
+                    fromLaneNumber = result.FromLaneNumber,
+                    toLaneNumber = result.ToLaneNumber,
+                    occupantSessionId = result.OccupantSessionId,
+                    occupantName = result.OccupantName
+                });
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                fromLaneNumber = result.FromLaneNumber,
+                toLaneNumber = result.ToLaneNumber,
+                swapped = result.Swapped
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{sessionId:guid}/equipment/rentals")]
     [Authorize(Policy = PlansetAuthDefaults.Policy)]
     public async Task<IActionResult> GetSessionRentals([FromRoute] Guid sessionId, CancellationToken cancellationToken)
@@ -814,15 +907,78 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         try
         {
+            var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+            if (!string.IsNullOrWhiteSpace(clubCard))
+            {
+                var clubCardType = request.ClubCardType;
+                if (clubCardType is not ClubCardType type)
+                {
+                    return BadRequest(new { error = "Kart növü seçin." });
+                }
+
+                var sessionForCard = await repository.GetSessionByIdAsync(id, cancellationToken);
+                if (sessionForCard is null)
+                {
+                    return NotFound(new { error = "Sessiya tapılmadı." });
+                }
+
+                var athlete = await repository.GetAthleteByIdAsync(sessionForCard.AthleteId, cancellationToken);
+                if (athlete is null)
+                {
+                    return BadRequest(new { error = "Müştəri tapılmadı." });
+                }
+
+                var prevCard = athlete.ClubCardNumber;
+                var prevType = athlete.ClubCardType;
+                var prevNorm = AthleteRegistrationRules.NormalizeText(prevCard);
+                var cardChanged =
+                    !string.Equals(prevNorm, clubCard, StringComparison.OrdinalIgnoreCase)
+                    || prevType != type;
+
+                if (cardChanged)
+                {
+                    await ClubCardAssignmentService.EnsureCardAvailableAsync(
+                        repository,
+                        type,
+                        clubCard,
+                        athlete.Id,
+                        cancellationToken);
+
+                    await ClubCardAssignmentService.SyncAthleteCardAsync(
+                        repository,
+                        athlete.Id,
+                        prevCard,
+                        prevType,
+                        clubCard,
+                        type,
+                        User.GetStaffMemberId(),
+                        cancellationToken);
+
+                    athlete.ClubCardNumber = clubCard;
+                    athlete.ClubCardType = type;
+                    await repository.UpdateAthleteAsync(athlete, cancellationToken);
+                }
+            }
+
             var laneNumber = await mediator.Send(new ActivateSessionCommand(id, request.LaneNumber), cancellationToken);
             return Ok(new { sessionId = id, laneNumber });
+        }
+        catch (ClubCardHeldException ex)
+        {
+            return Conflict(new
+            {
+                error = ClubCardAssignmentService.FormatHeldByMessage(ex.CardType, ex.CardNumber, ex.Holder),
+                clubCardHeld = true
+            });
         }
         catch (InvalidOperationException ex)
         {
             if (ex.Message.Contains("tutulub", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("üst-üstə", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("rezerv", StringComparison.OrdinalIgnoreCase)
-                || ex.Message.Contains("doludur", StringComparison.OrdinalIgnoreCase))
+                || ex.Message.Contains("doludur", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("zolaq seçilməlidir", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("təyin olunmayıb", StringComparison.OrdinalIgnoreCase))
             {
                 var session = await repository.GetSessionByIdAsync(id, cancellationToken);
                 if (session is null)
@@ -846,17 +1002,13 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 static bool IsShortLane(int n) => n is >= 1 and <= 8;
                 static bool IsLongLane(int n) => n is >= 9 and <= 11;
 
-                var plannedLaneNumber = lanes.FirstOrDefault(l => l.Id == session.LaneId)?.Number ?? 0;
-                var preferLong = plannedLaneNumber > 0 && IsLongLane(plannedLaneNumber);
+                var dayLocal = AzerbaijanTime.UtcToLocalDate(plannedStart);
 
+                // Aktiv et seçimi: hazırda boş (aktiv sessiya olmayan) bütün 1–11 zolaqlar.
+                // Paket PreferredLaneType ilə siyahını kəsmirik — resepsiya növə baxıb seçir.
                 var allowed = lanes
                     .Where(l => !GymLaneRules.IsGymLane(l.Number))
-                    .Where(l =>
-                    {
-                        if (athlete?.Category == CustomerCategory.Amateur) return IsShortLane(l.Number);
-                        if (preferLong) return IsLongLane(l.Number);
-                        return true;
-                    })
+                    .Where(l => IsShortLane(l.Number) || IsLongLane(l.Number))
                     .OrderBy(l => l.Number)
                     .ToList();
 
@@ -871,12 +1023,22 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
                         return allSessions
                             .Where(s => s.Id != session.Id && s.LaneId == l.Id)
+                            // Pool «Seçiləcək» sessiyalar müvəqqəti park olunub — zolağı tutmur.
+                            .Where(s => !SubscriptionPoolCapacity.IsUnassignedPoolSession(s, schedules, dayLocal))
                             .All(s => !LaneReservationRules.OverlapsSession(s, reqStart, reqEnd, nowUtc));
                     })
                     .Select(l => l.Number)
                     .ToList();
 
-                return Conflict(new { error = ex.Message, availableLaneNumbers = available });
+                return Conflict(new
+                {
+                    error = ex.Message,
+                    availableLaneNumbers = available,
+                    athleteCategory = athlete is null ? (int?)null : (int)athlete.Category,
+                    athleteCategoryLabel = athlete is null
+                        ? null
+                        : CustomerDisplayHelper.FormatCategory(athlete.Category)
+                });
             }
             return BadRequest(new { error = ex.Message });
         }
@@ -925,4 +1087,6 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 public sealed class ActivateSessionRequest
 {
     public int LaneNumber { get; set; } = 0;
+    public string? ClubCardNumber { get; set; }
+    public ClubCardType? ClubCardType { get; set; }
 }

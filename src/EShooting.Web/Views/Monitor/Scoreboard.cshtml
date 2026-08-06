@@ -241,11 +241,15 @@
             if (lanes[i] && lanes[i].laneNumber === laneNumber) { lane = lanes[i]; break; }
         }
         if (!lane || !lane.sessionId) return null;
-        if (lane.status === "Completed" || lane.status === "Idle" || lane.status === "Scheduled") return null;
+        if (lane.status !== "Active") return null;
 
         var start = parseApiDate(lane.startTimeUtc);
         var end = parseApiDate(lane.endTimeUtc);
         var now = new Date();
+        // Müddətsiz: End <= Start — Stop-a qədər aktiv sayılır (loqoya düşməsin).
+        var isOpenEnded = start && end && end.getTime() <= start.getTime();
+        if (isOpenEnded) return lane;
+
         if (start && now.getTime() < start.getTime()) return null;
         if (end && now.getTime() >= end.getTime()) return null;
         return lane;
@@ -289,7 +293,7 @@
             })["catch"](function () { /* səssiz */ });
     }
 
-    setInterval(loadScoreboard, 15000);
+    setInterval(loadScoreboard, 1000);
     setInterval(refreshFromCachedLanes, 1000);
 
     document.addEventListener("visibilitychange", function () {

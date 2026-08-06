@@ -11,7 +11,7 @@ public static class AdminCustomersExcelExporter
         var ws = wb.Worksheets.Add("Müştərilər");
         var headers = new[]
         {
-            "Ad Soyad", "Telefon", "Email", "Ş/V", "Kart №", "Kateqoriya", "VIP", "Status",
+            "Ad Soyad", "Telefon", "Email", "Ş/V", "Kart", "Kateqoriya", "VIP", "Status",
             "Paket növü", "Cari paket", "Ödəniş", "Nağd", "Kart",
             "Abunə başlanğıc", "Abunə bitmə",
             "Qeydiyyata alınma", "Qeydiyyata alan", "Silinmə", "Silən",
@@ -31,7 +31,7 @@ public static class AdminCustomersExcelExporter
             ws.Cell(r, 2).Value = x.PhoneNumber;
             ws.Cell(r, 3).Value = x.Email ?? "";
             ws.Cell(r, 4).Value = x.IdCardNumber ?? "";
-            ws.Cell(r, 5).Value = x.ClubCardNumber ?? "";
+            ws.Cell(r, 5).Value = x.ClubCardLabel ?? x.ClubCardNumber ?? "";
             ws.Cell(r, 6).Value = x.CategoryLabel;
             ws.Cell(r, 7).Value = x.IsVip ? "Bəli" : "Xeyr";
             ws.Cell(r, 8).Value = x.IsActive ? "Aktiv" : "Silinmiş";

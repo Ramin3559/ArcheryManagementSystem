@@ -143,11 +143,11 @@
                 </select>
             </label>
             <label class="field">
-                <span>Qeydiyyata alınma (başlanğıc)</span>
+                <span>Son zolağa yazılma (başlanğıc)</span>
                 <input type="date" name="registeredFrom" id="customersFromDate" value="" />
             </label>
             <label class="field">
-                <span>Qeydiyyata alınma (son)</span>
+                <span>Son zolağa yazılma (son)</span>
                 <input type="date" name="registeredTo" id="customersToDate" value="" />
             </label>
             <div class="field field--presets">
@@ -252,6 +252,44 @@
             <div class="filter-actions">
                 <button type="button" class="btn btn-primary" id="editPaymentSaveBtn">Yadda saxla</button>
                 <button type="button" class="btn btn-ghost" id="editPaymentCancelBtn">Sıfırla</button>
+            </div>
+        </div>
+        <div id="packageChangePanel" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+            <div style="font-weight:800; color:#1a2650; margin-bottom:8px;">Paketi dəyiş</div>
+            <div class="filter-grid">
+                <label class="field" style="grid-column:1/-1;">
+                    <span>Yeni paket</span>
+                    <select id="changePackageSelect"><option value="">Paket seçin</option></select>
+                </label>
+                <label class="field">
+                    <span>Abunə başlanğıcı</span>
+                    <input id="changePackageStart" type="date" />
+                </label>
+                <label class="field">
+                    <span>Abunə bitməsi</span>
+                    <input id="changePackageEnd" type="date" />
+                </label>
+                <label class="field">
+                    <span>Endirim (AZN)</span>
+                    <input id="changePackageDiscount" type="number" min="0" step="0.01" value="0" />
+                </label>
+                <label class="field">
+                    <span>Nağd (AZN)</span>
+                    <input id="changePackageCash" type="number" min="0" step="0.01" value="0" />
+                </label>
+                <label class="field">
+                    <span>Kart (AZN)</span>
+                    <input id="changePackageCard" type="number" min="0" step="0.01" value="0" />
+                </label>
+                <label class="field" style="flex-direction:row; align-items:center; gap:8px;">
+                    <input id="changePackageComplimentary" type="checkbox" />
+                    <span style="text-transform:none; letter-spacing:0;">Pulsuz (əlavə ödəniş)</span>
+                </label>
+            </div>
+            <p id="changePackagePreviewHint" class="statLabel" style="margin-top:8px;">Yeni paket seçin — ödəniş fərqi burada görünəcək.</p>
+            <div class="filter-actions" style="margin-top:10px;">
+                <button type="button" class="btn btn-primary" id="changePackageSaveBtn">Paketi dəyiş</button>
+                <button type="button" class="btn btn-ghost" id="changePackagePreviewBtn">Fərqi hesabla</button>
             </div>
         </div>
     </div>
@@ -629,6 +667,11 @@
             if (editPanel) editPanel.style.display = "block";
             if (paymentsModal) paymentsModal.style.display = "block";
             try {
+                await ensureChangePackagesLoaded();
+                var startEl = document.getElementById("changePackageStart");
+                var endEl = document.getElementById("changePackageEnd");
+                if (startEl) startEl.value = isoToday();
+                if (endEl) endEl.value = isoPlusDays(30);
                 var res = await fetch("/admin/customers/" + encodeURIComponent(athleteId) + "/package-payments", {
                     credentials: "same-origin"
                 });
@@ -722,6 +765,126 @@
                 alert(data.message || "Ödəniş yeniləndi.");
             } catch (err) {
                 alert(err && err.message ? err.message : "Yadda saxlanılmadı.");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        });
+
+        var changePackagesCache = [];
+        var lastChangePreview = null;
+
+        function isoToday() {
+            var d = new Date();
+            return isoDate(d);
+        }
+
+        function isoPlusDays(days) {
+            var d = new Date();
+            d.setDate(d.getDate() + days);
+            return isoDate(d);
+        }
+
+        async function ensureChangePackagesLoaded() {
+            if (changePackagesCache.length) return;
+            var res = await fetch("/packages/active", { credentials: "same-origin" });
+            var data = await res.json().catch(function () { return []; });
+            changePackagesCache = Array.isArray(data) ? data : [];
+            var sel = document.getElementById("changePackageSelect");
+            if (!sel) return;
+            sel.innerHTML = '<option value="">Paket seçin</option>' + changePackagesCache.map(function (p) {
+                return '<option value="' + AFS.escapeHtml(p.id) + '">'
+                    + AFS.escapeHtml(p.name || "") + " · " + money(p.price) + "</option>";
+            }).join("");
+        }
+
+        async function refreshChangePackagePreview() {
+            lastChangePreview = null;
+            var hint = document.getElementById("changePackagePreviewHint");
+            var pkgId = document.getElementById("changePackageSelect")?.value || "";
+            if (!currentPaymentsAthleteId || !pkgId) {
+                if (hint) hint.textContent = "Yeni paket seçin — ödəniş fərqi burada görünəcək.";
+                return;
+            }
+            var discount = Number(document.getElementById("changePackageDiscount")?.value || 0);
+            var res = await fetch(
+                "/admin/customers/" + encodeURIComponent(currentPaymentsAthleteId)
+                + "/change-package/preview?newServicePackageId=" + encodeURIComponent(pkgId)
+                + "&discountAmount=" + encodeURIComponent(discount),
+                { credentials: "same-origin" });
+            var data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                if (hint) hint.textContent = data.error || "Hesablama alınmadı.";
+                return;
+            }
+            lastChangePreview = data;
+            var kind = data.differenceKind || "even";
+            var text = "Köhnə ödənilən: " + money(data.oldAmountPaid)
+                + " · Yeni qiymət: " + money(data.newListPrice)
+                + " · Ödəniləcək: " + money(data.newPayable) + ". ";
+            if (kind === "additional") {
+                text += "ƏLAVƏ ALINACAQ: " + money(data.additionalDue) + " AZN — nağd və/və ya karta yazın.";
+            } else if (kind === "refund") {
+                text += "QAYTARILACAQ: " + money(data.refundDue) + " AZN — nağd/kart qaytarma məbləğini yazın.";
+            } else {
+                text += "Ödəniş fərqi yoxdur.";
+            }
+            if (hint) hint.textContent = text;
+        }
+
+        document.getElementById("changePackageSelect")?.addEventListener("change", refreshChangePackagePreview);
+        document.getElementById("changePackageDiscount")?.addEventListener("change", refreshChangePackagePreview);
+        document.getElementById("changePackagePreviewBtn")?.addEventListener("click", refreshChangePackagePreview);
+        document.getElementById("changePackageSaveBtn")?.addEventListener("click", async function () {
+            if (!currentPaymentsAthleteId) return;
+            var pkgId = document.getElementById("changePackageSelect")?.value || "";
+            if (!pkgId) { alert("Yeni paket seçin."); return; }
+            await refreshChangePackagePreview();
+            if (!lastChangePreview) { alert("Ödəniş fərqi hesablanmadı."); return; }
+            var kind = lastChangePreview.differenceKind || "even";
+            var msg;
+            if (kind === "additional") {
+                msg = "Köhnə: " + money(lastChangePreview.oldAmountPaid)
+                    + " · Yeni: " + money(lastChangePreview.newPayable)
+                    + " · Əlavə alınacaq: " + money(lastChangePreview.additionalDue)
+                    + " AZN.\n\nDavam edilsin?";
+            } else if (kind === "refund") {
+                msg = "Köhnə: " + money(lastChangePreview.oldAmountPaid)
+                    + " · Yeni: " + money(lastChangePreview.newPayable)
+                    + " · Qaytarılacaq: " + money(lastChangePreview.refundDue)
+                    + " AZN.\n\nDavam edilsin?";
+            } else {
+                msg = "Ödəniş fərqi yoxdur. Paket dəyişilsin?";
+            }
+            if (!window.confirm(msg)) return;
+
+            var start = document.getElementById("changePackageStart")?.value || isoToday();
+            var end = document.getElementById("changePackageEnd")?.value || isoPlusDays(30);
+            var payload = {
+                newServicePackageId: pkgId,
+                periodStartLocal: start,
+                periodEndLocal: end,
+                discountAmount: Number(document.getElementById("changePackageDiscount")?.value || 0),
+                amountPaidCash: Number(document.getElementById("changePackageCash")?.value || 0),
+                amountPaidCard: Number(document.getElementById("changePackageCard")?.value || 0),
+                isComplimentary: !!document.getElementById("changePackageComplimentary")?.checked,
+                confirmDifference: true
+            };
+            var btn = document.getElementById("changePackageSaveBtn");
+            if (btn) btn.disabled = true;
+            try {
+                var res = await fetch("/admin/customers/" + encodeURIComponent(currentPaymentsAthleteId) + "/change-package", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(data.error || data.message || "Dəyişilmədi.");
+                alert(data.message || "Paket dəyişildi.");
+                await openPackagePaymentsModal(currentPaymentsAthleteId, paymentsAthlete?.textContent || "");
+                await loadList();
+            } catch (err) {
+                alert(err && err.message ? err.message : "Xəta.");
             } finally {
                 if (btn) btn.disabled = false;
             }

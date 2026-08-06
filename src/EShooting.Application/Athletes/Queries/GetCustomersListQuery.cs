@@ -118,24 +118,40 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 schedules.Where(s => s.AthleteId == athlete.Id).ToList(),
                 athleteRecords);
             var registeredLocal = AzerbaijanTime.UtcToLocalDateTime(registeredUtc);
-            var registeredLocalDate = registeredLocal.Date;
+
+            var lastSession = athleteSessions
+                .OrderByDescending(s => s.StartTimeUtc)
+                .FirstOrDefault();
+            DateTime? lastLaneLocalDate = lastSession is null
+                ? null
+                : AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(lastSession.StartTimeUtc));
+
             // Axtarış dolu olanda tarix filtri tətbiq olunmur — bütün müştərilər arasında axtarılır.
+            // Tarix filtri: son zolağa yazılma tarixinə görə.
             var hasSearch = !string.IsNullOrWhiteSpace(request.Search);
-            if (!hasSearch && request.RegisteredFrom is DateTime from)
+            if (!hasSearch && (request.RegisteredFrom is not null || request.RegisteredTo is not null))
             {
-                var fromDate = DateTime.SpecifyKind(from.Date, DateTimeKind.Unspecified);
-                if (registeredLocalDate < fromDate)
+                if (lastLaneLocalDate is null)
                 {
                     continue;
                 }
-            }
 
-            if (!hasSearch && request.RegisteredTo is DateTime to)
-            {
-                var toDate = DateTime.SpecifyKind(to.Date, DateTimeKind.Unspecified);
-                if (registeredLocalDate > toDate)
+                if (request.RegisteredFrom is DateTime from)
                 {
-                    continue;
+                    var fromDate = DateTime.SpecifyKind(from.Date, DateTimeKind.Unspecified);
+                    if (lastLaneLocalDate.Value < fromDate)
+                    {
+                        continue;
+                    }
+                }
+
+                if (request.RegisteredTo is DateTime to)
+                {
+                    var toDate = DateTime.SpecifyKind(to.Date, DateTimeKind.Unspecified);
+                    if (lastLaneLocalDate.Value > toDate)
+                    {
+                        continue;
+                    }
                 }
             }
 
@@ -144,9 +160,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 .ToList();
             var records = allActiveRecords.Where(r => !r.IsComplimentary).ToList();
 
-            var lastSession = athleteSessions
-                .OrderByDescending(s => s.StartTimeUtc)
-                .FirstOrDefault();
             string? lastLaneVisit = null;
             int? lastLaneNumber = null;
             if (lastSession is not null)
@@ -226,6 +239,8 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 Email = athlete.Email,
                 IdCardNumber = athlete.IdCardNumber,
                 ClubCardNumber = athlete.ClubCardNumber,
+                ClubCardLabel = FormatClubCardLabel(athlete),
+                HasClubCard = !string.IsNullOrWhiteSpace(athlete.ClubCardNumber),
                 Category = athlete.Category,
                 CategoryLabel = CategoryLabel(athlete.Category),
                 IsVip = athlete.IsVip,
@@ -292,7 +307,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
     {
         if (activeSub is not null && activeSub.IsFullPackage && activeSub.DurationMinutes == 0)
         {
-            return "VIP abunə";
+            return athlete.IsVip ? "VIP abunə" : "Limitsiz müddətsiz";
         }
 
         if (athlete.IsSubscriber || activeSub is not null)
@@ -313,7 +328,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         return filter.ToLowerInvariant() switch
         {
             "onetime" or "birdefelik" => packageType == "Birdefəlik",
-            "subscription" or "abune" => packageType == "Abunə",
+            "subscription" or "abune" => packageType is "Abunə" or "Limitsiz müddətsiz",
             "vip" => packageType == "VIP abunə",
             _ => true
         };
@@ -342,6 +357,19 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         CustomerCategory.Coach => "Məşqçi",
         _ => category.ToString()
     };
+
+    private static string? FormatClubCardLabel(Athlete athlete)
+    {
+        var number = (athlete.ClubCardNumber ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(number))
+        {
+            return null;
+        }
+
+        return athlete.ClubCardType is ClubCardType type
+            ? ClubCardTypeLabels.FormatCard(type, number)
+            : number;
+    }
 
     private static string ResolveRegisteredByStaffName(
         Guid? registeredByStaffId,

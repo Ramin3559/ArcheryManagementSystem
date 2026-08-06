@@ -45,6 +45,19 @@ public sealed class CompleteSessionCommandHandler(
 
             session.Status = SessionStatus.Completed;
             await repository.UpdateSessionAsync(session, cancellationToken);
+
+            // «Zolağa yaz» ilə aktiv seans bağlananda eyni gün qalan abunə planı da bağlansın.
+            var nowUtc = DateTime.UtcNow;
+            var dayLocal = AzerbaijanTime.UtcToLocalDate(startUtc);
+            var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
+            await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+                repository,
+                allSessions,
+                session.AthleteId,
+                dayLocal,
+                excludeSessionId: session.Id,
+                nowUtc,
+                cancellationToken);
         }
 
         var lane = (await repository.GetLanesAsync(cancellationToken)).FirstOrDefault(x => x.Id == session.LaneId);

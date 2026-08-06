@@ -1,4 +1,5 @@
 using EShooting.Application.Sessions.Queries;
+using EShooting.Web.Auth;
 using EShooting.Web.Hubs;
 using EShooting.Web.Services;
 using MediatR;
@@ -43,7 +44,7 @@ public sealed class MonitorController(
         Ok(new { enabled = scoreDisplayState.IsEnabled });
 
     [HttpPost("/monitor/score-display")]
-    [AllowAnonymous]
+    [Authorize(Policy = PlansetAuthDefaults.Policy)]
     public async Task<IActionResult> SetScoreDisplay([FromBody] ScoreDisplayRequest request, CancellationToken cancellationToken)
     {
         scoreDisplayState.IsEnabled = request.Enabled;

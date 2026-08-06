@@ -322,6 +322,90 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         return Ok(new { recorded = true });
     }
 
+    [HttpGet("{id:guid}/change-package/preview")]
+    public async Task<IActionResult> PreviewChangePackage(
+        [FromRoute] Guid id,
+        [FromQuery] Guid newServicePackageId,
+        [FromQuery] decimal discountAmount,
+        CancellationToken cancellationToken)
+    {
+        if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanChangeCustomerPackage) is { } denied)
+        {
+            return denied;
+        }
+
+        try
+        {
+            var preview = await ChangeCustomerPackageCommandHandler.BuildPreviewAsync(
+                repository,
+                id,
+                newServicePackageId,
+                discountAmount,
+                cancellationToken);
+            return Ok(new
+            {
+                athleteId = preview.AthleteId,
+                athleteName = preview.AthleteName,
+                oldPackageName = preview.OldPackageName,
+                oldAmountPaid = preview.OldAmountPaid,
+                newServicePackageId = preview.NewServicePackageId,
+                newPackageName = preview.NewPackageName,
+                newListPrice = preview.NewListPrice,
+                discountAmount = preview.DiscountAmount,
+                newPayable = preview.NewPayable,
+                appliedCredit = preview.AppliedCredit,
+                additionalDue = preview.AdditionalDue,
+                refundDue = preview.RefundDue,
+                differenceKind = preview.DifferenceKind
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/change-package")]
+    public async Task<IActionResult> ChangePackage(
+        [FromRoute] Guid id,
+        [FromBody] ChangeCustomerPackageRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanChangeCustomerPackage) is { } denied)
+        {
+            return denied;
+        }
+
+        try
+        {
+            var result = await mediator.Send(
+                new ChangeCustomerPackageCommand(
+                    id,
+                    request.NewServicePackageId,
+                    request.PeriodStartLocal,
+                    request.PeriodEndLocal,
+                    request.DiscountAmount,
+                    request.AmountPaidCash,
+                    request.AmountPaidCard,
+                    request.IsComplimentary,
+                    request.ConfirmDifference,
+                    User.GetStaffMemberId(),
+                    User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount),
+                    User.HasReceptionPermission(ReceptionStaffClaims.CanGrantComplimentarySession)),
+                cancellationToken);
+            return Ok(new
+            {
+                newPackageRecordId = result.NewPackageRecordId,
+                refundRecordId = result.RefundRecordId,
+                message = result.Message
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
     {

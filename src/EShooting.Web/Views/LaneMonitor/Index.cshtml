@@ -386,10 +386,221 @@
             color: #2a4ab8;
         }
 
+        .lane-equip-btn--score {
+            background: rgba(17, 130, 75, 0.12);
+            border-color: rgba(15, 122, 84, 0.32);
+            color: #0f7a54;
+        }
+
         .lane-equip-btn--return {
             background: rgba(209, 67, 95, 0.1);
             border-color: rgba(209, 67, 95, 0.35);
             color: #b63852;
+        }
+
+        .lane-equip-btn--move {
+            background: rgba(120, 90, 40, 0.1);
+            border-color: rgba(120, 90, 40, 0.32);
+            color: #7a5a22;
+        }
+
+        .move-lane-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 8px;
+            margin-top: 12px;
+            max-height: min(52vh, 420px);
+            overflow: auto;
+        }
+
+        .move-lane-option {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            min-height: 64px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            text-align: left;
+            font: inherit;
+            color: inherit;
+            box-shadow: 0 4px 12px rgba(13, 24, 48, 0.06);
+        }
+
+        .move-lane-option:hover:not(:disabled) {
+            border-color: rgba(120, 90, 40, 0.45);
+            background: rgba(120, 90, 40, 0.06);
+        }
+
+        .move-lane-option:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        .move-lane-option__title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #1a2650;
+        }
+
+        .move-lane-option__meta {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .move-lane-option--busy .move-lane-option__title {
+            color: #7a5a22;
+        }
+
+        .score-toggle-btn {
+            min-height: 42px;
+            padding: 8px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 122, 84, 0.28);
+            background: rgba(17, 130, 75, 0.1);
+            color: #0f7a54;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(13, 24, 48, 0.08);
+        }
+
+        .score-toggle-btn.is-on {
+            background: rgba(15, 122, 84, 0.18);
+            border-color: rgba(15, 122, 84, 0.45);
+        }
+
+        .score-toggle-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .score-sheet-modal__panel {
+            width: min(440px, 100%);
+            max-height: min(92vh, 760px);
+            overflow: auto;
+        }
+
+        .score-sheet-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .score-sheet-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(248, 250, 255, 0.96);
+            font-size: 12px;
+            font-weight: 700;
+            color: #2a3260;
+        }
+
+        .score-sheet-pill.ok {
+            border-color: rgba(15, 122, 84, 0.3);
+            color: #0f7a54;
+            background: rgba(17, 130, 75, 0.08);
+        }
+
+        .score-input-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .score-input-row input {
+            flex: 1;
+            min-height: 52px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 28px;
+            font-weight: 800;
+            text-align: center;
+            color: var(--text);
+            background: #fff;
+        }
+
+        .score-clear-btn {
+            min-width: 52px;
+            min-height: 52px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #fff;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .score-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .score-keypad .key {
+            min-height: 54px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(248, 250, 255, 0.98);
+            font-size: 22px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .score-keypad .key-wide {
+            grid-column: 1 / -1;
+        }
+
+        .score-sheet-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .score-sheet-actions .btn-add,
+        .score-sheet-actions .btn-undo {
+            flex: 1;
+            min-height: 48px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .score-sheet-actions .btn-add {
+            background: rgba(17, 130, 75, 0.14);
+            border-color: rgba(15, 122, 84, 0.35);
+            color: #0f7a54;
+        }
+
+        .score-sheet-actions .btn-undo {
+            background: rgba(209, 67, 95, 0.1);
+            border-color: rgba(209, 67, 95, 0.32);
+            color: #b63852;
+        }
+
+        .score-sheet-actions button:disabled {
+            opacity: 0.55;
+            cursor: wait;
+        }
+
+        .score-sheet-hint {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 600;
         }
 
         .lane-equip-btn:disabled {
@@ -703,6 +914,7 @@
                     <span class="supervisor-chip__label">Nəzarətçi:</span>
                     <span>@supervisorName</span>
                 </div>
+                <button type="button" id="scoreDisplayToggle" class="score-toggle-btn" title="TV xal monitorlarını aç/bağla">Xalları aktiv et</button>
                 <button type="button" id="pendingEquipFabBtn" class="equip-fab equip-fab--hidden" aria-label="Təhvil gözləyənlər" title="Təhvil gözləyənlər">
                     <span class="equip-fab__icon">🏹</span>
                     <span id="pendingEquipFabBadge" class="equip-fab__badge">0</span>
@@ -768,6 +980,46 @@
         </div>
     </div>
 
+    <div id="moveLaneModal" class="monitor-equip-modal" aria-hidden="true">
+        <div class="monitor-equip-modal__panel">
+            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                <div>
+                    <div style="font-weight:900; color:#1a2650; font-size:18px;">Zolaq dəyiş</div>
+                    <div id="moveLaneModalSub" style="font-size:13px; color:var(--muted); margin-top:4px;"></div>
+                </div>
+                <button type="button" id="moveLaneCloseBtn" class="lane-monitor-refresh-btn">Bağla</button>
+            </div>
+            <div id="moveLaneList" class="move-lane-list"></div>
+        </div>
+    </div>
+
+    <div id="scoreSheetModal" class="monitor-equip-modal" aria-hidden="true">
+        <div class="monitor-equip-modal__panel score-sheet-modal__panel">
+            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                <div>
+                    <div id="scoreSheetTitle" style="font-weight:900; color:#1a2650; font-size:18px;">Xal yaz</div>
+                    <div id="scoreSheetAthlete" style="font-size:14px; color:var(--muted); margin-top:4px; font-weight:700;">—</div>
+                    <div class="score-sheet-meta">
+                        <span id="scoreSheetPill" class="score-sheet-pill">Sessiya: —</span>
+                    </div>
+                </div>
+                <button type="button" id="scoreSheetCloseBtn" class="lane-monitor-refresh-btn">Bağla</button>
+            </div>
+            <div class="score-input-row">
+                <input id="scoreSheetValue" type="text" inputmode="numeric" autocomplete="off" placeholder="0" />
+                <button type="button" id="scoreSheetClearBtn" class="score-clear-btn" title="Təmizlə">C</button>
+            </div>
+            <div id="scoreSheetKeypad" class="score-keypad"></div>
+            <div class="score-sheet-actions">
+                <button type="button" id="scoreSheetAddBtn" class="btn-add" disabled>Əlavə et</button>
+                <button type="button" id="scoreSheetUndoBtn" class="btn-undo" disabled>Ləğv et</button>
+            </div>
+            <input id="scoreSheetSessionId" type="hidden" value="" />
+            <input id="scoreSheetRound" type="hidden" value="1" />
+            <input id="scoreSheetTotal" type="hidden" value="0" />
+        </div>
+    </div>
+
     <div id="monitorToast" class="monitor-toast"></div>
 
     <script src="/lib/signalr/signalr.min.js"></script>
@@ -787,6 +1039,28 @@
         const monitorReturnModalSub = document.getElementById("monitorReturnModalSub");
         const monitorReturnCloseBtn = document.getElementById("monitorReturnCloseBtn");
         const monitorReturnSaveBtn = document.getElementById("monitorReturnSaveBtn");
+        const moveLaneModal = document.getElementById("moveLaneModal");
+        const moveLaneList = document.getElementById("moveLaneList");
+        const moveLaneModalSub = document.getElementById("moveLaneModalSub");
+        const moveLaneCloseBtn = document.getElementById("moveLaneCloseBtn");
+        const scoreDisplayToggle = document.getElementById("scoreDisplayToggle");
+        const scoreSheetModal = document.getElementById("scoreSheetModal");
+        const scoreSheetTitle = document.getElementById("scoreSheetTitle");
+        const scoreSheetAthlete = document.getElementById("scoreSheetAthlete");
+        const scoreSheetPill = document.getElementById("scoreSheetPill");
+        const scoreSheetValue = document.getElementById("scoreSheetValue");
+        const scoreSheetClearBtn = document.getElementById("scoreSheetClearBtn");
+        const scoreSheetKeypad = document.getElementById("scoreSheetKeypad");
+        const scoreSheetAddBtn = document.getElementById("scoreSheetAddBtn");
+        const scoreSheetUndoBtn = document.getElementById("scoreSheetUndoBtn");
+        const scoreSheetCloseBtn = document.getElementById("scoreSheetCloseBtn");
+        const scoreSheetSessionId = document.getElementById("scoreSheetSessionId");
+        const scoreSheetRound = document.getElementById("scoreSheetRound");
+        const scoreSheetTotal = document.getElementById("scoreSheetTotal");
+        let scoreDisplayEnabled = false;
+        let scoreDisplayToggleBusy = false;
+        let scoreSheetSubmitting = false;
+        let scoreSheetLaneNumber = 0;
         const pendingEquipFabBtn = document.getElementById("pendingEquipFabBtn");
         const pendingEquipFabBadge = document.getElementById("pendingEquipFabBadge");
         const pendingEquipPanel = document.getElementById("pendingEquipPanel");
@@ -798,6 +1072,10 @@
         let monitorEquipSessionId = null;
         let monitorEquipLaneNumber = null;
         let monitorReturnSessionId = null;
+        let moveLaneSessionId = null;
+        let moveLaneFromNumber = null;
+        let moveLaneAthleteName = "";
+        let moveLaneBusy = false;
         let monitorReturnLaneNumber = null;
         let monitorReturnItems = [];
         let monitorToastTimer = null;
@@ -813,6 +1091,247 @@
                 return true;
             }
             return false;
+        }
+
+        function syncScoreDisplayToggleUi() {
+            if (!(scoreDisplayToggle instanceof HTMLButtonElement)) return;
+            scoreDisplayToggle.textContent = scoreDisplayEnabled ? "Xalları söndür" : "Xalları aktiv et";
+            scoreDisplayToggle.classList.toggle("is-on", scoreDisplayEnabled);
+            scoreDisplayToggle.disabled = scoreDisplayToggleBusy;
+        }
+
+        async function loadScoreDisplayState() {
+            try {
+                const response = await fetch("/monitor/score-display", { credentials: "same-origin", cache: "no-store" });
+                if (redirectIfPlansetUnauthorized(response)) return;
+                if (!response.ok) return;
+                const data = await response.json();
+                scoreDisplayEnabled = Boolean(data?.enabled);
+                syncScoreDisplayToggleUi();
+            } catch { /* ignore */ }
+        }
+
+        async function toggleScoreDisplay() {
+            if (!(scoreDisplayToggle instanceof HTMLButtonElement) || scoreDisplayToggleBusy) return;
+            scoreDisplayToggleBusy = true;
+            syncScoreDisplayToggleUi();
+            const next = !scoreDisplayEnabled;
+            try {
+                const response = await fetch("/monitor/score-display", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ enabled: next })
+                });
+                if (redirectIfPlansetUnauthorized(response)) return;
+                if (!response.ok) {
+                    showMonitorToast("Xal rejimi dəyişmədi", "bad");
+                    return;
+                }
+                const data = await response.json();
+                scoreDisplayEnabled = Boolean(data?.enabled);
+                showMonitorToast(scoreDisplayEnabled ? "Xal monitorları aktivdir" : "Xal monitorları söndürüldü", "ok");
+            } catch {
+                showMonitorToast("Xal rejimi dəyişmədi", "bad");
+            } finally {
+                scoreDisplayToggleBusy = false;
+                syncScoreDisplayToggleUi();
+            }
+        }
+
+        function normalizeScoreDraft(raw) {
+            const digitsOnly = String(raw ?? "").replaceAll(/[^\d]/g, "");
+            const trimmed = digitsOnly.replace(/^0+(?=\d)/g, "");
+            if (trimmed.length === 0) return "";
+            return trimmed.slice(0, 3);
+        }
+
+        function setScoreDraft(raw) {
+            if (!(scoreSheetValue instanceof HTMLInputElement)) return;
+            scoreSheetValue.value = normalizeScoreDraft(raw);
+        }
+
+        function appendScoreDigit(digit) {
+            if (!(scoreSheetValue instanceof HTMLInputElement)) return;
+            scoreSheetValue.value = normalizeScoreDraft(scoreSheetValue.value + String(digit));
+        }
+
+        function syncScoreSheetControls() {
+            const hasSession = Boolean(scoreSheetSessionId instanceof HTMLInputElement && scoreSheetSessionId.value);
+            const canInteract = hasSession && !scoreSheetSubmitting;
+            scoreSheetKeypad?.querySelectorAll("button.key").forEach(btn => {
+                btn.disabled = !canInteract;
+            });
+            if (scoreSheetClearBtn instanceof HTMLButtonElement) scoreSheetClearBtn.disabled = !canInteract;
+            if (scoreSheetAddBtn instanceof HTMLButtonElement) scoreSheetAddBtn.disabled = !canInteract;
+            if (scoreSheetUndoBtn instanceof HTMLButtonElement) scoreSheetUndoBtn.disabled = !canInteract;
+            if (scoreSheetPill instanceof HTMLElement) {
+                if (!hasSession) {
+                    scoreSheetPill.textContent = "Sessiya: yoxdur";
+                    scoreSheetPill.className = "score-sheet-pill";
+                } else {
+                    const total = Number(scoreSheetTotal?.value ?? 0);
+                    scoreSheetPill.textContent = scoreSheetSubmitting
+                        ? "Göndərilir…"
+                        : `Sessiya: aktiv (cəmi xal: ${Number.isFinite(total) ? total : 0})`;
+                    scoreSheetPill.className = "score-sheet-pill ok";
+                }
+            }
+        }
+
+        function buildScoreKeypad() {
+            if (!(scoreSheetKeypad instanceof HTMLElement) || scoreSheetKeypad.dataset.ready === "1") return;
+            const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+            scoreSheetKeypad.innerHTML = values.map(v => {
+                const extra = v === 0 ? " key-wide" : "";
+                return `<button class="key${extra}" data-value="${v}" type="button">${v}</button>`;
+            }).join("");
+            scoreSheetKeypad.querySelectorAll("button.key").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    if (scoreSheetSubmitting) return;
+                    appendScoreDigit(Number(btn.dataset.value));
+                });
+            });
+            scoreSheetKeypad.dataset.ready = "1";
+        }
+
+        function openScoreSheet({ sessionId, laneNumber, athleteName, totalScore, scoreCount }) {
+            if (!(scoreSheetModal instanceof HTMLElement)) return;
+            buildScoreKeypad();
+            scoreSheetLaneNumber = Number(laneNumber) || 0;
+            if (scoreSheetSessionId instanceof HTMLInputElement) scoreSheetSessionId.value = sessionId || "";
+            if (scoreSheetTitle instanceof HTMLElement) {
+                scoreSheetTitle.textContent = scoreSheetLaneNumber
+                    ? `Zolaq ${scoreSheetLaneNumber} — Xal yaz`
+                    : "Xal yaz";
+            }
+            if (scoreSheetAthlete instanceof HTMLElement) {
+                scoreSheetAthlete.textContent = athleteName || "—";
+            }
+            if (scoreSheetTotal instanceof HTMLInputElement) {
+                scoreSheetTotal.value = String(Number(totalScore) || 0);
+            }
+            if (scoreSheetRound instanceof HTMLInputElement) {
+                const nextRound = Number(scoreCount || 0) + 1;
+                scoreSheetRound.value = String(Number.isFinite(nextRound) && nextRound > 0 ? nextRound : 1);
+            }
+            setScoreDraft("");
+            scoreSheetModal.style.display = "block";
+            scoreSheetModal.setAttribute("aria-hidden", "false");
+            syncScoreSheetControls();
+            try { scoreSheetValue?.focus(); } catch { /* ignore */ }
+        }
+
+        function closeScoreSheet() {
+            if (!(scoreSheetModal instanceof HTMLElement)) return;
+            scoreSheetModal.style.display = "none";
+            scoreSheetModal.setAttribute("aria-hidden", "true");
+            if (scoreSheetSessionId instanceof HTMLInputElement) scoreSheetSessionId.value = "";
+            scoreSheetLaneNumber = 0;
+            setScoreDraft("");
+            syncScoreSheetControls();
+        }
+
+        async function refreshScoreSheetFromDashboard() {
+            const sessionId = scoreSheetSessionId instanceof HTMLInputElement ? scoreSheetSessionId.value : "";
+            if (!sessionId) return;
+            try {
+                const response = await fetch("/dashboard/lanes?_=" + Date.now(), {
+                    credentials: "same-origin",
+                    cache: "no-store"
+                });
+                if (redirectIfPlansetUnauthorized(response)) return;
+                if (!response.ok) return;
+                const lanes = await response.json();
+                const lane = (Array.isArray(lanes) ? lanes : []).find(x =>
+                    String(x?.sessionId ?? "") === String(sessionId)
+                    && String(x?.status ?? "") === "Active");
+                if (!lane) {
+                    closeScoreSheet();
+                    showMonitorToast("Sessiya artıq aktiv deyil", "bad");
+                    return;
+                }
+                if (scoreSheetTotal instanceof HTMLInputElement) {
+                    scoreSheetTotal.value = String(Number(lane.totalScore) || 0);
+                }
+                if (scoreSheetRound instanceof HTMLInputElement) {
+                    scoreSheetRound.value = String(Number(lane.scoreCount || 0) + 1);
+                }
+                if (scoreSheetAthlete instanceof HTMLElement && lane.athleteName) {
+                    scoreSheetAthlete.textContent = lane.athleteName;
+                }
+                syncScoreSheetControls();
+            } catch { /* ignore */ }
+        }
+
+        async function submitScoreDraft(subtract) {
+            if (scoreSheetSubmitting) return;
+            const sessionId = scoreSheetSessionId instanceof HTMLInputElement ? scoreSheetSessionId.value.trim() : "";
+            if (!sessionId) {
+                syncScoreSheetControls();
+                return;
+            }
+
+            const draft = scoreSheetValue instanceof HTMLInputElement ? normalizeScoreDraft(scoreSheetValue.value) : "";
+            if (!draft) {
+                showMonitorToast(subtract ? "Çıxılacaq xalı daxil edin" : "Xalı daxil edin", "bad");
+                return;
+            }
+
+            let value = Number(draft);
+            if (!Number.isFinite(value) || value < 0 || value > 999) {
+                showMonitorToast("Xal 0–999 aralığında olmalıdır", "bad");
+                return;
+            }
+
+            if (subtract) {
+                if (value <= 0) {
+                    showMonitorToast("Xal 1–999 aralığında olmalıdır", "bad");
+                    return;
+                }
+                const currentTotal = Number(scoreSheetTotal?.value ?? 0);
+                const effective = Math.max(0, Math.min(value, Number.isFinite(currentTotal) ? currentTotal : 0));
+                if (effective === 0) {
+                    setScoreDraft("");
+                    showMonitorToast("Cəmi xal artıq 0-dır", "bad");
+                    return;
+                }
+                value = -effective;
+            }
+
+            const round = scoreSheetRound instanceof HTMLInputElement ? Number(scoreSheetRound.value) : 1;
+            const roundSafe = Number.isFinite(round) && round > 0 ? round : 1;
+
+            scoreSheetSubmitting = true;
+            syncScoreSheetControls();
+            try {
+                const response = await fetch(`/sessions/${encodeURIComponent(sessionId)}/scores`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ roundNumber: roundSafe, value })
+                });
+                if (redirectIfPlansetUnauthorized(response)) return;
+                if (!response.ok) {
+                    const raw = await response.text();
+                    let message = raw || "Xal göndərilmədi";
+                    try {
+                        const parsed = JSON.parse(raw);
+                        message = parsed?.error ?? parsed?.title ?? message;
+                    } catch { /* ignore */ }
+                    showMonitorToast(message, "bad");
+                    return;
+                }
+                setScoreDraft("");
+                showMonitorToast(subtract ? "Xal çıxıldı" : "Xal əlavə olundu", "ok");
+                await refreshScoreSheetFromDashboard();
+                void loadLaneGrid(true);
+            } catch {
+                showMonitorToast("Xal göndərilmədi", "bad");
+            } finally {
+                scoreSheetSubmitting = false;
+                syncScoreSheetControls();
+            }
         }
 
         let lastLaneGridHtml = "";
@@ -1380,7 +1899,16 @@
 
                 connection.onreconnected(() => void loadLaneGrid(true));
                 connection.on("lane-updated", () => void loadLaneGrid(false));
-                connection.on("score-updated", () => void loadLaneGrid(false));
+                connection.on("score-updated", () => {
+                    void loadLaneGrid(false);
+                    if (scoreSheetModal?.style.display === "block") {
+                        void refreshScoreSheetFromDashboard();
+                    }
+                });
+                connection.on("score-display-changed", enabled => {
+                    scoreDisplayEnabled = Boolean(enabled);
+                    syncScoreDisplayToggleUi();
+                });
 
                 await connection.start();
             } catch {
@@ -1733,6 +2261,168 @@
             await returnRentalForSession(monitorReturnSessionId, damaged);
         }
 
+        function stripAthletePrefix(name) {
+            const raw = String(name ?? "").trim();
+            if (!raw) return "";
+            return raw.replace(/^Müştəri:\s*/i, "").trim();
+        }
+
+        function closeMoveLaneModal() {
+            moveLaneSessionId = null;
+            moveLaneFromNumber = null;
+            moveLaneAthleteName = "";
+            if (moveLaneModal instanceof HTMLElement) {
+                moveLaneModal.style.display = "none";
+                moveLaneModal.setAttribute("aria-hidden", "true");
+            }
+        }
+
+        async function openMoveLaneModal(sessionId, laneNumber, athleteName) {
+            moveLaneSessionId = sessionId;
+            moveLaneFromNumber = Number(laneNumber) || 0;
+            moveLaneAthleteName = stripAthletePrefix(athleteName) || "Müştəri";
+            if (moveLaneModalSub instanceof HTMLElement) {
+                moveLaneModalSub.textContent = `Zolaq ${moveLaneFromNumber} · ${moveLaneAthleteName}`;
+            }
+            if (moveLaneList instanceof HTMLElement) {
+                moveLaneList.innerHTML = '<div class="lane-monitor-loading">Yüklənir…</div>';
+            }
+            if (moveLaneModal instanceof HTMLElement) {
+                moveLaneModal.style.display = "block";
+                moveLaneModal.setAttribute("aria-hidden", "false");
+            }
+            await renderMoveLaneOptions();
+        }
+
+        async function renderMoveLaneOptions() {
+            if (!(moveLaneList instanceof HTMLElement) || !moveLaneSessionId) return;
+            try {
+                const res = await fetch("/dashboard/lanes", { credentials: "same-origin", cache: "no-store" });
+                if (redirectIfPlansetUnauthorized(res)) return;
+                if (!res.ok) {
+                    moveLaneList.innerHTML = '<div class="lane-monitor-loading">Zolaqlar yüklənmədi.</div>';
+                    return;
+                }
+                const lanes = await res.json().catch(() => []);
+                const list = Array.isArray(lanes) ? lanes : [];
+                moveLaneList.innerHTML = "";
+                for (const lane of list) {
+                    const num = Number(lane.laneNumber ?? lane.LaneNumber ?? 0);
+                    if (!Number.isFinite(num) || num < 1 || num > 11) continue;
+                    const status = String(lane.status ?? lane.Status ?? "Idle");
+                    const activated = !!(lane.isSessionActivated ?? lane.IsSessionActivated);
+                    const sessionId = lane.sessionId ?? lane.SessionId ?? null;
+                    const athlete = stripAthletePrefix(lane.athleteName ?? lane.AthleteName ?? "");
+                    const isCurrent = num === moveLaneFromNumber;
+                    const isBusyActive = !isCurrent && status === "Active" && activated && !!sessionId;
+
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "move-lane-option" + (isBusyActive ? " move-lane-option--busy" : "");
+                    btn.disabled = isCurrent || moveLaneBusy;
+
+                    const title = document.createElement("div");
+                    title.className = "move-lane-option__title";
+                    title.textContent = `Zolaq ${num}`;
+                    const meta = document.createElement("div");
+                    meta.className = "move-lane-option__meta";
+                    if (isCurrent) {
+                        meta.textContent = "Cari zolaq";
+                    } else if (isBusyActive) {
+                        meta.textContent = `${athlete || "Müştəri"} · yer dəyiş`;
+                    } else if (status === "Scheduled" && athlete) {
+                        meta.textContent = `Plan: ${athlete}`;
+                    } else {
+                        meta.textContent = "Boş";
+                    }
+                    btn.appendChild(title);
+                    btn.appendChild(meta);
+                    btn.addEventListener("click", () => {
+                        void requestMoveLane(num, isBusyActive);
+                    });
+                    moveLaneList.appendChild(btn);
+                }
+                if (!moveLaneList.children.length) {
+                    moveLaneList.innerHTML = '<div class="lane-monitor-loading">Zolaq tapılmadı.</div>';
+                }
+            } catch {
+                moveLaneList.innerHTML = '<div class="lane-monitor-loading">Zolaqlar yüklənmədi.</div>';
+            }
+        }
+
+        async function requestMoveLane(targetLane, expectSwap) {
+            if (!moveLaneSessionId || moveLaneBusy) return;
+            let allowSwap = false;
+            let allowAmateurOnProLane = false;
+
+            if (expectSwap) {
+                const ok = window.confirm(
+                    `${targetLane} nömrəli zolaq doludur. Yer dəyişdirilsin?`);
+                if (!ok) return;
+                allowSwap = true;
+            }
+
+            const run = async () => {
+                const response = await fetch(`/sessions/${encodeURIComponent(moveLaneSessionId)}/move-lane`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({
+                        laneNumber: targetLane,
+                        allowSwap,
+                        allowAmateurOnProLane
+                    })
+                });
+                if (redirectIfPlansetUnauthorized(response)) return null;
+                const raw = await response.text();
+                let parsed = null;
+                try { parsed = raw ? JSON.parse(raw) : null; } catch { /* ignore */ }
+                return { response, parsed, raw };
+            };
+
+            moveLaneBusy = true;
+            try {
+                let result = await run();
+                if (!result) return;
+
+                if (result.response.status === 409 && result.parsed?.code === "amateur_pro_lane") {
+                    const okAmateur = window.confirm(result.parsed?.error
+                        || "Professional zolağa keçirmək istəyirsiniz?");
+                    if (!okAmateur) return;
+                    allowAmateurOnProLane = true;
+                    result = await run();
+                    if (!result) return;
+                }
+
+                if (result.response.status === 409 && result.parsed?.code === "lane_occupied") {
+                    const okSwap = window.confirm(result.parsed?.error
+                        || `${targetLane} nömrəli zolaq doludur. Yer dəyişdirilsin?`);
+                    if (!okSwap) return;
+                    allowSwap = true;
+                    result = await run();
+                    if (!result) return;
+                }
+
+                if (!result.response.ok) {
+                    showMonitorToast(result.parsed?.error || result.raw || "Zolaq dəyişmədi", "bad");
+                    return;
+                }
+
+                const swapped = !!(result.parsed?.swapped);
+                showMonitorToast(
+                    swapped
+                        ? `Zolaq ${result.parsed?.fromLaneNumber} ↔ ${result.parsed?.toLaneNumber}`
+                        : `Zolaq ${result.parsed?.fromLaneNumber} → ${result.parsed?.toLaneNumber}`,
+                    "ok");
+                closeMoveLaneModal();
+                await loadLaneGrid(true);
+            } catch {
+                showMonitorToast("Zolaq dəyişmədi", "bad");
+            } finally {
+                moveLaneBusy = false;
+            }
+        }
+
         laneGrid?.addEventListener("click", async e => {
             const btn = e.target instanceof HTMLElement ? e.target.closest("[data-action]") : null;
             if (!(btn instanceof HTMLButtonElement)) return;
@@ -1743,14 +2433,42 @@
             if (!sessionId) return;
 
             const action = btn.dataset.action ?? "";
+            if (action === "open-score") {
+                openScoreSheet({
+                    sessionId,
+                    laneNumber,
+                    athleteName: btn.dataset.athleteName ?? "",
+                    totalScore: Number(btn.dataset.totalScore ?? 0),
+                    scoreCount: Number(btn.dataset.scoreCount ?? 0)
+                });
+                return;
+            }
             if (action === "issue-equipment") {
                 await loadEquipmentCatalog();
                 openMonitorEquipModal(sessionId, laneNumber);
                 return;
             }
+            if (action === "change-lane") {
+                await openMoveLaneModal(sessionId, laneNumber, btn.dataset.athleteName ?? "");
+                return;
+            }
             if (action === "return-equipment") {
                 await openMonitorReturnModal(sessionId, laneNumber);
             }
+        });
+
+        scoreDisplayToggle?.addEventListener("click", () => void toggleScoreDisplay());
+        scoreSheetCloseBtn?.addEventListener("click", closeScoreSheet);
+        scoreSheetClearBtn?.addEventListener("click", () => setScoreDraft(""));
+        scoreSheetAddBtn?.addEventListener("click", () => void submitScoreDraft(false));
+        scoreSheetUndoBtn?.addEventListener("click", () => void submitScoreDraft(true));
+        scoreSheetValue?.addEventListener("input", () => {
+            if (scoreSheetValue instanceof HTMLInputElement) {
+                scoreSheetValue.value = normalizeScoreDraft(scoreSheetValue.value);
+            }
+        });
+        scoreSheetModal?.addEventListener("click", e => {
+            if (e.target === scoreSheetModal) closeScoreSheet();
         });
 
         monitorEquipCloseBtn?.addEventListener("click", closeMonitorEquipModal);
@@ -1767,9 +2485,15 @@
         monitorReturnModal?.addEventListener("click", e => {
             if (e.target === monitorReturnModal) closeMonitorReturnModal();
         });
+        moveLaneCloseBtn?.addEventListener("click", closeMoveLaneModal);
+        moveLaneModal?.addEventListener("click", e => {
+            if (e.target === moveLaneModal) closeMoveLaneModal();
+        });
 
         void loadLaneGrid(true);
         void loadPendingEquipmentReturns();
+        void loadScoreDisplayState();
+        syncScoreDisplayToggleUi();
         startCountdownTicker();
         setTimeout(startSignalR, 0);
         setInterval(() => void loadLaneGrid(false), 15000);

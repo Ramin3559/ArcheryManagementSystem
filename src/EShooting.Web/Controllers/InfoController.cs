@@ -113,8 +113,9 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
 
         var lastSessions = sessions
             .Where(x => x.AthleteId == athlete.Id)
+            .Where(x => x.Status is SessionStatus.Active or SessionStatus.Completed)
             .OrderByDescending(x => x.StartTimeUtc)
-            .Take(20)
+            .Take(30)
             .Select(ses =>
             {
                 var startLocal = AzerbaijanTime.UtcToLocalDateTime(ses.StartTimeUtc);
@@ -203,19 +204,29 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .Select(s => AzerbaijanTime.UtcToLocalDate(s.StartTimeUtc))
             .ToList();
 
+        var fixedWeekly = activeSchedules.Where(s => !s.IsFullPackage).ToList();
+        var isUnlimited = activeSchedules.Any(s => s.IsFullPackage);
+        var today = AzerbaijanTime.TodayLocal;
+
         int visited;
-        if (periodFrom is DateTime from && periodTo is DateTime to)
+        if (periodFrom is DateTime from)
         {
-            visited = athleteSessions.Count(d => d >= from && d <= to);
+            // Dövr başlanğıcından indiyə qədər (qalıq gediş üçün bitmə tarixindən sonra da sayılır).
+            visited = athleteSessions.Count(d => d >= from);
         }
         else
         {
             visited = athleteSessions.Count;
         }
 
-        var isUnlimited = activeSchedules.Any(s => s.IsFullPackage);
+        int? visitLimit = null;
         int? remaining = null;
         string remainingLabel;
+        var weeklyDays = fixedWeekly.Select(s => s.DayOfWeek).Distinct().Count();
+        var periodExpired = periodTo is DateTime pto && today > pto;
+        var packageEnded = false;
+        var hasCarryover = false;
+
         if (activeSchedules.Count == 0)
         {
             remainingLabel = "—";
@@ -223,6 +234,15 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         else if (isUnlimited)
         {
             remainingLabel = "Limitsiz";
+        }
+        else if (fixedWeekly.Count > 0 && periodFrom is DateTime pf && periodTo is DateTime pt)
+        {
+            var months = Math.Max(1, ((pt.Year - pf.Year) * 12) + (pt.Month - pf.Month));
+            visitLimit = Math.Max(1, weeklyDays) * 4 * months;
+            remaining = Math.Max(0, visitLimit.Value - visited);
+            remainingLabel = remaining.Value.ToString();
+            packageEnded = remaining.Value <= 0;
+            hasCarryover = periodExpired && remaining.Value > 0;
         }
         else
         {
@@ -235,10 +255,15 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             visited,
             remaining,
             remainingLabel,
+            visitLimit,
+            weeklyDays,
             isUnlimited,
             hasActiveSubscription = activeSchedules.Count > 0,
             periodFromLocal = periodFrom?.ToString("yyyy-MM-dd"),
-            periodToLocal = periodTo?.ToString("yyyy-MM-dd")
+            periodToLocal = periodTo?.ToString("yyyy-MM-dd"),
+            periodExpired,
+            packageEnded,
+            hasCarryover
         };
     }
 

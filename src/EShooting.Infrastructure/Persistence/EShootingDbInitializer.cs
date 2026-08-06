@@ -1221,8 +1221,18 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             backfillFromColumn: null,
             cancellationToken);
         await EnsureAccessProfileBitColumnAsync(
+            "CanChangeLane",
+            "DF_AccessProfiles_CanChangeLane",
+            backfillFromColumn: null,
+            cancellationToken);
+        await EnsureAccessProfileBitColumnAsync(
             "CanDeleteRestoreCustomers",
             "DF_AccessProfiles_CanDeleteRestoreCustomers",
+            backfillFromColumn: null,
+            cancellationToken);
+        await EnsureAccessProfileBitColumnAsync(
+            "CanChangeCustomerPackage",
+            "DF_AccessProfiles_CanChangeCustomerPackage",
             backfillFromColumn: null,
             cancellationToken);
     }
@@ -1284,6 +1294,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 CanReturnEquipment = true,
                 CanViewHistory = true,
                 CanDeleteRestoreCustomers = true,
+                CanChangeCustomerPackage = true,
                 IsActive = true,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
@@ -1314,6 +1325,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 Description = "Planşetə giriş və avadanlıq icarəsi",
                 CanAccessPlanset = true,
                 CanIssueEquipmentRental = true,
+                CanChangeLane = true,
                 CanViewHistory = true,
                 IsActive = true,
                 CreatedAtUtc = now,

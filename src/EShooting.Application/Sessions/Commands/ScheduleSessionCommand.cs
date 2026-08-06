@@ -18,7 +18,8 @@ public sealed record ScheduleSessionCommand(
     IReadOnlyList<SessionEquipmentIssueRequest>? EquipmentIssues = null,
     Guid? IssuedByStaffId = null,
     bool ForceOpenEnded = false,
-    bool ActivateImmediately = false) : IRequest<Guid>;
+    bool ActivateImmediately = false,
+    bool AllowAmateurOnProLane = false) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -68,15 +69,15 @@ public sealed class ScheduleSessionCommandHandler(
         static bool IsShortLane(int number) => number is >= 1 and <= 8;
         static bool IsLongLane(int number) => number is >= 9 and <= 11;
 
-        // Category rules: Amateur can only use short lanes.
+        // Category rules: Amateur → 1–8; fors-major ilə 9–11 icazə verilə bilər.
         if (athlete.Category == CustomerCategory.Amateur && !GymLaneRules.IsGymLane(request.LaneNumber))
         {
-            if (request.LaneNumber > 0 && !IsShortLane(request.LaneNumber))
+            if (request.LaneNumber > 0 && !IsShortLane(request.LaneNumber) && !request.AllowAmateurOnProLane)
             {
                 throw new InvalidOperationException("Həvəskar yalnız 1-8 zolaqlarda ola bilər.");
             }
 
-            if (request.LaneNumber == 0 && request.PreferredLaneType == PreferredLaneType.Long)
+            if (request.LaneNumber == 0 && request.PreferredLaneType == PreferredLaneType.Long && !request.AllowAmateurOnProLane)
             {
                 throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
             }
@@ -154,6 +155,11 @@ public sealed class ScheduleSessionCommandHandler(
         }
 
         var isGymLane = GymLaneRules.IsGymLane(lane.Number);
+        var dayLocal = AzerbaijanTime.UtcToLocalDate(startTimeUtc);
+        var reusePlanned = SubscriptionPlannedSessionConsume.FindOpenSameDayPlanned(
+            allSessions,
+            request.AthleteId,
+            dayLocal);
 
         if (!isGymLane)
         {
@@ -169,7 +175,8 @@ public sealed class ScheduleSessionCommandHandler(
             }
 
             var existingLaneSessions = allSessions
-                .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed);
+                .Where(x => x.LaneId == lane.Id && x.Status != SessionStatus.Completed)
+                .Where(x => reusePlanned is null || x.Id != reusePlanned.Id);
 
             var hasOverlap = existingLaneSessions.Any(x =>
                 LaneReservationRules.OverlapsSession(x, startTimeUtc, requestedEndTimeUtc, nowUtc));
@@ -190,9 +197,13 @@ public sealed class ScheduleSessionCommandHandler(
 
             if (!isOpenEnded)
             {
+                var capacitySessions = reusePlanned is null
+                    ? allSessions
+                    : allSessions.Where(x => x.Id != reusePlanned.Id).ToList();
+
                 if (!LaneReservationRules.HasManualCapacityForSlot(
                         lanes,
-                        allSessions,
+                        capacitySessions,
                         subscriptionSchedules,
                         startTimeUtc,
                         requestedEndTimeUtc,
@@ -218,23 +229,52 @@ public sealed class ScheduleSessionCommandHandler(
         var hasRentalEquipment = equipmentIssues.Any(x => x.IssueType == EquipmentIssueType.Rental);
         var legacyEquipmentFlag = request.IsEquipmentIssued && equipmentIssues.Count == 0;
 
-        var session = new TrainingSession
+        TrainingSession target;
+        if (reusePlanned is not null)
         {
-            AthleteId = request.AthleteId,
-            LaneId = lane.Id,
-            StartTimeUtc = startTimeUtc,
-            EndTimeUtc = requestedEndTimeUtc,
-            Status = SessionStatus.Scheduled,
-            IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
-            EquipmentReturnedAtUtc = null
-        };
+            reusePlanned.LaneId = lane.Id;
+            reusePlanned.StartTimeUtc = startTimeUtc;
+            reusePlanned.EndTimeUtc = requestedEndTimeUtc;
+            reusePlanned.Status = SessionStatus.Scheduled;
+            reusePlanned.IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag;
+            reusePlanned.EquipmentReturnedAtUtc = null;
+            if (request.ActivateImmediately)
+            {
+                SessionActivationRules.MarkActivated(reusePlanned, nowUtc);
+            }
 
-        var created = await repository.AddSessionAsync(session, cancellationToken);
+            await repository.UpdateSessionAsync(reusePlanned, cancellationToken);
+            target = reusePlanned;
 
-        if (request.ActivateImmediately)
+            await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+                repository,
+                allSessions,
+                request.AthleteId,
+                dayLocal,
+                excludeSessionId: target.Id,
+                nowUtc,
+                cancellationToken);
+        }
+        else
         {
-            SessionActivationRules.MarkActivated(created, nowUtc);
-            await repository.UpdateSessionAsync(created, cancellationToken);
+            var session = new TrainingSession
+            {
+                AthleteId = request.AthleteId,
+                LaneId = lane.Id,
+                StartTimeUtc = startTimeUtc,
+                EndTimeUtc = requestedEndTimeUtc,
+                Status = SessionStatus.Scheduled,
+                IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
+                EquipmentReturnedAtUtc = null
+            };
+
+            target = await repository.AddSessionAsync(session, cancellationToken);
+
+            if (request.ActivateImmediately)
+            {
+                SessionActivationRules.MarkActivated(target, nowUtc);
+                await repository.UpdateSessionAsync(target, cancellationToken);
+            }
         }
 
         if (equipmentIssues.Count > 0)
@@ -256,7 +296,7 @@ public sealed class ScheduleSessionCommandHandler(
 
                 issueRows.Add(new SessionEquipmentIssue
                 {
-                    SessionId = created.Id,
+                    SessionId = target.Id,
                     EquipmentItemId = catalogItem.Id,
                     IssueType = issue.IssueType,
                     Quantity = quantity,
@@ -270,6 +310,6 @@ public sealed class ScheduleSessionCommandHandler(
         }
 
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);
-        return created.Id;
+        return target.Id;
     }
 }

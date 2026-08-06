@@ -43,6 +43,9 @@ public sealed class ScheduleSessionRequest
 
     public bool ActivateImmediately { get; set; }
 
+    /// <summary>Fors-major: həvəskar 9–11 zolağa yazıla bilər.</summary>
+    public bool AllowAmateurOnProLane { get; set; }
+
     public bool IsEquipmentIssued { get; set; }
 
     public List<SessionEquipmentIssueDto> EquipmentIssues { get; set; } = [];

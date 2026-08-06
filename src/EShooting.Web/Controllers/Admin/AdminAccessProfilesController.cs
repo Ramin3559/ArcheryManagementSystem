@@ -96,8 +96,10 @@ public sealed class AdminAccessProfilesController(IMediator mediator) : Controll
                 model.CanReturnEquipment,
                 model.CanAccessPlanset,
                 model.CanIssueEquipmentRental,
+                model.CanChangeLane,
                 model.CanViewHistory,
                 model.CanDeleteRestoreCustomers,
+                model.CanChangeCustomerPackage,
                 model.IsActive), cancellationToken);
 
             TempData["AccessProfileNotice"] = model.Id is null
@@ -126,8 +128,10 @@ public sealed class AdminAccessProfilesController(IMediator mediator) : Controll
         model.CanReturnEquipment = Request.Form.ContainsKey("CanReturnEquipment");
         model.CanAccessPlanset = Request.Form.ContainsKey("CanAccessPlanset");
         model.CanIssueEquipmentRental = Request.Form.ContainsKey("CanIssueEquipmentRental");
+        model.CanChangeLane = Request.Form.ContainsKey("CanChangeLane");
         model.CanViewHistory = Request.Form.ContainsKey("CanViewHistory");
         model.CanDeleteRestoreCustomers = Request.Form.ContainsKey("CanDeleteRestoreCustomers");
+        model.CanChangeCustomerPackage = Request.Form.ContainsKey("CanChangeCustomerPackage");
     }
 
     private static AccessProfileFormModel MapToForm(AccessProfileItem item) => new()
@@ -147,8 +151,10 @@ public sealed class AdminAccessProfilesController(IMediator mediator) : Controll
         CanReturnEquipment = item.CanReturnEquipment,
         CanAccessPlanset = item.CanAccessPlanset,
         CanIssueEquipmentRental = item.CanIssueEquipmentRental,
+        CanChangeLane = item.CanChangeLane,
         CanViewHistory = item.CanViewHistory,
         CanDeleteRestoreCustomers = item.CanDeleteRestoreCustomers,
+        CanChangeCustomerPackage = item.CanChangeCustomerPackage,
         IsActive = item.IsActive
     };
 }

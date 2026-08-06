@@ -7,7 +7,7 @@ public static class CustomerDisplayHelper
     public static string FormatCategory(CustomerCategory category) => category switch
     {
         CustomerCategory.Amateur => "Həvəskar",
-        CustomerCategory.Professional => "Professional",
+        CustomerCategory.Professional => "Peşəkar",
         CustomerCategory.Coach => "Məşqçi",
         _ => category.ToString()
     };

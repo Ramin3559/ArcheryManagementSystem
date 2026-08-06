@@ -768,8 +768,10 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.CanReturnEquipment = profile.CanReturnEquipment;
         existing.CanAccessPlanset = profile.CanAccessPlanset;
         existing.CanIssueEquipmentRental = profile.CanIssueEquipmentRental;
+        existing.CanChangeLane = profile.CanChangeLane;
         existing.CanViewHistory = profile.CanViewHistory;
         existing.CanDeleteRestoreCustomers = profile.CanDeleteRestoreCustomers;
+        existing.CanChangeCustomerPackage = profile.CanChangeCustomerPackage;
         existing.IsActive = profile.IsActive;
         existing.IsDeleted = profile.IsDeleted;
         existing.UpdatedAtUtc = profile.UpdatedAtUtc;

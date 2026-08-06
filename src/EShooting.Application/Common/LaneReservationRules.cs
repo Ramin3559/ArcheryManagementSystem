@@ -232,11 +232,12 @@ public static class LaneReservationRules
         IReadOnlyCollection<Lane> lanes,
         PreferredLaneType preferred)
     {
+        var shooting = lanes.Where(x => !GymLaneRules.IsGymLane(x.Number)).ToList();
         return preferred switch
         {
-            PreferredLaneType.Short => lanes.Where(x => x.Number is >= 1 and <= 8).ToList(),
-            PreferredLaneType.Long => lanes.Where(x => x.Number is >= 9 and <= 11).ToList(),
-            _ => lanes.ToList()
+            PreferredLaneType.Short => shooting.Where(x => x.Number is >= 1 and <= 8).ToList(),
+            PreferredLaneType.Long => shooting.Where(x => x.Number is >= 9 and <= 11).ToList(),
+            _ => shooting
         };
     }
 

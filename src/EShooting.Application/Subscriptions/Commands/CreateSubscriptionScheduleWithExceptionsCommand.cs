@@ -68,11 +68,12 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
                 "Seçilmiş həftə günü/saat üçün abunə müddətində cari vaxtdan sonra keçərli tarix qalmayıb.");
         }
 
-        if (request.LaneNumber is < 0 or > 11)
+        if (!GymLaneRules.IsValidScheduleLaneNumber(request.LaneNumber))
         {
-            throw new InvalidOperationException("LaneNumber must be between 0 and 11.");
+            throw new InvalidOperationException("LaneNumber must be between 0 and 11, or 12 (Trenajor).");
         }
 
+        var isGymLane = GymLaneRules.IsGymLane(request.LaneNumber);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var athlete = request.AthleteId is not null
             ? athletes.FirstOrDefault(x => x.Id == request.AthleteId.Value)
@@ -83,15 +84,16 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             throw new InvalidOperationException("Athlete must be registered first.");
         }
 
-        if (athlete.Category == CustomerCategory.Amateur)
+        var preferred = SubscriptionPoolCapacity.NormalizeForAthlete(athlete.Category, request.PreferredLaneType);
+        if (!isGymLane && athlete.Category == CustomerCategory.Amateur)
         {
             if (request.LaneNumber >= 9)
             {
                 throw new InvalidOperationException("Həvəskar yalnız 1-8 zolaqlarda ola bilər.");
             }
-            if (request.PreferredLaneType == PreferredLaneType.Long)
+            if (preferred == PreferredLaneType.Long)
             {
-                throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
+                throw new InvalidOperationException("Həvəskar üçün yalnız 1–8 zolaqlar mümkündür.");
             }
         }
 
@@ -101,7 +103,6 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             await repository.UpdateAthleteAsync(athlete, cancellationToken);
         }
 
-        // Prevent duplicates for the same athlete/day/time/lane while enabled.
         var existingSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
         var dup = existingSchedules.FirstOrDefault(s =>
             s.IsEnabled
@@ -115,20 +116,15 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
         }
 
         var baseLaneNumber = request.LaneNumber;
-        if (baseLaneNumber <= 0)
-        {
-            throw new InvalidOperationException("İstisna redaktəsi üçün konkret zolaq seçilməlidir.");
-        }
-
+        var usePool = baseLaneNumber <= 0;
         var lanes = await repository.GetLanesAsync(cancellationToken);
-        var sessions = await repository.GetSessionsAsync(cancellationToken);
+        var sessions = (await repository.GetSessionsAsync(cancellationToken)).ToList();
         var nowUtc = DateTime.UtcNow;
 
         var overridesByDate = (request.Overrides ?? Array.Empty<ScheduleExceptionOverride>())
             .GroupBy(x => x.DateLocal.Date)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.DateLocal).First());
 
-        // Validate overrides
         foreach (var ov in overridesByDate.Values)
         {
             if (ov.DateLocal.Date < request.ActiveFromDateLocal.Date || ov.DateLocal.Date > request.ActiveToDateLocal.Date)
@@ -139,17 +135,21 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             {
                 throw new InvalidOperationException("İstisna tarixi seçilmiş həftə gününə uyğun deyil.");
             }
-            if (ov.LaneNumber is < 1 or > 11)
+            if (!GymLaneRules.IsValidScheduleLaneNumber(ov.LaneNumber))
             {
                 throw new InvalidOperationException("İstisna üçün zolaq nömrəsi yanlışdır.");
             }
-            if (athlete.Category == CustomerCategory.Amateur && ov.LaneNumber >= 9)
+            if (!usePool && ov.LaneNumber <= 0)
+            {
+                throw new InvalidOperationException("İstisna üçün zolaq seçilməlidir.");
+            }
+            if (!isGymLane && !GymLaneRules.IsGymLane(ov.LaneNumber)
+                && athlete.Category == CustomerCategory.Amateur && ov.LaneNumber >= 9)
             {
                 throw new InvalidOperationException("Həvəskar istisnada da yalnız 1-8 zolaqlarda ola bilər.");
             }
         }
 
-        // Validate ALL occurrence slots before creating the schedule (no orphan on mid-loop failure).
         var from = firstOccurrence;
         var to = request.ActiveToDateLocal.Date;
         for (var day = from; day <= to; day = day.AddDays(1))
@@ -161,18 +161,39 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             var startTimeLocal = ov?.StartTimeLocal ?? request.StartTimeLocal;
             if (SubscriptionOccurrenceRules.IsSlotInThePast(day, startTimeLocal, nowLocal)) continue;
 
-            if (SubscriptionSlotConflict.IsLaneSlotBusy(
-                    sessions,
+            if (usePool && laneNumber <= 0)
+            {
+                var snapshot = SubscriptionPoolCapacity.CountForSlot(
                     existingSchedules,
-                    lanes,
-                    laneNumber,
                     day,
                     startTimeLocal,
-                    request.DurationMinutes,
-                    nowUtc))
+                    request.DurationMinutes);
+                if (!snapshot.CanFit(preferred))
+                {
+                    var label = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
+                }
+            }
+            else if (laneNumber > 0)
             {
-                var label = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
+                if (!GymLaneRules.IsGymLane(laneNumber)
+                    && SubscriptionSlotConflict.IsLaneSlotBusy(
+                        sessions,
+                        existingSchedules,
+                        lanes,
+                        laneNumber,
+                        day,
+                        startTimeLocal,
+                        request.DurationMinutes,
+                        nowUtc))
+                {
+                    var label = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    throw new InvalidOperationException($"KONFLIKT_HƏLL_OLUNMAYIB:{label}");
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException("İstisna üçün zolaq seçilməlidir.");
             }
         }
 
@@ -183,7 +204,7 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
                 {
                     DateLocal = ov.DateLocal.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     StartTimeLocal = $"{ov.StartTimeLocal.Hours:D2}:{ov.StartTimeLocal.Minutes:D2}",
-                    LaneNumber = ov.LaneNumber,
+                    LaneNumber = ov.LaneNumber > 0 ? ov.LaneNumber : null,
                     DurationMinutes = request.DurationMinutes
                 }));
 
@@ -197,14 +218,19 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             ActiveFromDateLocal = firstOccurrence,
             ActiveToDateLocal = request.ActiveToDateLocal.Date,
             IsEnabled = true,
-            PreferredLaneType = request.PreferredLaneType,
+            PreferredLaneType = preferred,
             IsFullPackage = false,
             OccurrenceOverridesJson = overridesJson
         };
 
         var createdSchedule = await repository.AddSubscriptionScheduleAsync(schedule, cancellationToken);
 
-        // Create sessions for every occurrence, applying overrides.
+        // Pool rejimində konkret zolaq Başlat-da seçilir — seansları sync yaradacaq.
+        if (usePool)
+        {
+            return createdSchedule.Id;
+        }
+
         for (var day = from; day <= to; day = day.AddDays(1))
         {
             if ((int)day.DayOfWeek != request.DayOfWeek) continue;
@@ -221,7 +247,6 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
                 throw new InvalidOperationException($"Zolaq {laneNumber} tapılmadı.");
             }
 
-            // Defensive re-check after schedule insert (exclude self).
             if (SubscriptionSlotConflict.IsLaneSlotBusy(
                     sessions,
                     existingSchedules,
@@ -241,7 +266,7 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
             var startUtc = AzerbaijanTime.NormalizeScheduleInputToUtc(slotLocal);
             var endUtc = startUtc.AddMinutes(request.DurationMinutes);
 
-            await repository.AddSessionAsync(new TrainingSession
+            var createdSession = await repository.AddSessionAsync(new TrainingSession
             {
                 AthleteId = athlete.Id,
                 LaneId = lane.Id,
@@ -250,6 +275,7 @@ public sealed class CreateSubscriptionScheduleWithExceptionsCommandHandler(ITrai
                 EndTimeUtc = endUtc,
                 Status = SessionStatus.Scheduled
             }, cancellationToken);
+            sessions.Add(createdSession);
         }
 
         return createdSchedule.Id;
