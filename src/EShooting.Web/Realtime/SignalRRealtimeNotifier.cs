@@ -26,4 +26,9 @@ public sealed class SignalRRealtimeNotifier(IHubContext<LaneHub> hubContext) : I
             TotalScore = totalScore
         }, cancellationToken);
     }
+
+    public async Task PublishPackagesChangedAsync(CancellationToken cancellationToken)
+    {
+        await hubContext.Clients.All.SendAsync("packages-changed", cancellationToken);
+    }
 }

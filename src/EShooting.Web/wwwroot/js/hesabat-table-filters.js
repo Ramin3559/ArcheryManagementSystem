@@ -142,11 +142,14 @@
         const colCount = rows[0].cells.length;
         const sumTr = document.createElement("tr");
         sumTr.className = "hesabat-sum-row daily-total-row";
+        const labelCol = sumCols.length ? Math.max(0, Math.min.apply(null, sumCols) - 1) : 0;
 
         for (let c = 0; c < colCount; c++) {
             const td = document.createElement("td");
-            if (c === 0) {
+            if (c === labelCol) {
                 td.textContent = "Cəmi";
+                td.style.textAlign = "right";
+                td.style.fontWeight = "800";
             } else if (sumCols.indexOf(c) >= 0) {
                 let total = 0;
                 let isDecimal = false;

@@ -348,6 +348,21 @@
             min-height: 38px;
             padding: 8px 14px;
             font-size: 13px;
+            border-radius: 10px;
+        }
+
+        .btn-info-days-toggle {
+            border: 1px solid rgba(26, 38, 80, 0.28);
+            background: rgba(26, 38, 80, 0.10);
+            color: #1a2650;
+            font-weight: 800;
+            box-shadow: 0 1px 0 rgba(26, 38, 80, 0.06);
+        }
+
+        .btn-info-days-toggle:hover {
+            border-color: rgba(26, 38, 80, 0.42);
+            background: rgba(26, 38, 80, 0.16);
+            color: #121a38;
         }
 
         .stats {
@@ -1849,7 +1864,7 @@
         <div id="infoPackagesSummary" style="margin-top:10px; display:none; font-size:13px; color:#4a5a78; line-height:1.45;"></div>
         <div id="infoDaysToolbar" style="display:none; margin-top:12px; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
             <span id="infoDaysTitle" style="font-weight:900; color:#1a2650; font-size:14px;">Planlaşdırılan Günlər</span>
-            <button type="button" id="infoDaysToggleBtn" class="btn btn-ghost btn-sm">Gəldiyi günlər</button>
+            <button type="button" id="infoDaysToggleBtn" class="btn btn-sm btn-info-days-toggle">Gəldiyi günlər</button>
         </div>
         <div class="table-wrap" style="margin-top:8px; max-height:280px; overflow-y:auto; display:none;" id="infoTableWrap">
             <table class="subscription-table">
@@ -8586,6 +8601,7 @@
     let receptionRefreshTimerId = null;
     let lastReceptionRefreshAt = 0;
     const RECEPTION_REFRESH_GAP_MS = 300;
+    let bookingPackagesReloadTimerId = null;
 
     function scheduleReceptionRefresh(includeExtras) {
         if (receptionRefreshTimerId) {
@@ -8602,6 +8618,17 @@
                 console.error("scheduleReceptionRefresh", e);
             }
         }, wait);
+    }
+
+    /** Yalnız paket select — forma sahələrinə toxunmur. */
+    function scheduleBookingPackagesReload() {
+        if (bookingPackagesReloadTimerId) {
+            clearTimeout(bookingPackagesReloadTimerId);
+        }
+        bookingPackagesReloadTimerId = setTimeout(() => {
+            bookingPackagesReloadTimerId = null;
+            void loadBookingPackages();
+        }, 250);
     }
 
     let dashboardPartialsInFlight = false;
@@ -10197,6 +10224,8 @@
             connection.onreconnected(() => {
                 signalrConnectAttempts = 0;
                 setConnectionIndicator("active");
+                // Qoşulma bərpa olanda paket siyahısını ehtiyatla təzələ.
+                scheduleBookingPackagesReload();
             });
             connection.onclose(() => {
                 setConnectionIndicator("pending", "Yenidən qoşulur...");
@@ -10204,6 +10233,8 @@
             });
             connection.on("lane-updated", () => scheduleReceptionRefresh(false));
             connection.on("score-updated", () => scheduleReceptionRefresh(false));
+            // Yalnız paket siyahısı — forma sahələrinə toxunmur.
+            connection.on("packages-changed", () => scheduleBookingPackagesReload());
         }
 
         try {

@@ -1,6 +1,7 @@
 using EShooting.Application.Packages;
 using EShooting.Application.Packages.Commands;
 using EShooting.Application.Packages.Queries;
+using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Enums;
 using EShooting.Web.Contracts.Packages;
 using EShooting.Web.Auth;
@@ -14,7 +15,7 @@ namespace EShooting.Web.Controllers.Admin;
 [Authorize(Policy = AdminAuthDefaults.Policy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("admin/packages")]
-public sealed class AdminPackagesController(IMediator mediator) : Controller
+public sealed class AdminPackagesController(IMediator mediator, IRealtimeNotifier realtimeNotifier) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -85,6 +86,7 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
         try
         {
             await mediator.Send(new SetServicePackageActiveCommand(id, !item.IsActive), cancellationToken);
+            await realtimeNotifier.PublishPackagesChangedAsync(cancellationToken);
             TempData["PackageNotice"] = item.IsActive
                 ? "Paket deaktiv edildi — resepsiya siyahısında görünməyəcək."
                 : "Paket yenidən aktiv edildi.";
@@ -108,6 +110,7 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
         }
 
         await mediator.Send(new SetServicePackageDeletedCommand(id, true), cancellationToken);
+        await realtimeNotifier.PublishPackagesChangedAsync(cancellationToken);
         TempData["PackageNotice"] = "Silindi.";
         return RedirectToAction(nameof(Index));
     }
@@ -229,6 +232,8 @@ public sealed class AdminPackagesController(IMediator mediator) : Controller
                 validity,
                 unlimitedGym,
                 model.IsActive), cancellationToken);
+
+            await realtimeNotifier.PublishPackagesChangedAsync(cancellationToken);
 
             TempData["PackageNotice"] = model.Id is null
                 ? "Paket yaradıldı."

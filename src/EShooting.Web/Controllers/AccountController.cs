@@ -102,25 +102,32 @@ public sealed class AccountController(
     [ValidateAntiForgeryToken]
     public IActionResult ChangePassword(
         string currentPassword,
-        string newPassword,
-        string confirmPassword,
+        string? newUserName,
+        string? newPassword,
+        string? confirmPassword,
         string? returnUrl)
     {
-        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        var hasNewPassword = !string.IsNullOrWhiteSpace(newPassword);
+        if (hasNewPassword && !string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
         {
             ModelState.AddModelError(string.Empty, "Yeni şifrələr uyğun gəlmir.");
             ViewData["ReturnUrl"] = returnUrl;
             return View(nameof(Login));
         }
 
-        if (!adminCredentials.TryChangePassword(currentPassword, newPassword, out var error))
+        if (!adminCredentials.TryChangeCredentials(currentPassword, newUserName, newPassword, out var error))
         {
-            ModelState.AddModelError(string.Empty, error ?? "Parol dəyişdirilmədi.");
+            ModelState.AddModelError(string.Empty, error ?? "Giriş məlumatları dəyişdirilmədi.");
             ViewData["ReturnUrl"] = returnUrl;
             return View(nameof(Login));
         }
 
-        TempData["PasswordChanged"] = "Parol uğurla dəyişdirildi. Yeni şifrə ilə daxil ola bilərsiniz.";
+        var changedUser = !string.IsNullOrWhiteSpace(newUserName);
+        TempData["PasswordChanged"] = changedUser && hasNewPassword
+            ? "İstifadəçi adı və parol uğurla dəyişdirildi. Yeni məlumatlarla daxil ola bilərsiniz."
+            : changedUser
+                ? "İstifadəçi adı uğurla dəyişdirildi. Yeni adla daxil ola bilərsiniz."
+                : "Parol uğurla dəyişdirildi. Yeni şifrə ilə daxil ola bilərsiniz.";
         return RedirectToAction(nameof(Login), new { returnUrl });
     }
 

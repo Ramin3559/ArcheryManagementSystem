@@ -640,7 +640,9 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = "Köhnə tarix: " + sourceErr });
         }
 
-        var targetErr = ValidateOccurrenceDateInPeriod(schedule, targetDate);
+        // Target may land on a different weekday (reception day-swap). ActiveFrom is the first
+        // occurrence of THIS weekday, so the package can legitimately start up to 6 days earlier.
+        var targetErr = ValidateOccurrenceTargetDateInPeriod(schedule, targetDate);
         if (targetErr is not null)
         {
             return BadRequest(new { error = "Yeni tarix: " + targetErr });
@@ -799,6 +801,23 @@ public sealed class SubscriptionsController(
     {
         var d = date.Date;
         if (d < schedule.ActiveFromDateLocal.Date || d > schedule.ActiveToDateLocal.Date)
+        {
+            return "Tarix abunə aralığının xaricindədir.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reschedule target: package period may start before this schedule's first weekday occurrence.
+    /// </summary>
+    private static string? ValidateOccurrenceTargetDateInPeriod(SubscriptionSchedule schedule, DateTime date)
+    {
+        var d = date.Date;
+        var latest = schedule.ActiveToDateLocal.Date;
+        // ActiveFrom = first occurrence of schedule weekday; period start can be up to 6 days earlier.
+        var earliest = schedule.ActiveFromDateLocal.Date.AddDays(-6);
+        if (d < earliest || d > latest)
         {
             return "Tarix abunə aralığının xaricindədir.";
         }

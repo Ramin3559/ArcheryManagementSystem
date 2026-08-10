@@ -6,18 +6,12 @@ namespace EShooting.Web.Realtime;
 
 public sealed class SignalRRealtimeNotifier(IHubContext<LaneHub> hubContext) : IRealtimeNotifier
 {
-    /// <summary>
-    /// Lane veziyyeti yenileme event-ini butun klientlere gonderir.
-    /// </summary>
     public async Task PublishLaneUpdateAsync(int laneNumber, CancellationToken cancellationToken)
     {
         await hubContext.Clients.All
             .SendAsync("lane-updated", laneNumber, cancellationToken);
     }
 
-    /// <summary>
-    /// Sessiya uzre umumi xal yenilemesini butun klientlere gonderir.
-    /// </summary>
     public async Task PublishScoreUpdateAsync(Guid sessionId, int totalScore, CancellationToken cancellationToken)
     {
         await hubContext.Clients.All.SendAsync("score-updated", new
@@ -25,5 +19,10 @@ public sealed class SignalRRealtimeNotifier(IHubContext<LaneHub> hubContext) : I
             SessionId = sessionId,
             TotalScore = totalScore
         }, cancellationToken);
+    }
+
+    public async Task PublishPackagesChangedAsync(CancellationToken cancellationToken)
+    {
+        await hubContext.Clients.All.SendAsync("packages-changed", cancellationToken);
     }
 }

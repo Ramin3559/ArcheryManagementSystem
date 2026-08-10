@@ -61,7 +61,6 @@ public static class AdminAnalyticsExcelExporter
 
         var tableRows = new (string Label, object Lane, object Sale, object Total)[]
         {
-            ("Seans / satış (ədəd)", data.SessionCount, data.StandaloneEquipmentSaleCount, "—"),
             ("Ödənilməli (₼)", data.PackagePriceDue, data.StandaloneEquipmentSaleDue, data.TotalPriceDue),
             ("Nağd (₼)", data.PackagePaidCash, data.StandaloneEquipmentPaidCash, data.TotalPaidCash),
             ("Kart (₼)", data.PackagePaidCard, data.StandaloneEquipmentPaidCard, data.TotalPaidCard),
@@ -79,7 +78,7 @@ public static class AdminAnalyticsExcelExporter
         }
 
         StyleHeader(ws.Range(4, 1, 4, headers.Length));
-        StyleHeader(ws.Range(rowIdx - 1, 1, rowIdx - 1, headers.Length), bold: true);
+        StyleTotalRow(ws.Range(rowIdx - 1, 1, rowIdx - 1, headers.Length));
         ws.Columns().AdjustToContents();
     }
 
@@ -176,7 +175,8 @@ public static class AdminAnalyticsExcelExporter
             ws.Cell(rowIdx, 17).Value = data.DailyTotals.TotalPaidCard;
             ws.Cell(rowIdx, 18).Value = data.DailyTotals.TotalPaid;
             ws.Cell(rowIdx, 19).Value = data.DailyTotals.LaneHoursTotal;
-            ws.Range(rowIdx, 1, rowIdx, headers.Length).Style.Font.Bold = true;
+            StyleTotalRow(ws.Range(rowIdx, 1, rowIdx, headers.Length));
+            ws.Cell(rowIdx, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
         }
 
         StyleHeader(ws.Range(3, 1, 3, headers.Length));
@@ -283,13 +283,12 @@ public static class AdminAnalyticsExcelExporter
         else
         {
             var sumRow = rowIdx;
-            ws.Cell(sumRow, 1).Value = "Cəmi";
             ws.Cell(sumRow, 7).Value = data.EquipmentSaleDetails.Sum(x => x.SoldQuantity);
             ws.Cell(sumRow, 9).Value = data.EquipmentSaleDetails.Sum(x => x.LineTotal);
             ws.Cell(sumRow, 10).Value = data.EquipmentSaleDetails.Sum(x => x.DiscountAmount);
             ws.Cell(sumRow, 11).Value = data.EquipmentSaleDetails.Sum(x => x.PaidCash);
             ws.Cell(sumRow, 12).Value = data.EquipmentSaleDetails.Sum(x => x.PaidCard);
-            ws.Range(sumRow, 1, sumRow, headers.Length).Style.Font.Bold = true;
+            ApplyMergedCemiLabel(ws, sumRow, totalCols: headers.Length);
         }
 
         StyleHeader(ws.Range(3, 1, 3, headers.Length));
@@ -341,14 +340,13 @@ public static class AdminAnalyticsExcelExporter
         else
         {
             var sumRow = rowIdx;
-            ws.Cell(sumRow, 1).Value = "Cəmi";
             ws.Cell(sumRow, 7).Value = data.CustomerVisitDetails.Sum(x => x.PriceDue);
             ws.Cell(sumRow, 8).Value = data.CustomerVisitDetails.Sum(x => x.EquipmentAmount);
             ws.Cell(sumRow, 9).Value = data.CustomerVisitDetails.Sum(x => x.DiscountAmount);
             ws.Cell(sumRow, 10).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaidCash);
             ws.Cell(sumRow, 11).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaidCard);
             ws.Cell(sumRow, 12).Value = data.CustomerVisitDetails.Sum(x => x.AmountPaid);
-            ws.Range(sumRow, 1, sumRow, headers.Length).Style.Font.Bold = true;
+            ApplyMergedCemiLabel(ws, sumRow, totalCols: headers.Length);
         }
 
         StyleHeader(ws.Range(3, 1, 3, headers.Length));
@@ -364,6 +362,113 @@ public static class AdminAnalyticsExcelExporter
         }
 
         range.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F5E9");
+    }
+
+    private static void StyleTotalRow(IXLRange range)
+    {
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontSize = 13;
+        range.Style.Font.FontColor = XLColor.Black;
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#D0D0D0");
+    }
+
+    /// <summary>
+    /// In the total row only: merge every cell from col 1 up to (but not including)
+    /// the first real value, put "Cəmi" right-aligned in that merged cell.
+    /// </summary>
+    private static void ApplyMergedCemiLabel(IXLWorksheet ws, int row, int totalCols)
+    {
+        if (totalCols < 1)
+        {
+            return;
+        }
+
+        var firstValueCol = FindFirstValueColumn(ws, row, totalCols);
+        var labelThroughCol = firstValueCol > 1 ? firstValueCol - 1 : 1;
+
+        // Unmerge anything already spanning this row (safe even if none).
+        foreach (var merged in ws.MergedRanges
+                     .Where(r => r.FirstRow().RowNumber() <= row && r.LastRow().RowNumber() >= row)
+                     .ToList())
+        {
+            merged.Unmerge();
+        }
+
+        // Clear only this row's label area (does not touch rows above).
+        for (var c = 1; c <= labelThroughCol; c++)
+        {
+            ws.Cell(row, c).Clear();
+        }
+
+        if (labelThroughCol > 1)
+        {
+            ws.Range(row, 1, row, labelThroughCol).Merge();
+        }
+
+        var labelCell = ws.Cell(row, 1);
+        labelCell.Value = "Cəmi";
+
+        StyleTotalRow(ws.Range(row, 1, row, totalCols));
+        labelCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        labelCell.Style.Font.Bold = true;
+        labelCell.Style.Font.FontSize = 13;
+        labelCell.Style.Font.FontColor = XLColor.Black;
+    }
+
+    private static int FindFirstValueColumn(IXLWorksheet ws, int row, int totalCols)
+    {
+        for (var c = 1; c <= totalCols; c++)
+        {
+            var cell = ws.Cell(row, c);
+            if (cell.IsEmpty())
+            {
+                continue;
+            }
+
+            var text = cell.GetFormattedString().Trim();
+            if (string.IsNullOrEmpty(text)
+                || text.Equals("Cəmi", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return c;
+        }
+
+        return totalCols + 1;
+    }
+
+    private static int FindFirstValueColumn(IReadOnlyList<string> row)
+    {
+        for (var i = 0; i < row.Count; i++)
+        {
+            var t = (row[i] ?? "").Trim();
+            if (string.IsNullOrEmpty(t)
+                || t.Equals("Cəmi", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return i + 1; // 1-based
+        }
+
+        return row.Count + 1;
+    }
+
+    private static bool IsTotalLabelRow(IReadOnlyList<string> row)
+    {
+        foreach (var cell in row)
+        {
+            var t = (cell ?? "").Trim();
+            if (t.Equals("Cəmi", StringComparison.OrdinalIgnoreCase)
+                || t.StartsWith("Gəlir", StringComparison.OrdinalIgnoreCase)
+                || t.Contains("ödənilib", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static byte[] ExportGrid(
@@ -389,16 +494,51 @@ public static class AdminAnalyticsExcelExporter
         }
 
         var rowIdx = headerRow + 1;
+        var lastDataRowIdx = -1;
         foreach (var row in rows)
         {
             for (var c = 0; c < headers.Count; c++)
             {
-                ws.Cell(rowIdx, c + 1).Value = c < row.Count ? row[c] : "";
+                var raw = c < row.Count ? row[c] : "";
+                // Prefer numeric cells so totals stay numbers in Excel.
+                if (double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var num)
+                    && !string.Equals(raw.Trim(), "Cəmi", StringComparison.OrdinalIgnoreCase))
+                {
+                    ws.Cell(rowIdx, c + 1).Value = num;
+                }
+                else
+                {
+                    ws.Cell(rowIdx, c + 1).Value = raw;
+                }
             }
+            lastDataRowIdx = rowIdx;
             rowIdx++;
         }
 
         StyleHeader(ws.Range(headerRow, 1, headerRow, headers.Count));
+
+        if (rows.Count > 0 && lastDataRowIdx > 0 && IsTotalLabelRow(rows[^1]))
+        {
+            var last = rows[^1];
+            if (last.Any(c => string.Equals((c ?? "").Trim(), "Cəmi", StringComparison.OrdinalIgnoreCase)))
+            {
+                // Ensure label area is blank before auto-merge (Cəmi may sit in any label col).
+                var firstValueCol = FindFirstValueColumn(last);
+                var through = firstValueCol > 1 ? firstValueCol - 1 : 1;
+                for (var c = 1; c <= through; c++)
+                {
+                    ws.Cell(lastDataRowIdx, c).Clear();
+                }
+
+                ApplyMergedCemiLabel(ws, lastDataRowIdx, headers.Count);
+            }
+            else
+            {
+                StyleTotalRow(ws.Range(lastDataRowIdx, 1, lastDataRowIdx, headers.Count));
+            }
+        }
+
         ws.Columns().AdjustToContents();
         ws.SheetView.FreezeRows(headerRow);
 

@@ -10,6 +10,12 @@ public interface IAdminCredentialStore
     bool TryValidate(string userName, string password);
 
     bool TryChangePassword(string currentPassword, string newPassword, out string? error);
+
+    bool TryChangeCredentials(
+        string currentPassword,
+        string? newUserName,
+        string? newPassword,
+        out string? error);
 }
 
 public sealed class AdminCredentialStore : IAdminCredentialStore
@@ -43,16 +49,32 @@ public sealed class AdminCredentialStore : IAdminCredentialStore
             && string.Equals(password, creds.Password, StringComparison.Ordinal);
     }
 
-    public bool TryChangePassword(string currentPassword, string newPassword, out string? error)
+    public bool TryChangePassword(string currentPassword, string newPassword, out string? error) =>
+        TryChangeCredentials(currentPassword, newUserName: null, newPassword, out error);
+
+    public bool TryChangeCredentials(
+        string currentPassword,
+        string? newUserName,
+        string? newPassword,
+        out string? error)
     {
         error = null;
-        if (string.IsNullOrWhiteSpace(newPassword))
+        var userNameTrimmed = string.IsNullOrWhiteSpace(newUserName) ? null : newUserName.Trim();
+        var passwordTrimmed = string.IsNullOrWhiteSpace(newPassword) ? null : newPassword;
+
+        if (userNameTrimmed is null && passwordTrimmed is null)
         {
-            error = "Yeni şifrə boş ola bilməz.";
+            error = "Yeni istifadəçi adı və ya yeni şifrə daxil edin.";
             return false;
         }
 
-        if (newPassword.Length < 6)
+        if (userNameTrimmed is not null && userNameTrimmed.Length < 3)
+        {
+            error = "İstifadəçi adı ən azı 3 simvol olmalıdır.";
+            return false;
+        }
+
+        if (passwordTrimmed is not null && passwordTrimmed.Length < 6)
         {
             error = "Yeni şifrə ən azı 6 simvol olmalıdır.";
             return false;
@@ -67,7 +89,16 @@ public sealed class AdminCredentialStore : IAdminCredentialStore
                 return false;
             }
 
-            creds.Password = newPassword;
+            if (userNameTrimmed is not null)
+            {
+                creds.UserName = userNameTrimmed;
+            }
+
+            if (passwordTrimmed is not null)
+            {
+                creds.Password = passwordTrimmed;
+            }
+
             SaveLocked(creds);
             return true;
         }

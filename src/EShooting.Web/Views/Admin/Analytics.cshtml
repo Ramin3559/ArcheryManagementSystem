@@ -249,8 +249,6 @@
             </thead>
             <tbody id="financeSummaryBody">
                 @{
-                    var finSession = a?.SessionCount ?? 0;
-                    var finSaleCount = a?.StandaloneEquipmentSaleCount ?? 0;
                     var finPkgDue = a?.PackagePriceDue ?? 0m;
                     var finSaleDue = a?.StandaloneEquipmentSaleDue ?? 0m;
                     var finTotalDue = a?.TotalPriceDue ?? 0m;
@@ -264,12 +262,6 @@
                     var finSalePaid = a?.StandaloneEquipmentPaidTotal ?? 0m;
                     var finTotalPaid = a?.TotalPaid ?? 0m;
                 }
-                <tr>
-                    <td>Seans / satış (ədəd)</td>
-                    <td>@finSession</td>
-                    <td>@finSaleCount</td>
-                    <td>—</td>
-                </tr>
                 <tr>
                     <td>Ödənilməli (₼)</td>
                     <td>@finPkgDue.ToString("0.00")</td>
@@ -346,8 +338,8 @@
                     }
                     var cv = visitRows.ToList();
                     <tr class="daily-total-row hesabat-sum-row">
-                        <td>Cəmi</td>
                         <td colspan="5"></td>
+                        <td style="text-align:right; font-weight:800;">Cəmi</td>
                         <td>@cv.Sum(x => x.PriceDue).ToString("0.00")</td>
                         <td>@cv.Sum(x => x.EquipmentAmount).ToString("0.00")</td>
                         <td>@cv.Sum(x => x.DiscountAmount).ToString("0.00")</td>
@@ -719,7 +711,6 @@
             const body = document.getElementById("financeSummaryBody");
             if (!body || !data) return;
             const rows = [
-                ["Seans / satış (ədəd)", data.sessionCount ?? 0, data.standaloneEquipmentSaleCount ?? 0, "—", false],
                 ["Ödənilməli (₼)", data.packagePriceDue, data.standaloneEquipmentSaleDue, data.totalPriceDue, false],
                 ["Nağd (₼)", data.packagePaidCash, data.standaloneEquipmentPaidCash, data.totalPaidCash, true],
                 ["Kart (₼)", data.packagePaidCard, data.standaloneEquipmentPaidCard, data.totalPaidCard, true],

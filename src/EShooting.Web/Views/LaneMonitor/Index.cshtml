@@ -2354,12 +2354,18 @@
             if (!moveLaneSessionId || moveLaneBusy) return;
             let allowSwap = false;
             let allowAmateurOnProLane = false;
+            const fromLane = Number(moveLaneFromNumber) || 0;
+            const who = moveLaneAthleteName || "Müştəri";
 
             if (expectSwap) {
                 const ok = window.confirm(
-                    `${targetLane} nömrəli zolaq doludur. Yer dəyişdirilsin?`);
+                    `Zolaq ${fromLane} ↔ Zolaq ${targetLane} yerləri dəyişilsin?\n\n${who}`);
                 if (!ok) return;
                 allowSwap = true;
+            } else {
+                const ok = window.confirm(
+                    `Zolaq ${fromLane} → Zolaq ${targetLane} dəyişilsin?\n\n${who}`);
+                if (!ok) return;
             }
 
             const run = async () => {
@@ -2396,7 +2402,7 @@
 
                 if (result.response.status === 409 && result.parsed?.code === "lane_occupied") {
                     const okSwap = window.confirm(result.parsed?.error
-                        || `${targetLane} nömrəli zolaq doludur. Yer dəyişdirilsin?`);
+                        || `Zolaq ${fromLane} ↔ Zolaq ${targetLane} yerləri dəyişilsin?`);
                     if (!okSwap) return;
                     allowSwap = true;
                     result = await run();
