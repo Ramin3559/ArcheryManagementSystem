@@ -20,10 +20,18 @@ public sealed record ChangeCustomerPackagePreview(
     decimal AppliedCredit,
     decimal AdditionalDue,
     decimal RefundDue,
-    string DifferenceKind);
+    string DifferenceKind,
+    bool IsFixedWeekly,
+    string? DefaultWeeklyDaysCsv,
+    int? WeeklyDaysCount,
+    int SessionDurationMinutes,
+    int? ValidityDays,
+    /// <summary>true = mövcud paket bitib, yeni ödənişlə yaratmaq lazımdır.</summary>
+    bool RequiresNewPayment,
+    string LifecycleHint);
 
 public sealed record ChangeCustomerPackageResult(
-    Guid NewPackageRecordId,
+    Guid? NewPackageRecordId,
     Guid? RefundRecordId,
     string Message);
 
@@ -32,11 +40,15 @@ public sealed record ChangeCustomerPackageCommand(
     Guid NewServicePackageId,
     DateTime PeriodStartLocal,
     DateTime PeriodEndLocal,
+    int? PeriodMonths,
     decimal DiscountAmount,
     decimal AmountPaidCash,
     decimal AmountPaidCard,
     bool IsComplimentary,
     bool ConfirmDifference,
+    bool SkipPayment,
+    IReadOnlyList<int>? WeeklyDaysOfWeek,
+    TimeSpan? WeeklyStartTimeLocal,
     Guid? CreatedByStaffId,
     bool CanApplyDiscount,
     bool CanGrantComplimentary) : IRequest<ChangeCustomerPackageResult>;
@@ -49,7 +61,8 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
         Guid athleteId,
         Guid newServicePackageId,
         decimal discountAmount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool justRenew = false)
     {
         var athlete = await repository.GetAthleteByIdAsync(athleteId, cancellationToken)
             ?? throw new InvalidOperationException("Müştəri tapılmadı.");
@@ -61,24 +74,45 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             throw new InvalidOperationException("Seçilmiş paket aktiv deyil.");
         }
 
-        var oldRecord = (await repository.GetCustomerPackageRecordsAsync(cancellationToken))
-            .Where(r => r.AthleteId == athleteId && r.IsActive)
-            .OrderByDescending(r => r.CreatedAtUtc)
-            .FirstOrDefault();
+        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var sessions = await repository.GetSessionsAsync(cancellationToken);
+        var packageEnded = CustomerPackageLifecycle.IsCurrentPackageEnded(
+            athleteId,
+            schedules,
+            sessions,
+            AzerbaijanTime.TodayLocal);
+        // «Sadəcə yenilə» — bitib/bitməyib baxılmır, ödənişsiz plan yazılır.
+        var requiresNewPayment = !justRenew && packageEnded;
 
-        var oldPaid = oldRecord?.AmountPaid ?? 0m;
+        var oldRecord = PickMeaningfulActivePackageRecord(
+            await repository.GetCustomerPackageRecordsAsync(cancellationToken),
+            athleteId);
+
+        var oldPaid = oldRecord is null ? 0m : Math.Max(0m, oldRecord.AmountPaid);
         var newList = Math.Max(0m, newPkg.Price);
         var userDiscount = Math.Clamp(Math.Max(0m, discountAmount), 0m, newList);
         var newPayable = Math.Max(0m, newList - userDiscount);
-        var appliedCredit = Math.Min(oldPaid, newPayable);
-        var additionalDue = Math.Max(0m, newPayable - oldPaid);
-        var refundDue = Math.Max(0m, oldPaid - newPayable);
+        var appliedCredit = requiresNewPayment ? 0m : Math.Min(oldPaid, newPayable);
+        var additionalDue = requiresNewPayment
+            ? newPayable
+            : Math.Max(0m, newPayable - oldPaid);
+        var refundDue = requiresNewPayment
+            ? 0m
+            : Math.Max(0m, oldPaid - newPayable);
 
-        var kind = additionalDue > PaymentSettlementRules.Tolerance
-            ? "additional"
-            : refundDue > PaymentSettlementRules.Tolerance
-                ? "refund"
-                : "even";
+        var kind = !requiresNewPayment
+            ? "planOnly"
+            : additionalDue > PaymentSettlementRules.Tolerance
+                ? "additional"
+                : refundDue > PaymentSettlementRules.Tolerance
+                    ? "refund"
+                    : "even";
+
+        var hint = justRenew
+            ? "Sadəcə yenilə — seçilmiş paket və müddət ödənişsiz yazılacaq. Ödəniş tarixçəsi dəyişməyəcək."
+            : requiresNewPayment
+                ? "Mövcud paket bitmişdir. Yeni paket üçün ödəniş tələb olunur."
+                : "Aktiv paket — yalnız plan yenilənəcək (gün/saat/tarix). Ödəniş qeydi dəyişməyəcək.";
 
         return new ChangeCustomerPackagePreview(
             athlete.Id,
@@ -93,7 +127,14 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             appliedCredit,
             additionalDue,
             refundDue,
-            kind);
+            kind,
+            IsFixedWeeklyPackage(newPkg),
+            newPkg.WeeklyDaysCsv,
+            newPkg.WeeklyDaysCount is >= 1 and <= 7 ? newPkg.WeeklyDaysCount : null,
+            Math.Max(0, newPkg.SessionDurationMinutes),
+            newPkg.ValidityDays,
+            requiresNewPayment,
+            hint);
     }
 
     public async Task<ChangeCustomerPackageResult> Handle(
@@ -102,17 +143,24 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
     {
         if (!request.ConfirmDifference)
         {
-            throw new InvalidOperationException("Paket dəyişimi üçün ödəniş fərqini təsdiq edin.");
+            throw new InvalidOperationException("Paket dəyişimi üçün təsdiq lazımdır.");
         }
-
-        PaymentSettlementRules.EnsureDiscountAllowed(request.DiscountAmount, request.CanApplyDiscount);
 
         var preview = await BuildPreviewAsync(
             repository,
             request.AthleteId,
             request.NewServicePackageId,
             request.DiscountAmount,
-            cancellationToken);
+            cancellationToken,
+            justRenew: request.SkipPayment);
+
+        // Aktiv paket və ya «Sadəcə yenilə» (SkipPayment): yalnız plan, ödəniş yox.
+        var planOnly = !preview.RequiresNewPayment || request.SkipPayment;
+        if (!planOnly)
+        {
+            PaymentSettlementRules.EnsureDiscountAllowed(request.DiscountAmount, request.CanApplyDiscount);
+            ValidatePaymentAgainstPreview(request, preview);
+        }
 
         var athlete = await repository.GetAthleteByIdAsync(request.AthleteId, cancellationToken)
             ?? throw new InvalidOperationException("Müştəri tapılmadı.");
@@ -120,53 +168,40 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             ?? throw new InvalidOperationException("Yeni paket tapılmadı.");
 
         var periodStart = request.PeriodStartLocal.Date;
-        var periodEnd = request.PeriodEndLocal.Date;
+        var fixedWeekly = IsFixedWeeklyPackage(newPkg);
+        var weeklyDays = ResolveWeeklyDays(request.WeeklyDaysOfWeek, newPkg);
+        if (fixedWeekly && weeklyDays.Count == 0)
+        {
+            throw new InvalidOperationException("Aylıq sabit plan üçün həftə günlərini seçin.");
+        }
+
+        if (fixedWeekly && newPkg.WeeklyDaysCount is >= 1 and <= 7
+            && weeklyDays.Count != newPkg.WeeklyDaysCount.Value)
+        {
+            throw new InvalidOperationException(
+                $"Bu paket həftədə {newPkg.WeeklyDaysCount} gün üçündür — {newPkg.WeeklyDaysCount} gün seçin.");
+        }
+
+        DateTime periodEnd;
+        if (request.PeriodMonths is int monthsRaw && monthsRaw > 0)
+        {
+            periodEnd = periodStart.AddMonths(Math.Clamp(monthsRaw, 1, 12));
+        }
+        else
+        {
+            periodEnd = request.PeriodEndLocal.Date;
+        }
+
         if (periodEnd < periodStart)
         {
             throw new InvalidOperationException("Abunə bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
         }
 
-        if (request.IsComplimentary)
+        var weeklyStart = request.WeeklyStartTimeLocal
+            ?? TimeSpan.FromHours(18);
+        if (fixedWeekly && (weeklyStart < TimeSpan.Zero || weeklyStart.TotalDays >= 1))
         {
-            if (!request.CanGrantComplimentary)
-            {
-                throw new InvalidOperationException("Pulsuz paket dəyişimi üçün icazəniz yoxdur.");
-            }
-
-            if (request.AmountPaidCash > PaymentSettlementRules.Tolerance
-                || request.AmountPaidCard > PaymentSettlementRules.Tolerance)
-            {
-                throw new InvalidOperationException("Pulsuz seçildikdə əlavə ödəniş yazıla bilməz.");
-            }
-
-            if (preview.DifferenceKind == "refund")
-            {
-                throw new InvalidOperationException("Qaytarma olan dəyişimdə «Pulsuz» seçilə bilməz — qaytarma məbləğini yazın.");
-            }
-        }
-        else if (preview.DifferenceKind == "additional")
-        {
-            PaymentSettlementRules.Resolve(
-                preview.AdditionalDue,
-                0m,
-                request.AmountPaidCash,
-                request.AmountPaidCard,
-                false);
-        }
-        else if (preview.DifferenceKind == "refund")
-        {
-            PaymentSettlementRules.EnsureRefundSplitMatches(
-                preview.RefundDue,
-                request.AmountPaidCash,
-                request.AmountPaidCard);
-        }
-        else
-        {
-            if (request.AmountPaidCash > PaymentSettlementRules.Tolerance
-                || request.AmountPaidCard > PaymentSettlementRules.Tolerance)
-            {
-                throw new InvalidOperationException("Ödəniş fərqi yoxdur; nağd/kart məbləği daxil edilməməlidir.");
-            }
+            throw new InvalidOperationException("Həftəlik plan saatı HH:mm formatında olmalıdır.");
         }
 
         // 1) Köhnə abunələri bağla
@@ -177,7 +212,75 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             await repository.UpdateSubscriptionScheduleAsync(schedule, cancellationToken);
         }
 
-        // 2) Köhnə aktiv paket ödənişlərini deaktiv et
+        var markVip = ServicePackageRules.IsVipPackage(newPkg);
+        athlete.IsSubscriber = true;
+        athlete.IsVip = markVip;
+        athlete.MembershipType = ResolveMembershipType(newPkg);
+        athlete.IsFullPackage = !fixedWeekly;
+        await repository.UpdateAthleteAsync(athlete, cancellationToken);
+
+        // 2) Yeni plan(lar)
+        Guid? primaryScheduleId = null;
+        if (fixedWeekly)
+        {
+            var duration = Math.Max(1, newPkg.SessionDurationMinutes);
+            var isGym = newPkg.Scope == PackageScope.Gym || newPkg.BillingType == PackageBillingType.Gym;
+            var preferred = athlete.Category == CustomerCategory.Amateur
+                ? PreferredLaneType.Short
+                : PreferredLaneType.Any;
+
+            foreach (var day in weeklyDays.Distinct().OrderBy(d => d))
+            {
+                var created = await repository.AddSubscriptionScheduleAsync(
+                    new SubscriptionSchedule
+                    {
+                        AthleteId = athlete.Id,
+                        LaneNumber = isGym ? GymLaneRules.LaneNumber : 0,
+                        DayOfWeek = day,
+                        StartTimeLocal = weeklyStart,
+                        DurationMinutes = duration,
+                        ActiveFromDateLocal = periodStart,
+                        ActiveToDateLocal = periodEnd,
+                        IsEnabled = true,
+                        PreferredLaneType = isGym ? PreferredLaneType.Any : preferred,
+                        IsFullPackage = false
+                    },
+                    cancellationToken);
+                primaryScheduleId ??= created.Id;
+            }
+        }
+        else
+        {
+            var duration = Math.Max(0, newPkg.SessionDurationMinutes);
+            var created = await repository.AddSubscriptionScheduleAsync(
+                new SubscriptionSchedule
+                {
+                    AthleteId = athlete.Id,
+                    LaneNumber = newPkg.Scope == PackageScope.Gym || newPkg.BillingType == PackageBillingType.Gym
+                        ? GymLaneRules.LaneNumber
+                        : 0,
+                    DayOfWeek = 0,
+                    StartTimeLocal = TimeSpan.Zero,
+                    DurationMinutes = duration,
+                    ActiveFromDateLocal = periodStart,
+                    ActiveToDateLocal = periodEnd,
+                    IsEnabled = true,
+                    PreferredLaneType = PreferredLaneType.Any,
+                    IsFullPackage = true
+                },
+                cancellationToken);
+            primaryScheduleId = created.Id;
+        }
+
+        if (planOnly)
+        {
+            var planMsg = request.SkipPayment
+                ? $"Paket sadəcə yeniləndi ({newPkg.Name}). Ödəniş etmədən plan yazıldı."
+                : $"Paket planı yeniləndi ({newPkg.Name}). Ödəniş və gəliş tarixçəsi saxlanıldı.";
+            return new ChangeCustomerPackageResult(primaryScheduleId, null, planMsg);
+        }
+
+        // 3) Köhnə aktiv paket ödənişlərini deaktiv et
         var packageRecords = await repository.GetCustomerPackageRecordsAsync(cancellationToken);
         foreach (var old in packageRecords.Where(r => r.AthleteId == athlete.Id && r.IsActive))
         {
@@ -185,35 +288,8 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             await repository.UpdateCustomerPackageRecordAsync(old, cancellationToken);
         }
 
-        // 3) Yeni walk-in / full abunə
-        var duration = Math.Max(0, newPkg.SessionDurationMinutes);
-        var markVip = ServicePackageRules.IsVipPackage(newPkg);
-        athlete.IsSubscriber = true;
-        athlete.IsFullPackage = true;
-        athlete.IsVip = markVip;
-        athlete.MembershipType = ResolveMembershipType(newPkg);
-        await repository.UpdateAthleteAsync(athlete, cancellationToken);
-
-        var newSchedule = await repository.AddSubscriptionScheduleAsync(
-            new SubscriptionSchedule
-            {
-                AthleteId = athlete.Id,
-                LaneNumber = newPkg.Scope == PackageScope.Gym || newPkg.BillingType == PackageBillingType.Gym
-                    ? GymLaneRules.LaneNumber
-                    : 0,
-                DayOfWeek = 0,
-                StartTimeLocal = TimeSpan.Zero,
-                DurationMinutes = duration,
-                ActiveFromDateLocal = periodStart,
-                ActiveToDateLocal = periodEnd,
-                IsEnabled = true,
-                PreferredLaneType = PreferredLaneType.Any,
-                IsFullPackage = true
-            },
-            cancellationToken);
-
-        // 4) Yeni paket ödəniş qeydi
-        var effectiveDiscount = preview.DiscountAmount + preview.AppliedCredit;
+        // 4) Yeni paket ödəniş qeydi (yalnız bitmiş paket yenilənməsi)
+        var effectiveDiscount = preview.DiscountAmount;
         if (effectiveDiscount > preview.NewListPrice)
         {
             effectiveDiscount = preview.NewListPrice;
@@ -221,18 +297,17 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
 
         decimal cash;
         decimal card;
-        var complimentary = request.IsComplimentary && preview.DifferenceKind == "additional";
+        var complimentary = request.IsComplimentary;
         if (complimentary)
         {
             cash = 0m;
             card = 0m;
             effectiveDiscount = preview.NewListPrice;
         }
-        else if (preview.DifferenceKind == "additional")
+        else
         {
             cash = Math.Max(0m, request.AmountPaidCash);
             card = Math.Max(0m, request.AmountPaidCard);
-            // Kredit endirim kimi, əlavə nağd/kart qalanı ödəyir — Resolve yoxlanıb
             PaymentSettlementRules.Resolve(
                 preview.NewListPrice,
                 effectiveDiscount,
@@ -240,67 +315,101 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
                 card,
                 false);
         }
-        else
-        {
-            // even / refund: kredit yeni paketi tam örtür
-            cash = 0m;
-            card = 0m;
-            effectiveDiscount = preview.NewListPrice;
-        }
 
         var newRecord = await CustomerBillingService.RecordPackageAsync(
             repository,
             athlete.Id,
             newPkg.Id,
             newPkg.Name,
-            "Paket dəyişimi",
+            "Paket yenilənməsi",
             preview.NewListPrice,
             complimentary ? preview.NewListPrice : effectiveDiscount,
             cash,
             card,
             complimentary,
             null,
-            newSchedule.Id,
+            primaryScheduleId,
             request.CreatedByStaffId,
             cancellationToken);
 
-        Guid? refundId = null;
-        if (preview.DifferenceKind == "refund")
+        var msg = complimentary
+            ? $"Yeni paket qeydə alındı ({newPkg.Name}). Pulsuz."
+            : $"Yeni paket qeydə alındı ({newPkg.Name}). Ödəniş: {preview.NewPayable:0.##} AZN.";
+
+        return new ChangeCustomerPackageResult(newRecord.Id, null, msg);
+    }
+
+    private static void ValidatePaymentAgainstPreview(
+        ChangeCustomerPackageCommand request,
+        ChangeCustomerPackagePreview preview)
+    {
+        if (request.IsComplimentary)
         {
-            var refundCash = Math.Max(0m, request.AmountPaidCash);
-            var refundCard = Math.Max(0m, request.AmountPaidCard);
-            var refundTotal = refundCash + refundCard;
-            var refundRecord = new CustomerPackageRecord
+            if (!request.CanGrantComplimentary)
             {
-                AthleteId = athlete.Id,
-                ServicePackageId = newPkg.Id,
-                PackageName = $"Qaytarma · {preview.OldPackageName ?? "köhnə paket"}",
-                BillingTypeLabel = "Paket dəyişimi (qaytarma)",
-                PriceDue = 0m,
-                DiscountAmount = 0m,
-                AmountPaidCash = -refundCash,
-                AmountPaidCard = -refundCard,
-                AmountPaid = -refundTotal,
-                IsComplimentary = false,
-                SubscriptionScheduleId = newSchedule.Id,
-                CreatedByStaffId = request.CreatedByStaffId,
-                CreatedAtUtc = DateTime.UtcNow,
-                IsActive = true
-            };
-            refundRecord = await repository.AddCustomerPackageRecordAsync(refundRecord, cancellationToken);
-            refundId = refundRecord.Id;
+                throw new InvalidOperationException("Pulsuz paket üçün icazəniz yoxdur.");
+            }
+
+            if (request.AmountPaidCash > PaymentSettlementRules.Tolerance
+                || request.AmountPaidCard > PaymentSettlementRules.Tolerance)
+            {
+                throw new InvalidOperationException("Pulsuz seçildikdə ödəniş yazıla bilməz.");
+            }
+
+            return;
         }
 
-        var msg = preview.DifferenceKind switch
-        {
-            "additional" => complimentary
-                ? $"Paket dəyişildi ({newPkg.Name}). Əlavə ödəniş pulsuz qeyd olundu."
-                : $"Paket dəyişildi ({newPkg.Name}). Əlavə ödəniş: {preview.AdditionalDue:0.##} AZN.",
-            "refund" => $"Paket dəyişildi ({newPkg.Name}). Qaytarma: {preview.RefundDue:0.##} AZN.",
-            _ => $"Paket dəyişildi ({newPkg.Name}). Ödəniş fərqi yoxdur."
-        };
+        PaymentSettlementRules.Resolve(
+            preview.NewPayable,
+            0m,
+            request.AmountPaidCash,
+            request.AmountPaidCard,
+            false);
+    }
 
-        return new ChangeCustomerPackageResult(newRecord.Id, refundId, msg);
+    private static CustomerPackageRecord? PickMeaningfulActivePackageRecord(
+        IReadOnlyCollection<CustomerPackageRecord> records,
+        Guid athleteId)
+    {
+        var active = records
+            .Where(r => r.AthleteId == athleteId && r.IsActive)
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .ToList();
+        if (active.Count == 0)
+        {
+            return null;
+        }
+
+        return active.FirstOrDefault(r => Math.Abs(r.AmountPaid) > PaymentSettlementRules.Tolerance)
+               ?? active[0];
+    }
+
+    private static bool IsFixedWeeklyPackage(ServicePackage pkg) =>
+        pkg.SchedulingMode == PackageSchedulingMode.FixedWeekly
+        || (pkg.WeeklyDaysCount is >= 1
+            && pkg.BillingType is PackageBillingType.Monthly or PackageBillingType.Yearly
+            && !ServicePackageRules.IsUnlimitedPackage(pkg)
+            && !ServicePackageRules.IsVipPackage(pkg));
+
+    private static List<int> ResolveWeeklyDays(IReadOnlyList<int>? requested, ServicePackage pkg)
+    {
+        if (requested is { Count: > 0 })
+        {
+            return requested.Where(d => d is >= 0 and <= 6).Distinct().OrderBy(d => d).ToList();
+        }
+
+        if (string.IsNullOrWhiteSpace(pkg.WeeklyDaysCsv))
+        {
+            return [];
+        }
+
+        return pkg.WeeklyDaysCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => int.TryParse(x, out var n) ? n : -1)
+            .Where(d => d is >= 0 and <= 6)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
     }
 
     private static MembershipType ResolveMembershipType(ServicePackage pkg)

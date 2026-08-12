@@ -251,7 +251,7 @@
             <p id="editPaymentHint" class="statLabel" style="margin-top:8px;">Ödəniləcək = qiymət − endirim. Nağd və ya karta yazın — digəri avtomatik dolacaq.</p>
             <div class="filter-actions">
                 <button type="button" class="btn btn-primary" id="editPaymentSaveBtn">Yadda saxla</button>
-                <button type="button" class="btn btn-ghost" id="editPaymentCancelBtn">Sıfırla</button>
+                <button type="button" class="btn btn-ghost" id="editPaymentDeleteBtn" style="color:#b91c1c;">Sil</button>
             </div>
         </div>
         <div id="packageChangePanel" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
@@ -266,9 +266,33 @@
                     <input id="changePackageStart" type="date" />
                 </label>
                 <label class="field">
-                    <span>Abunə bitməsi</span>
-                    <input id="changePackageEnd" type="date" />
+                    <span>Neçə AY</span>
+                    <select id="changePackageMonths">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            <option value="@m" selected="@(m == 1)">@m</option>
+                        }
+                    </select>
                 </label>
+                <label class="field">
+                    <span>Abunə bitməsi (avtomatik)</span>
+                    <input id="changePackageEnd" type="text" readonly tabindex="-1" data-no-flatpickr="1"
+                           placeholder="—" title="Seçilmiş günlərə görə N-ci gediş günü"
+                           style="background:rgba(0,0,0,0.04); cursor:default;" />
+                </label>
+                <div id="changePackageWeeklyRow" style="grid-column:1/-1; display:none;">
+                    <div class="statLabel" style="margin-bottom:6px;">Həftə günləri (aylıq plan)</div>
+                    <div id="changePackageWeekdays" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                    <label class="field" style="margin-top:8px; max-width:160px;">
+                        <span>Saat</span>
+                        <input id="changePackageWeeklyTime" class="hhmm-time" type="text" inputmode="numeric" placeholder="HH:mm" value="18:00" maxlength="5" />
+                    </label>
+                </div>
+                <label class="field" style="grid-column:1/-1; flex-direction:row; align-items:center; gap:8px;" id="changePackageSkipPaymentWrap">
+                    <input id="changePackageSkipPayment" type="checkbox" />
+                    <span style="text-transform:none; letter-spacing:0;">Sadəcə yenilə (ödənişsiz — bitməyə baxılmır)</span>
+                </label>
+                <div id="changePackagePayFields">
                 <label class="field">
                     <span>Endirim (AZN)</span>
                     <input id="changePackageDiscount" type="number" min="0" step="0.01" value="0" />
@@ -283,8 +307,9 @@
                 </label>
                 <label class="field" style="flex-direction:row; align-items:center; gap:8px;">
                     <input id="changePackageComplimentary" type="checkbox" />
-                    <span style="text-transform:none; letter-spacing:0;">Pulsuz (əlavə ödəniş)</span>
+                    <span style="text-transform:none; letter-spacing:0;">Pulsuz</span>
                 </label>
+                </div>
             </div>
             <p id="changePackagePreviewHint" class="statLabel" style="margin-top:8px;">Yeni paket seçin — ödəniş fərqi burada görünəcək.</p>
             <div class="filter-actions" style="margin-top:10px;">
@@ -669,9 +694,11 @@
             try {
                 await ensureChangePackagesLoaded();
                 var startEl = document.getElementById("changePackageStart");
-                var endEl = document.getElementById("changePackageEnd");
+                var monthsEl = document.getElementById("changePackageMonths");
                 if (startEl) startEl.value = isoToday();
-                if (endEl) endEl.value = isoPlusDays(30);
+                if (monthsEl) monthsEl.value = "1";
+                lastChangePreview = null;
+                syncChangePackageWeeklyUi(null);
                 var res = await fetch("/admin/customers/" + encodeURIComponent(athleteId) + "/package-payments", {
                     credentials: "same-origin"
                 });
@@ -721,7 +748,29 @@
         }
 
         document.getElementById("packagePaymentsCloseBtn")?.addEventListener("click", closePackagePaymentsModal);
-        document.getElementById("editPaymentCancelBtn")?.addEventListener("click", resetPaymentEditToSelected);
+        document.getElementById("editPaymentDeleteBtn")?.addEventListener("click", async function () {
+            var recordId = document.getElementById("editPaymentRecordId")?.value || "";
+            if (!recordId) {
+                alert("Silmək üçün siyahıdan sətir seçin.");
+                return;
+            }
+            if (!window.confirm("Seçilmiş məlumat silinsinmi?")) return;
+            var btn = document.getElementById("editPaymentDeleteBtn");
+            if (btn) btn.disabled = true;
+            try {
+                var res = await fetch("/admin/customers/package-payments/" + encodeURIComponent(recordId), {
+                    method: "DELETE",
+                    credentials: "same-origin"
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(data.error || data.message || "Silinmədi.");
+                await openPackagePaymentsModal(currentPaymentsAthleteId, paymentsAthlete?.textContent || "");
+            } catch (err) {
+                alert(err && err.message ? err.message : "Xəta.");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        });
         document.getElementById("editPaymentComplimentary")?.addEventListener("change", syncComplimentaryFields);
         document.getElementById("editPaymentPriceDue")?.addEventListener("input", function () { syncPaymentSplit("price"); });
         document.getElementById("editPaymentDiscount")?.addEventListener("input", function () { syncPaymentSplit("price"); });
@@ -772,6 +821,7 @@
 
         var changePackagesCache = [];
         var lastChangePreview = null;
+        var weekdayLabels = ["Bazar", "B.e", "Ç.a", "Ç", "C.a", "C", "Ş"];
 
         function isoToday() {
             var d = new Date();
@@ -782,6 +832,141 @@
             var d = new Date();
             d.setDate(d.getDate() + days);
             return isoDate(d);
+        }
+
+        function formatDateDisplayAz(iso) {
+            var s = String(iso || "").trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+            var parts = s.split("-");
+            return parts[2] + "." + parts[1] + "." + parts[0];
+        }
+
+        function calcNthWeeklyOccurrenceEndIso(startIso, weekdays, visitCount) {
+            if (!startIso || !visitCount || !weekdays || !weekdays.length) return "";
+            var daySet = {};
+            weekdays.forEach(function (n) {
+                if (Number.isInteger(n) && n >= 0 && n <= 6) daySet[n] = true;
+            });
+            var d = new Date(startIso + "T12:00:00");
+            if (Number.isNaN(d.getTime())) return "";
+            var found = 0;
+            for (var i = 0; i < 800; i++) {
+                if (daySet[d.getDay()]) {
+                    found++;
+                    if (found >= visitCount) return isoDate(d);
+                }
+                d.setDate(d.getDate() + 1);
+            }
+            return "";
+        }
+
+        function getChangePackageEndIso() {
+            var end = document.getElementById("changePackageEnd");
+            if (!end) return "";
+            var fromData = String(end.dataset.iso || "").trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fromData)) return fromData;
+            var v = String(end.value || "").trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+            var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
+            if (m) return m[3] + "-" + m[2] + "-" + m[1];
+            return "";
+        }
+
+        function syncChangePackageEndDate() {
+            var endEl = document.getElementById("changePackageEnd");
+            var start = document.getElementById("changePackageStart")?.value || "";
+            var months = Math.min(12, Math.max(1, Number(document.getElementById("changePackageMonths")?.value || 1) || 1));
+            var endIso = "";
+            if (start) {
+                var d = new Date(start + "T12:00:00");
+                d.setMonth(d.getMonth() + months);
+                endIso = isoDate(d);
+            }
+            if (endEl) {
+                endEl.dataset.iso = endIso || "";
+                endEl.value = endIso ? formatDateDisplayAz(endIso) : "";
+            }
+        }
+
+        function syncChangePackageWeekdayLimit() {
+            var limitRaw = Number(lastChangePreview && lastChangePreview.weeklyDaysCount);
+            var limit = Number.isInteger(limitRaw) && limitRaw >= 1 && limitRaw <= 7 ? limitRaw : null;
+            ensureChangeWeekdayChips();
+            var boxes = Array.from(document.querySelectorAll(".change-pkg-dow"));
+            if (limit == null) {
+                boxes.forEach(function (b) { b.disabled = false; });
+                return;
+            }
+            var checked = boxes.filter(function (b) { return b.checked; });
+            if (checked.length > limit) {
+                for (var i = limit; i < checked.length; i++) checked[i].checked = false;
+                checked = boxes.filter(function (b) { return b.checked; });
+            }
+            var atLimit = checked.length >= limit;
+            boxes.forEach(function (b) { b.disabled = atLimit && !b.checked; });
+        }
+
+        function ensureChangeWeekdayChips() {
+            var box = document.getElementById("changePackageWeekdays");
+            if (!box || box.dataset.ready === "1") return;
+            box.innerHTML = weekdayLabels.map(function (label, dow) {
+                return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:#253060;">'
+                    + '<input type="checkbox" class="change-pkg-dow" value="' + dow + '" /> ' + label + '</label>';
+            }).join("");
+            box.dataset.ready = "1";
+        }
+
+        function setChangeWeekdaysFromCsv(csv) {
+            ensureChangeWeekdayChips();
+            var set = {};
+            String(csv || "").split(",").forEach(function (p) {
+                var n = Number(String(p).trim());
+                if (Number.isInteger(n) && n >= 0 && n <= 6) set[n] = true;
+            });
+            document.querySelectorAll(".change-pkg-dow").forEach(function (cb) {
+                cb.checked = !!set[Number(cb.value)];
+            });
+        }
+
+        function getSelectedChangeWeekdays() {
+            return Array.from(document.querySelectorAll(".change-pkg-dow:checked"))
+                .map(function (cb) { return Number(cb.value); })
+                .filter(function (n) { return Number.isInteger(n); });
+        }
+
+        function syncChangePackageWeeklyUi(preview) {
+            var row = document.getElementById("changePackageWeeklyRow");
+            var fixed = !!(preview && preview.isFixedWeekly);
+            if (row) row.style.display = fixed ? "block" : "none";
+            if (fixed) {
+                ensureChangeWeekdayChips();
+                if (!getSelectedChangeWeekdays().length) {
+                    setChangeWeekdaysFromCsv(preview.defaultWeeklyDaysCsv || "");
+                }
+                syncChangePackageWeekdayLimit();
+            }
+            syncChangePackageEndDate();
+        }
+
+        function isJustRenewChecked() {
+            return !!document.getElementById("changePackageSkipPayment")?.checked;
+        }
+
+        function syncChangePaymentFieldsDisabled() {
+            var justRenew = isJustRenewChecked();
+            var requiresPay = !!(lastChangePreview && lastChangePreview.requiresNewPayment) && !justRenew;
+            var skipWrap = document.getElementById("changePackageSkipPaymentWrap");
+            var payFields = document.getElementById("changePackagePayFields");
+            var skip = document.getElementById("changePackageSkipPayment");
+            if (skipWrap) skipWrap.style.display = "";
+            if (skip) skip.disabled = false;
+            if (payFields) {
+                payFields.style.display = requiresPay ? "" : "none";
+            }
+            ["changePackageDiscount", "changePackageCash", "changePackageCard", "changePackageComplimentary"].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.disabled = !requiresPay;
+            });
         }
 
         async function ensureChangePackagesLoaded() {
@@ -802,14 +987,18 @@
             var hint = document.getElementById("changePackagePreviewHint");
             var pkgId = document.getElementById("changePackageSelect")?.value || "";
             if (!currentPaymentsAthleteId || !pkgId) {
-                if (hint) hint.textContent = "Yeni paket seçin — ödəniş fərqi burada görünəcək.";
+                if (hint) hint.textContent = "Yeni paket seçin.";
+                syncChangePackageWeeklyUi(null);
+                syncChangePaymentFieldsDisabled();
                 return;
             }
-            var discount = Number(document.getElementById("changePackageDiscount")?.value || 0);
+            var justRenew = isJustRenewChecked();
+            var discount = justRenew ? 0 : Number(document.getElementById("changePackageDiscount")?.value || 0);
             var res = await fetch(
                 "/admin/customers/" + encodeURIComponent(currentPaymentsAthleteId)
                 + "/change-package/preview?newServicePackageId=" + encodeURIComponent(pkgId)
-                + "&discountAmount=" + encodeURIComponent(discount),
+                + "&discountAmount=" + encodeURIComponent(discount)
+                + "&justRenew=" + (justRenew ? "true" : "false"),
                 { credentials: "same-origin" });
             var data = await res.json().catch(function () { return {}; });
             if (!res.ok) {
@@ -817,57 +1006,81 @@
                 return;
             }
             lastChangePreview = data;
-            var kind = data.differenceKind || "even";
-            var text = "Köhnə ödənilən: " + money(data.oldAmountPaid)
-                + " · Yeni qiymət: " + money(data.newListPrice)
-                + " · Ödəniləcək: " + money(data.newPayable) + ". ";
-            if (kind === "additional") {
-                text += "ƏLAVƏ ALINACAQ: " + money(data.additionalDue) + " AZN — nağd və/və ya karta yazın.";
-            } else if (kind === "refund") {
-                text += "QAYTARILACAQ: " + money(data.refundDue) + " AZN — nağd/kart qaytarma məbləğini yazın.";
-            } else {
-                text += "Ödəniş fərqi yoxdur.";
+            syncChangePackageWeeklyUi(data);
+            syncChangePaymentFieldsDisabled();
+            if (justRenew || !data.requiresNewPayment) {
+                if (hint) hint.textContent = data.lifecycleHint
+                    || (justRenew
+                        ? "Sadəcə yenilə — ödəniş etmədən seçilmiş paket və müddət yazılacaq."
+                        : "Aktiv paket — yalnız plan yenilənəcək. Ödəniş qeydi dəyişməyəcək.");
+                return;
             }
-            if (hint) hint.textContent = text;
+            if (hint) {
+                hint.textContent = (data.lifecycleHint ? data.lifecycleHint + " " : "")
+                    + "Ödəniləcək: " + money(data.newPayable) + " AZN — nağd və/və ya karta yazın.";
+            }
         }
 
         document.getElementById("changePackageSelect")?.addEventListener("change", refreshChangePackagePreview);
         document.getElementById("changePackageDiscount")?.addEventListener("change", refreshChangePackagePreview);
+        document.getElementById("changePackageSkipPayment")?.addEventListener("change", refreshChangePackagePreview);
         document.getElementById("changePackagePreviewBtn")?.addEventListener("click", refreshChangePackagePreview);
+        document.getElementById("changePackageStart")?.addEventListener("change", syncChangePackageEndDate);
+        document.getElementById("changePackageMonths")?.addEventListener("change", syncChangePackageEndDate);
+        document.getElementById("changePackageWeekdays")?.addEventListener("change", function () {
+            syncChangePackageWeekdayLimit();
+        });
         document.getElementById("changePackageSaveBtn")?.addEventListener("click", async function () {
             if (!currentPaymentsAthleteId) return;
             var pkgId = document.getElementById("changePackageSelect")?.value || "";
             if (!pkgId) { alert("Yeni paket seçin."); return; }
             await refreshChangePackagePreview();
-            if (!lastChangePreview) { alert("Ödəniş fərqi hesablanmadı."); return; }
-            var kind = lastChangePreview.differenceKind || "even";
-            var msg;
-            if (kind === "additional") {
-                msg = "Köhnə: " + money(lastChangePreview.oldAmountPaid)
-                    + " · Yeni: " + money(lastChangePreview.newPayable)
-                    + " · Əlavə alınacaq: " + money(lastChangePreview.additionalDue)
-                    + " AZN.\n\nDavam edilsin?";
-            } else if (kind === "refund") {
-                msg = "Köhnə: " + money(lastChangePreview.oldAmountPaid)
-                    + " · Yeni: " + money(lastChangePreview.newPayable)
-                    + " · Qaytarılacaq: " + money(lastChangePreview.refundDue)
-                    + " AZN.\n\nDavam edilsin?";
-            } else {
-                msg = "Ödəniş fərqi yoxdur. Paket dəyişilsin?";
+            if (!lastChangePreview) { alert("Hesablama alınmadı."); return; }
+            var justRenew = isJustRenewChecked();
+            var planOnly = justRenew || !lastChangePreview.requiresNewPayment;
+            if (lastChangePreview.isFixedWeekly) {
+                var days = getSelectedChangeWeekdays();
+                var dayLimit = Number(lastChangePreview.weeklyDaysCount || 0);
+                if (!days.length) {
+                    alert("Aylıq plan üçün həftə günlərini seçin.");
+                    return;
+                }
+                if (dayLimit >= 1 && days.length !== dayLimit) {
+                    alert("Bu paket həftədə " + dayLimit + " gün üçündür — " + dayLimit + " gün seçin.");
+                    return;
+                }
             }
+            syncChangePackageEndDate();
+            var end = getChangePackageEndIso();
+            if (!end) {
+                alert("Bitmə tarixi hesablanmadı.");
+                return;
+            }
+            var months = Math.min(12, Math.max(1, Number(document.getElementById("changePackageMonths")?.value || 1) || 1));
+            var msg = justRenew
+                ? "Ödəniş etmədən yenilənsin?\nSeçilmiş paket və müddət yazılacaq. Ödəniş tarixçəsi dəyişməyəcək."
+                : planOnly
+                    ? "Yalnız paket planı yenilənəcək.\nÖdəniş və gəliş tarixçəsi saxlanılacaq.\n\nDavam edilsin?"
+                    : ("Mövcud paket bitmişdir.\nYeni paket üçün ödəniş: " + money(lastChangePreview.newPayable)
+                        + " AZN.\n\nDavam edilsin?");
             if (!window.confirm(msg)) return;
 
             var start = document.getElementById("changePackageStart")?.value || isoToday();
-            var end = document.getElementById("changePackageEnd")?.value || isoPlusDays(30);
             var payload = {
                 newServicePackageId: pkgId,
                 periodStartLocal: start,
                 periodEndLocal: end,
-                discountAmount: Number(document.getElementById("changePackageDiscount")?.value || 0),
-                amountPaidCash: Number(document.getElementById("changePackageCash")?.value || 0),
-                amountPaidCard: Number(document.getElementById("changePackageCard")?.value || 0),
-                isComplimentary: !!document.getElementById("changePackageComplimentary")?.checked,
-                confirmDifference: true
+                periodMonths: months,
+                discountAmount: planOnly ? 0 : Number(document.getElementById("changePackageDiscount")?.value || 0),
+                amountPaidCash: planOnly ? 0 : Number(document.getElementById("changePackageCash")?.value || 0),
+                amountPaidCard: planOnly ? 0 : Number(document.getElementById("changePackageCard")?.value || 0),
+                isComplimentary: planOnly ? false : !!document.getElementById("changePackageComplimentary")?.checked,
+                confirmDifference: true,
+                skipPayment: justRenew,
+                weeklyDaysOfWeek: lastChangePreview.isFixedWeekly ? getSelectedChangeWeekdays() : null,
+                weeklyStartTimeLocal: lastChangePreview.isFixedWeekly
+                    ? (document.getElementById("changePackageWeeklyTime")?.value || "18:00")
+                    : null
             };
             var btn = document.getElementById("changePackageSaveBtn");
             if (btn) btn.disabled = true;

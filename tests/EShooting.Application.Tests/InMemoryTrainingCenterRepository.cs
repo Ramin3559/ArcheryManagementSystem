@@ -123,6 +123,12 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         return Task.CompletedTask;
     }
 
+    public Task DeleteCustomerPackageRecordAsync(Guid id, CancellationToken cancellationToken)
+    {
+        _customerPackageRecords.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyCollection<CustomerPackageRecord>>(_customerPackageRecords.ToList());
 
@@ -278,24 +284,37 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         CancellationToken cancellationToken,
         bool includeInactive = false)
     {
+        return FindAthletesForLookupAsync(phoneDigits, emailNormalized, idCardNormalized, cancellationToken, includeInactive)
+            .ContinueWith(t => t.Result.FirstOrDefault(), cancellationToken);
+    }
+
+    public Task<IReadOnlyList<Athlete>> FindAthletesForLookupAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
         var phoneQ = (phoneDigits ?? "").Trim();
         var emailQ = (emailNormalized ?? "").Trim();
         var idQ = (idCardNormalized ?? "").Trim();
 
-        var match = _athletes
+        var list = _athletes
             .Where(a => includeInactive || a.IsActive)
-            .FirstOrDefault(a =>
-        {
-            var p = string.IsNullOrWhiteSpace(a.PhoneNumber) ? "" : new string(a.PhoneNumber.Where(char.IsDigit).ToArray());
-            var e = (a.Email ?? "").Trim().ToLowerInvariant();
-            var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
-            var phoneOk = string.IsNullOrEmpty(phoneQ) || (!string.IsNullOrEmpty(p) && p.Contains(phoneQ, StringComparison.Ordinal));
-            var emailOk = string.IsNullOrEmpty(emailQ) || (!string.IsNullOrEmpty(e) && e.Contains(emailQ, StringComparison.Ordinal));
-            var idOk = string.IsNullOrEmpty(idQ) || (!string.IsNullOrEmpty(id) && id.Contains(idQ, StringComparison.Ordinal));
-            return phoneOk && emailOk && idOk;
-        });
+            .Where(a =>
+            {
+                var p = string.IsNullOrWhiteSpace(a.PhoneNumber) ? "" : new string(a.PhoneNumber.Where(char.IsDigit).ToArray());
+                var e = (a.Email ?? "").Trim().ToLowerInvariant();
+                var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
+                var phoneOk = string.IsNullOrEmpty(phoneQ) || (!string.IsNullOrEmpty(p) && p.Contains(phoneQ, StringComparison.Ordinal));
+                var emailOk = string.IsNullOrEmpty(emailQ) || (!string.IsNullOrEmpty(e) && e.Contains(emailQ, StringComparison.Ordinal));
+                var idOk = string.IsNullOrEmpty(idQ) || (!string.IsNullOrEmpty(id) && id.Contains(idQ, StringComparison.Ordinal));
+                return phoneOk && emailOk && idOk;
+            })
+            .OrderBy(a => a.FullName)
+            .ToList();
 
-        return Task.FromResult(match);
+        return Task.FromResult<IReadOnlyList<Athlete>>(list);
     }
 
     public Task<Athlete?> FindAthleteByExactPhoneAsync(
@@ -326,23 +345,17 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         CancellationToken cancellationToken,
         bool includeInactive = false)
     {
-        var phoneQ = string.IsNullOrWhiteSpace(phoneDigits)
-            ? ""
-            : new string(phoneDigits.Where(char.IsDigit).ToArray());
-        var emailQ = (emailNormalized ?? "").Trim().ToLowerInvariant();
+        _ = phoneDigits;
+        _ = emailNormalized;
         var idQ = (idCardNormalized ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(idQ))
+        {
+            return Task.FromResult<Athlete?>(null);
+        }
 
         var match = _athletes
             .Where(a => includeInactive || a.IsActive)
-            .FirstOrDefault(a =>
-            {
-                var p = new string((a.PhoneNumber ?? "").Where(char.IsDigit).ToArray());
-                var e = (a.Email ?? "").Trim().ToLowerInvariant();
-                var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
-                return (!string.IsNullOrEmpty(phoneQ) && p == phoneQ)
-                    || (!string.IsNullOrEmpty(emailQ) && e == emailQ)
-                    || (!string.IsNullOrEmpty(idQ) && id == idQ);
-            });
+            .FirstOrDefault(a => (a.IdCardNumber ?? "").Trim().ToLowerInvariant() == idQ);
 
         return Task.FromResult(match);
     }

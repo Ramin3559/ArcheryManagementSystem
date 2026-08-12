@@ -247,6 +247,22 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         CancellationToken cancellationToken,
         bool includeInactive = false)
     {
+        var list = await FindAthletesForLookupAsync(
+            phoneDigits,
+            emailNormalized,
+            idCardNormalized,
+            cancellationToken,
+            includeInactive);
+        return list.FirstOrDefault();
+    }
+
+    public async Task<IReadOnlyList<Athlete>> FindAthletesForLookupAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
+    {
         var phoneQ = (phoneDigits ?? "").Trim();
         var emailQ = (emailNormalized ?? "").Trim();
         var idQ = (idCardNormalized ?? "").Trim();
@@ -258,7 +274,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         if (!hasQuery)
         {
-            return null;
+            return Array.Empty<Athlete>();
         }
 
         var candidates = await dbContext.Athletes
@@ -274,7 +290,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         if (candidates.Count == 0)
         {
-            return null;
+            return Array.Empty<Athlete>();
         }
 
         static int Score(Athlete a, string pQ, string eQ, string iQ)
@@ -286,8 +302,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             var email = (a.Email ?? "").Trim().ToLowerInvariant();
             var id = (a.IdCardNumber ?? "").Trim().ToLowerInvariant();
 
-            if (!string.IsNullOrWhiteSpace(pQ) && phone == pQ) score += 100;
             if (!string.IsNullOrWhiteSpace(iQ) && id == iQ) score += 90;
+            if (!string.IsNullOrWhiteSpace(pQ) && phone == pQ) score += 100;
             if (!string.IsNullOrWhiteSpace(eQ) && email == eQ) score += 80;
             if (!string.IsNullOrWhiteSpace(pQ) && phone.Contains(pQ, StringComparison.Ordinal)) score += Math.Min(30, pQ.Length);
             if (!string.IsNullOrWhiteSpace(iQ) && id.Contains(iQ, StringComparison.Ordinal)) score += Math.Min(20, iQ.Length);
@@ -298,7 +314,8 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         return candidates
             .Where(a => includeInactive || a.IsActive)
             .OrderByDescending(a => Score(a, phoneQ, emailQ, idQ))
-            .FirstOrDefault();
+            .ThenBy(a => a.FullName)
+            .ToList();
     }
 
     public async Task<Athlete?> FindAthleteByExactPhoneAsync(
@@ -331,63 +348,27 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         CancellationToken cancellationToken,
         bool includeInactive = false)
     {
-        var phoneQ = AthleteRegistrationRules.NormalizeDigits(phoneDigits);
-        var emailQ = AthleteRegistrationRules.NormalizeEmail(emailNormalized);
+        // Unik identifikator yalnız Ş/V — telefon/email paylaşila bilər.
+        _ = phoneDigits;
+        _ = emailNormalized;
         var idQ = AthleteRegistrationRules.NormalizeText(idCardNormalized).ToLowerInvariant();
-
-        if (string.IsNullOrWhiteSpace(phoneQ)
-            && string.IsNullOrWhiteSpace(emailQ)
-            && string.IsNullOrWhiteSpace(idQ))
+        if (string.IsNullOrWhiteSpace(idQ))
         {
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(phoneQ))
-        {
-            var byPhone = await FindAthleteByExactPhoneAsync(phoneQ, cancellationToken, includeInactive);
-            if (byPhone is not null)
-            {
-                return byPhone;
-            }
-        }
+        var byId = await dbContext.Athletes
+            .AsNoTracking()
+            .Where(a => a.IdCardNumber != null && a.IdCardNumber != "")
+            .ToListAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(emailQ))
-        {
-            var byEmail = await dbContext.Athletes
-                .AsNoTracking()
-                .Where(a => a.Email != null && a.Email != "")
-                .ToListAsync(cancellationToken);
-
-            var emailMatch = byEmail
-                .Where(a => includeInactive || a.IsActive)
-                .FirstOrDefault(a =>
-                    string.Equals(
-                        AthleteRegistrationRules.NormalizeEmail(a.Email),
-                        emailQ,
-                        StringComparison.Ordinal));
-            if (emailMatch is not null)
-            {
-                return emailMatch;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(idQ))
-        {
-            var byId = await dbContext.Athletes
-                .AsNoTracking()
-                .Where(a => a.IdCardNumber != null && a.IdCardNumber != "")
-                .ToListAsync(cancellationToken);
-
-            return byId
-                .Where(a => includeInactive || a.IsActive)
-                .FirstOrDefault(a =>
-                    string.Equals(
-                        AthleteRegistrationRules.NormalizeText(a.IdCardNumber).ToLowerInvariant(),
-                        idQ,
-                        StringComparison.Ordinal));
-        }
-
-        return null;
+        return byId
+            .Where(a => includeInactive || a.IsActive)
+            .FirstOrDefault(a =>
+                string.Equals(
+                    AthleteRegistrationRules.NormalizeText(a.IdCardNumber).ToLowerInvariant(),
+                    idQ,
+                    StringComparison.Ordinal));
     }
 
     public async Task<(Guid SessionId, int LaneNumber)?> TryGetActiveSessionForAthleteAsync(
@@ -881,6 +862,18 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
     public async Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken)
     {
         dbContext.CustomerPackageRecords.Update(record);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteCustomerPackageRecordAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.CustomerPackageRecords.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (existing is null)
+        {
+            return;
+        }
+
+        dbContext.CustomerPackageRecords.Remove(existing);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

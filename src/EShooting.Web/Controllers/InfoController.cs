@@ -237,8 +237,18 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         }
         else if (fixedWeekly.Count > 0 && periodFrom is DateTime pf && periodTo is DateTime pt)
         {
-            var months = Math.Max(1, ((pt.Year - pf.Year) * 12) + (pt.Month - pf.Month));
-            visitLimit = Math.Max(1, weeklyDays) * 4 * months;
+            // Limit = dövr ərzində seçilmiş həftə günlərinin real sayı (məcburi 4×həftə deyil).
+            visitLimit = WeeklyVisitPeriodRules.CountPlannedOccurrences(
+                fixedWeekly.Select(s => (
+                    s.DayOfWeek,
+                    (IReadOnlySet<string>)OccurrenceJson.DeserializeExcluded(s.ExcludedOccurrenceDatesJson))),
+                pf,
+                pt);
+            if (visitLimit <= 0)
+            {
+                visitLimit = Math.Max(1, weeklyDays);
+            }
+
             remaining = Math.Max(0, visitLimit.Value - visited);
             remainingLabel = remaining.Value.ToString();
             packageEnded = remaining.Value <= 0;

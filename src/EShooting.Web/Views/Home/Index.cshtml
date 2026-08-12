@@ -1805,14 +1805,11 @@
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Müştəri məlumatları</div>
             <button id="infoCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
         </div>
-        <p class="section-hint" style="margin:8px 0 0;">Müştərini tapın, məlumatlarını dəyişin, abunəlik və seans vaxtlarını idarə edin.</p>
-
-        <div class="row" style="margin-top:12px;">
-            <input id="infoPhone" placeholder="Telefon" inputmode="tel" maxlength="20" />
-            <input id="infoEmail" type="email" placeholder="E-mail" maxlength="200" />
-            <input id="infoIdCard" placeholder="Ş/V nömrəsi" maxlength="60" autocomplete="off" />
-            <button id="infoShowBtn" type="button" class="btn btn-primary">Axtar</button>
-        </div>
+        <p class="section-hint" style="margin:8px 0 0;">Məlumatları dəyişin, abunəlik və seans vaxtlarını idarə edin.</p>
+        <!-- Axtarış sahələri gizlidir — müştəri əsas axtarışdan gəlir; JS lookup üçün saxlanılır -->
+        <input id="infoPhone" type="hidden" />
+        <input id="infoEmail" type="hidden" />
+        <input id="infoIdCard" type="hidden" />
 
         <div id="infoProfileSection" style="display:none; margin-top:14px;">
             <h3 style="margin:0 0 8px; font-size:15px; color:#1a2650;">Müştəri məlumatları</h3>
@@ -1894,16 +1891,37 @@
         <p id="changePackageModalAthlete" class="section-hint" style="margin:8px 0 12px;"></p>
         <div class="row" style="flex-direction:column; align-items:stretch; gap:10px;">
             <select id="rxChangePackageSelect"><option value="">Paket seçin</option></select>
-            <div class="row" style="gap:10px;">
-                <label style="flex:1; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Başlanğıc</span><input id="rxChangePackageStart" type="date" /></label>
-                <label style="flex:1; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Bitmə</span><input id="rxChangePackageEnd" type="date" /></label>
+            <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <label style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:140px;"><span class="section-hint" style="margin:0;">Başlanğıc</span><input id="rxChangePackageStart" type="date" /></label>
+                <label style="flex:0 0 110px; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Neçə AY</span>
+                    <select id="rxChangePackageMonths">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            <option value="@m" selected="@(m == 1)">@m</option>
+                        }
+                    </select>
+                </label>
+                <label style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:140px;"><span class="section-hint" style="margin:0;">Bitmə (avtomatik)</span>
+                    <input id="rxChangePackageEnd" type="text" readonly tabindex="-1" data-no-flatpickr="1"
+                           placeholder="—" title="Seçilmiş günlərə görə N-ci gediş günü"
+                           style="background:rgba(0,0,0,0.04); cursor:default;" />
+                </label>
             </div>
-            <div class="row" style="gap:10px;">
+            <div id="rxChangePackageWeeklyRow" style="display:none;">
+                <div class="section-hint" style="margin:0 0 6px;">Həftə günləri</div>
+                <div id="rxChangePackageWeekdays" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                <label style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-width:140px;">
+                    <span class="section-hint" style="margin:0;">Saat</span>
+                    <input id="rxChangePackageWeeklyTime" class="hhmm-time" type="text" inputmode="numeric" placeholder="HH:mm" value="18:00" maxlength="5" />
+                </label>
+            </div>
+            <label class="checkbox-chip" id="rxChangePackageSkipPaymentWrap"><input id="rxChangePackageSkipPayment" type="checkbox" /> Sadəcə yenilə (ödənişsiz)</label>
+            <div class="row" style="gap:10px;" id="rxChangePackagePayRow">
                 <label style="flex:1; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Endirim</span><input id="rxChangePackageDiscount" type="number" min="0" step="0.01" value="0" /></label>
                 <label style="flex:1; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Nağd</span><input id="rxChangePackageCash" type="number" min="0" step="0.01" value="0" /></label>
                 <label style="flex:1; display:flex; flex-direction:column; gap:4px;"><span class="section-hint" style="margin:0;">Kart</span><input id="rxChangePackageCard" type="number" min="0" step="0.01" value="0" /></label>
             </div>
-            <label class="checkbox-chip"><input id="rxChangePackageComplimentary" type="checkbox" /> Pulsuz (əlavə ödəniş)</label>
+            <label class="checkbox-chip" id="rxChangePackageComplimentaryWrap"><input id="rxChangePackageComplimentary" type="checkbox" /> Pulsuz</label>
             <div id="rxChangePackageHint" class="notice">Yeni paket seçin.</div>
             <div class="row" style="gap:8px;">
                 <button type="button" class="btn btn-ghost" id="rxChangePackagePreviewBtn">Fərqi hesabla</button>
@@ -2601,10 +2619,11 @@
         if (!startIso) return "";
         const n = Math.min(12, Math.max(1, Number(bookingSubMonths?.value ?? 1) || 1));
         const start = new Date(`${startIso}T12:00:00`);
+        if (Number.isNaN(start.getTime())) return "";
         if (String(pkg?.billingType) === "Yearly") {
             start.setFullYear(start.getFullYear() + n);
         } else {
-            // Aylıq, Limitsiz (və köhnə VIP) — ay əlavə et.
+            // Aylıq / FixedWeekly / Limitsiz: eyni təqvim günü + N ay (məs. 08.08 → 08.09).
             start.setMonth(start.getMonth() + n);
         }
         return start.toISOString().slice(0, 10);
@@ -4804,7 +4823,7 @@
             if (idQ) qs.set("idCardNumber", idQ);
             const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 30000 });
             if (lookupRes.ok) {
-                const found = await lookupRes.json();
+                const found = pickLookupAthlete(await lookupRes.json());
                 if (found?.id) {
                     receptionMatchedAthleteId = found.id;
                     syncUpdateAthleteButton();
@@ -4974,16 +4993,30 @@
             }
 
             let visitStats = null;
-            let futureOccurrences = [];
+            let swapOccurrences = [];
             try {
                 const infoRes = await apiFetch(`/info/athlete?id=${encodeURIComponent(athleteId)}`, { timeoutMs: 30000 });
                 if (infoRes.ok) {
                     const info = await infoRes.json().catch(() => ({}));
                     visitStats = info?.visitStats ?? null;
                     const todayIso = getTodayLocalIso();
-                    futureOccurrences = (Array.isArray(info?.occurrencesFlat) ? info.occurrencesFlat : [])
-                        .filter(o => String(o?.dateLocal ?? "") > todayIso)
+                    const visitedSet = new Set(
+                        (Array.isArray(info?.lastSessions) ? info.lastSessions : [])
+                            .map(s => String(s?.dateLocal ?? "").slice(0, 10))
+                            .filter(Boolean)
+                    );
+                    const allOcc = Array.isArray(info?.occurrencesFlat) ? info.occurrencesFlat : [];
+                    // Gələcək planlar + gəlmədiyi keçmiş plan günləri (əvəz üçün).
+                    swapOccurrences = allOcc
+                        .filter(o => {
+                            const d = String(o?.dateLocal ?? "");
+                            if (!d || !o?.scheduleId) return false;
+                            if (d > todayIso) return true;
+                            if (d >= todayIso) return false;
+                            return !visitedSet.has(d);
+                        })
                         .sort((a, b) => String(a.dateLocal).localeCompare(String(b.dateLocal)));
+                    // Bitmə tarixinə qədər bütün plan günləri (Qalıb ilə kəsmirik — 08.09 kimi son gün itməsin).
                 }
             } catch { /* ignore */ }
 
@@ -5018,7 +5051,7 @@
                 remaining: visitStats?.remaining ?? null,
                 periodExpired: Boolean(visitStats?.periodExpired),
                 hasCarryover: Boolean(visitStats?.hasCarryover),
-                futureOccurrences,
+                futureOccurrences: swapOccurrences,
                 schedules: active
             };
             if (durationMinutesInput instanceof HTMLInputElement) {
@@ -5062,7 +5095,7 @@
         const daysText = monthly.dayLabels || allowed.map(weekdayLabelAz).join(", ");
         const wantsSwap = window.confirm(
             `Bu müştərinin gəlmə günləri ${daysText}-dür.\n\n` +
-            "Gələcək planlardan birini bu günlə əvəz etmək istəyirsiniz?"
+            "Gələcək və ya gəlmədiyi plan günlərindən birini bu günlə əvəz etmək istəyirsiniz?"
         );
         if (!wantsSwap) {
             return { ok: false, message: null };
@@ -5071,12 +5104,14 @@
         const future = (Array.isArray(monthly.futureOccurrences) ? monthly.futureOccurrences : [])
             .filter(o => o?.scheduleId && o?.dateLocal);
         if (!future.length) {
-            return { ok: false, message: "Əvəz ediləcək gələcək plan günü yoxdur." };
+            return { ok: false, message: "Əvəz ediləcək plan günü yoxdur (gələcək və ya gəlməmiş)." };
         }
 
-        const lines = future.slice(0, 12).map((o, i) =>
-            `${i + 1}) ${formatDateOnly(o.dateLocal)} ${o.dayLabel || ""} ${o.startTime || ""}`.trim()
-        ).join("\n");
+        const todayIso = getTodayLocalIso();
+        const lines = future.slice(0, 12).map((o, i) => {
+            const past = String(o.dateLocal) < todayIso ? " (gəlməyib)" : "";
+            return `${i + 1}) ${formatDateOnly(o.dateLocal)} ${o.dayLabel || ""} ${o.startTime || ""}${past}`.trim();
+        }).join("\n");
         const pickRaw = window.prompt(`Hansı planı bu günlə əvəz edək? Nömrə yazın:\n${lines}`, "1");
         if (pickRaw == null) return { ok: false, message: null };
         const pick = Number(String(pickRaw).trim());
@@ -5085,7 +5120,6 @@
         }
 
         const source = future[pick - 1];
-        const todayIso = getTodayLocalIso();
         const startTime = String(source.startTime || getBookingStartTimeLocal()).slice(0, 5);
         const duration = Number(source.durationMinutes || monthly.durationMinutes || 60);
         const res = await apiFetch(
@@ -5127,8 +5161,11 @@
                 const res = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 15000 });
                 if (res.ok) {
                     const data = await res.json();
-                    if (String(data?.id) === String(athleteId)) {
-                        applyReceptionWalkInFromAthlete(data);
+                    const matches = extractLookupMatches(data);
+                    const hit = matches.find(m => String(m?.id) === String(athleteId))
+                        || (matches.length === 1 ? matches[0] : null);
+                    if (hit && String(hit.id) === String(athleteId)) {
+                        applyReceptionWalkInFromAthlete(hit);
                         if (!_receptionWalkIn?.isActive) {
                             await refreshReceptionMonthlyStatus(athleteId);
                         }
@@ -5869,6 +5906,34 @@
         return String(value ?? "").trim().toLowerCase();
     }
 
+    function extractLookupMatches(payload) {
+        if (!payload) return [];
+        if (Array.isArray(payload.matches) && payload.matches.length) return payload.matches;
+        if (payload.id) return [payload];
+        return [];
+    }
+
+    /** Eyni telefon/email ilə bir neçə müştəri varsa siyahıdan seçdirir. */
+    function pickLookupAthlete(payload) {
+        const matches = extractLookupMatches(payload);
+        if (!matches.length) return null;
+        if (matches.length === 1) return matches[0];
+        const lines = matches.map((m, i) => {
+            const name = m.fullName || `${m.firstName || ""} ${m.lastName || ""}`.trim() || "—";
+            return `${i + 1}) ${name} · ${m.phoneNumber || "—"} · Ş/V: ${m.idCardNumber || "—"}`;
+        });
+        const raw = window.prompt(
+            "Eyni telefon/email ilə bir neçə müştəri tapıldı.\nHansını seçirsiniz? Nömrə yazın:\n\n" + lines.join("\n")
+        );
+        if (raw == null) return null;
+        const n = Number(String(raw).trim());
+        if (!Number.isInteger(n) || n < 1 || n > matches.length) {
+            alert("Düzgün nömrə yazın.");
+            return null;
+        }
+        return matches[n - 1];
+    }
+
     function pickBestMatch(candidates, scoreFn) {
         if (!Array.isArray(candidates) || candidates.length === 0) return null;
         let best = candidates[0];
@@ -5897,7 +5962,7 @@
             if (idQ) qs.set("idCardNumber", idQ);
             const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 30000 });
             if (lookupRes.ok) {
-                const found = await lookupRes.json();
+                const found = pickLookupAthlete(await lookupRes.json());
                 return found?.id ?? null;
             }
         } catch { /* ignore */ }
@@ -6205,7 +6270,7 @@
                 setLookupHint("Müştəri tapılmadı.");
                 return;
             }
-            best = await res.json();
+            best = pickLookupAthlete(await res.json());
         } catch {
             return;
         }
@@ -6623,7 +6688,7 @@
                 if ([...lookupQs.keys()].length) {
                     const lookupRes = await apiFetch(`/athletes/lookup?${lookupQs.toString()}`, { timeoutMs: 20000 });
                     if (lookupRes.ok) {
-                        const found = await lookupRes.json();
+                        const found = pickLookupAthlete(await lookupRes.json());
                         phone = phone || normalizeDigits(found?.phoneNumber ?? "");
                         email = email || normalizeText(found?.email ?? "");
                         idCardNumber = idCardNumber || normalizeText(found?.idCardNumber ?? "");
@@ -6666,7 +6731,7 @@
             await infoShow();
             applyManageRedirectContext();
         } else {
-            showInfoHint("Axtarış sahəsinə telefon, ad və ya email yazın.", "warn");
+            showInfoHint("Əvvəlcə əsas axtarışdan müştərini seçin.", "warn");
         }
     }
 
@@ -6697,7 +6762,6 @@
         if (infoProfileSection instanceof HTMLElement) {
             infoProfileSection.style.display = "none";
         }
-        try { infoPhone?.focus(); } catch { }
     }
 
     function closeInfoModal() {
@@ -8939,7 +9003,7 @@
                     if (idQ) qs.set("idCardNumber", idQ);
                     const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`);
                     if (lookupRes.ok) {
-                        const found = await lookupRes.json();
+                        const found = pickLookupAthlete(await lookupRes.json());
                         athleteId = found?.id ?? athleteId;
                         foundAthleteForSub = found;
                         receptionMatchedAthleteId = athleteId;
@@ -9654,11 +9718,11 @@
                     if (idQ) qs.set("idCardNumber", idQ);
                     const lookupRes = await apiFetch(`/athletes/lookup?${qs.toString()}`, { timeoutMs: 30000 });
                     if (lookupRes.ok) {
-                        const found = await lookupRes.json();
+                        const found = pickLookupAthlete(await lookupRes.json());
                         athleteId = found?.id ?? null;
                         foundAthlete = found;
                         receptionMatchedAthleteId = athleteId;
-                        applyReceptionWalkInFromAthlete(found);
+                        if (found) applyReceptionWalkInFromAthlete(found);
                     }
                 } catch { /* ignore */ }
             }
@@ -10465,6 +10529,92 @@
             d.setDate(d.getDate() + n);
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         }
+        const rxWeekdayLabels = ["Bazar", "B.e", "Ç.a", "Ç", "C.a", "C", "Ş"];
+        function ensureRxChangeWeekdays() {
+            const box = document.getElementById("rxChangePackageWeekdays");
+            if (!box || box.dataset.ready === "1") return;
+            box.innerHTML = rxWeekdayLabels.map((label, dow) =>
+                `<label class="checkbox-chip" style="margin:0;"><input type="checkbox" class="rx-change-dow" value="${dow}" /> ${label}</label>`
+            ).join("");
+            box.dataset.ready = "1";
+        }
+        function setRxChangeWeekdaysFromCsv(csv) {
+            ensureRxChangeWeekdays();
+            const set = {};
+            String(csv || "").split(",").forEach(p => {
+                const n = Number(String(p).trim());
+                if (Number.isInteger(n) && n >= 0 && n <= 6) set[n] = true;
+            });
+            document.querySelectorAll(".rx-change-dow").forEach(cb => {
+                cb.checked = !!set[Number(cb.value)];
+            });
+        }
+        function getRxSelectedWeekdays() {
+            return Array.from(document.querySelectorAll(".rx-change-dow:checked"))
+                .map(cb => Number(cb.value))
+                .filter(n => Number.isInteger(n));
+        }
+        function getRxChangeEndIso() {
+            const end = document.getElementById("rxChangePackageEnd");
+            if (!(end instanceof HTMLInputElement)) return "";
+            const fromData = String(end.dataset.iso || "").trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fromData)) return fromData;
+            const v = String(end.value || "").trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+            const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+            return "";
+        }
+        function syncRxChangeEndDate() {
+            const end = document.getElementById("rxChangePackageEnd");
+            const start = document.getElementById("rxChangePackageStart")?.value || "";
+            const months = Math.min(12, Math.max(1, Number(document.getElementById("rxChangePackageMonths")?.value || 1) || 1));
+            let endIso = "";
+            if (start) {
+                const d = new Date(`${start}T12:00:00`);
+                if (String(rxChangePreview?.billingType || "") === "Yearly") {
+                    d.setFullYear(d.getFullYear() + months);
+                } else {
+                    d.setMonth(d.getMonth() + months);
+                }
+                endIso = d.toISOString().slice(0, 10);
+            }
+            if (end instanceof HTMLInputElement) {
+                end.dataset.iso = endIso || "";
+                end.value = endIso ? formatDateDisplayAz(endIso) : "";
+            }
+        }
+        function syncRxChangeWeekdayLimit() {
+            const limitRaw = Number(rxChangePreview?.weeklyDaysCount ?? 0);
+            const limit = Number.isInteger(limitRaw) && limitRaw >= 1 && limitRaw <= 7 ? limitRaw : null;
+            ensureRxChangeWeekdays();
+            const boxes = Array.from(document.querySelectorAll(".rx-change-dow"))
+                .filter(el => el instanceof HTMLInputElement);
+            if (limit == null) {
+                boxes.forEach(b => { b.disabled = false; });
+                return;
+            }
+            let checked = boxes.filter(b => b.checked);
+            if (checked.length > limit) {
+                for (let i = limit; i < checked.length; i++) checked[i].checked = false;
+                checked = boxes.filter(b => b.checked);
+            }
+            const atLimit = checked.length >= limit;
+            boxes.forEach(b => { b.disabled = atLimit && !b.checked; });
+        }
+        function syncRxChangeWeeklyUi(preview) {
+            const row = document.getElementById("rxChangePackageWeeklyRow");
+            const fixed = !!(preview && preview.isFixedWeekly);
+            if (row) row.style.display = fixed ? "block" : "none";
+            if (fixed) {
+                ensureRxChangeWeekdays();
+                if (!getRxSelectedWeekdays().length) {
+                    setRxChangeWeekdaysFromCsv(preview.defaultWeeklyDaysCsv || "");
+                }
+                syncRxChangeWeekdayLimit();
+            }
+            syncRxChangeEndDate();
+        }
         async function openRxChangePackageModal() {
             if (!_currentInfoAthleteId) {
                 alert("Əvvəlcə müştərini axtarın.");
@@ -10485,10 +10635,24 @@
                 ).join("");
             }
             const start = document.getElementById("rxChangePackageStart");
-            const end = document.getElementById("rxChangePackageEnd");
+            const months = document.getElementById("rxChangePackageMonths");
             if (start) start.value = rxIsoToday();
-            if (end) end.value = rxIsoPlusDays(30);
+            if (months) months.value = "1";
+            rxChangePreview = null;
+            syncRxChangeWeeklyUi(null);
+            const skip = document.getElementById("rxChangePackageSkipPayment");
+            if (skip) skip.checked = false;
             if (modal) modal.style.display = "block";
+        }
+        function syncRxChangePayUi() {
+            const justRenew = !!document.getElementById("rxChangePackageSkipPayment")?.checked;
+            const requiresPay = !!(rxChangePreview && rxChangePreview.requiresNewPayment) && !justRenew;
+            const payRow = document.getElementById("rxChangePackagePayRow");
+            const compWrap = document.getElementById("rxChangePackageComplimentaryWrap");
+            const skipWrap = document.getElementById("rxChangePackageSkipPaymentWrap");
+            if (skipWrap) skipWrap.style.display = "";
+            if (payRow) payRow.style.display = requiresPay ? "" : "none";
+            if (compWrap) compWrap.style.display = requiresPay ? "" : "none";
         }
         async function refreshRxChangePreview() {
             rxChangePreview = null;
@@ -10496,11 +10660,14 @@
             const pkgId = document.getElementById("rxChangePackageSelect")?.value || "";
             if (!_currentInfoAthleteId || !pkgId) {
                 if (hint) hint.textContent = "Yeni paket seçin.";
+                syncRxChangeWeeklyUi(null);
+                syncRxChangePayUi();
                 return;
             }
-            const discount = Number(document.getElementById("rxChangePackageDiscount")?.value || 0);
+            const justRenew = !!document.getElementById("rxChangePackageSkipPayment")?.checked;
+            const discount = justRenew ? 0 : Number(document.getElementById("rxChangePackageDiscount")?.value || 0);
             const res = await apiFetch(
-                `/athletes/${encodeURIComponent(_currentInfoAthleteId)}/change-package/preview?newServicePackageId=${encodeURIComponent(pkgId)}&discountAmount=${encodeURIComponent(discount)}`
+                `/athletes/${encodeURIComponent(_currentInfoAthleteId)}/change-package/preview?newServicePackageId=${encodeURIComponent(pkgId)}&discountAmount=${encodeURIComponent(discount)}&justRenew=${justRenew ? "true" : "false"}`
             );
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -10508,12 +10675,18 @@
                 return;
             }
             rxChangePreview = data;
-            const kind = data.differenceKind || "even";
-            let text = `Köhnə ödənilən: ${Number(data.oldAmountPaid || 0).toFixed(2)} · Yeni: ${Number(data.newPayable || 0).toFixed(2)}. `;
-            if (kind === "additional") text += `ƏLAVƏ: ${Number(data.additionalDue || 0).toFixed(2)} AZN.`;
-            else if (kind === "refund") text += `QAYTARMA: ${Number(data.refundDue || 0).toFixed(2)} AZN.`;
-            else text += "Fərq yoxdur.";
-            if (hint) hint.textContent = text;
+            syncRxChangeWeeklyUi(data);
+            syncRxChangePayUi();
+            if (justRenew || !data.requiresNewPayment) {
+                if (hint) hint.textContent = data.lifecycleHint
+                    || (justRenew
+                        ? "Sadəcə yenilə — ödəniş etmədən seçilmiş paket və müddət yazılacaq."
+                        : "Aktiv paket — yalnız plan yenilənəcək. Ödəniş qeydi dəyişməyəcək.");
+                return;
+            }
+            if (hint) {
+                hint.textContent = `${data.lifecycleHint || "Mövcud paket bitmişdir."} Ödəniləcək: ${Number(data.newPayable || 0).toFixed(2)} AZN.`;
+            }
         }
         document.getElementById("infoChangePackageBtn")?.addEventListener("click", openRxChangePackageModal);
         document.getElementById("changePackageModalCloseBtn")?.addEventListener("click", () => {
@@ -10522,29 +10695,60 @@
         });
         document.getElementById("rxChangePackagePreviewBtn")?.addEventListener("click", refreshRxChangePreview);
         document.getElementById("rxChangePackageSelect")?.addEventListener("change", refreshRxChangePreview);
+        document.getElementById("rxChangePackageSkipPayment")?.addEventListener("change", refreshRxChangePreview);
+        document.getElementById("rxChangePackageStart")?.addEventListener("change", syncRxChangeEndDate);
+        document.getElementById("rxChangePackageMonths")?.addEventListener("change", syncRxChangeEndDate);
+        document.getElementById("rxChangePackageWeekdays")?.addEventListener("change", () => {
+            syncRxChangeWeekdayLimit();
+        });
         document.getElementById("rxChangePackageSaveBtn")?.addEventListener("click", async () => {
             if (!_currentInfoAthleteId) return;
             const pkgId = document.getElementById("rxChangePackageSelect")?.value || "";
             if (!pkgId) { alert("Paket seçin."); return; }
             await refreshRxChangePreview();
-            if (!rxChangePreview) { alert("Fərq hesablanmadı."); return; }
-            const kind = rxChangePreview.differenceKind || "even";
-            let msg = "Paket dəyişilsin?";
-            if (kind === "additional") {
-                msg = `Əlavə alınacaq: ${Number(rxChangePreview.additionalDue || 0).toFixed(2)} AZN. Davam?`;
-            } else if (kind === "refund") {
-                msg = `Qaytarılacaq: ${Number(rxChangePreview.refundDue || 0).toFixed(2)} AZN. Davam?`;
+            if (!rxChangePreview) { alert("Hesablama alınmadı."); return; }
+            const justRenew = !!document.getElementById("rxChangePackageSkipPayment")?.checked;
+            const planOnly = justRenew || !rxChangePreview.requiresNewPayment;
+            if (rxChangePreview.isFixedWeekly) {
+                const days = getRxSelectedWeekdays();
+                const limit = Number(rxChangePreview.weeklyDaysCount || 0);
+                if (!days.length) {
+                    alert("Aylıq plan üçün həftə günlərini seçin.");
+                    return;
+                }
+                if (limit >= 1 && days.length !== limit) {
+                    alert(`Bu paket həftədə ${limit} gün üçündür — ${limit} gün seçin.`);
+                    return;
+                }
             }
+            syncRxChangeEndDate();
+            const endIso = getRxChangeEndIso();
+            if (!endIso) {
+                alert("Bitmə tarixi hesablanmadı.");
+                return;
+            }
+            const months = Math.min(12, Math.max(1, Number(document.getElementById("rxChangePackageMonths")?.value || 1) || 1));
+            const msg = justRenew
+                ? "Ödəniş etmədən yenilənsin? Seçilmiş paket və müddət yazılacaq. Ödəniş tarixçəsi dəyişməyəcək."
+                : planOnly
+                    ? "Yalnız paket planı yenilənəcək. Ödəniş və gəliş tarixçəsi saxlanılacaq. Davam?"
+                    : `Mövcud paket bitmişdir. Yeni paket üçün ödəniş: ${Number(rxChangePreview.newPayable || 0).toFixed(2)} AZN. Davam?`;
             if (!window.confirm(msg)) return;
             const payload = {
                 newServicePackageId: pkgId,
                 periodStartLocal: document.getElementById("rxChangePackageStart")?.value || rxIsoToday(),
-                periodEndLocal: document.getElementById("rxChangePackageEnd")?.value || rxIsoPlusDays(30),
-                discountAmount: Number(document.getElementById("rxChangePackageDiscount")?.value || 0),
-                amountPaidCash: Number(document.getElementById("rxChangePackageCash")?.value || 0),
-                amountPaidCard: Number(document.getElementById("rxChangePackageCard")?.value || 0),
-                isComplimentary: !!document.getElementById("rxChangePackageComplimentary")?.checked,
-                confirmDifference: true
+                periodEndLocal: endIso,
+                periodMonths: months,
+                discountAmount: planOnly ? 0 : Number(document.getElementById("rxChangePackageDiscount")?.value || 0),
+                amountPaidCash: planOnly ? 0 : Number(document.getElementById("rxChangePackageCash")?.value || 0),
+                amountPaidCard: planOnly ? 0 : Number(document.getElementById("rxChangePackageCard")?.value || 0),
+                isComplimentary: planOnly ? false : !!document.getElementById("rxChangePackageComplimentary")?.checked,
+                confirmDifference: true,
+                skipPayment: justRenew,
+                weeklyDaysOfWeek: rxChangePreview.isFixedWeekly ? getRxSelectedWeekdays() : null,
+                weeklyStartTimeLocal: rxChangePreview.isFixedWeekly
+                    ? (document.getElementById("rxChangePackageWeeklyTime")?.value || "18:00")
+                    : null
             };
             const res = await apiFetch(`/athletes/${encodeURIComponent(_currentInfoAthleteId)}/change-package`, {
                 method: "POST",
@@ -10637,7 +10841,6 @@
             if (e.target === infoModal) closeInfoModal();
         });
     } catch (e) { console.error(e); }
-    try { infoShowBtn?.addEventListener("click", infoShow); } catch (e) { console.error(e); }
     try { infoDaysToggleBtn?.addEventListener("click", toggleInfoDaysMode); } catch (e) { console.error(e); }
     try {
         document.getElementById("scheduleEditCloseBtn")?.addEventListener("click", closeScheduleEditModal);
@@ -10656,21 +10859,6 @@
         document.getElementById("occurrenceEditTargetDate")?.addEventListener("input", syncOccurrenceEditDateHint);
         document.getElementById("occurrenceEditModal")?.addEventListener("click", function (e) {
             if (e.target && e.target.id === "occurrenceEditModal") closeOccurrenceEditModal();
-        });
-    } catch (e) { console.error(e); }
-    try {
-        [infoPhone, infoEmail, infoIdCard].forEach(el => {
-            if (!(el instanceof HTMLElement)) return;
-            el.addEventListener("keydown", ev => {
-                if (ev.key === "Enter") {
-                    ev.preventDefault();
-                    infoShow();
-                }
-                if (ev.key === "Escape") {
-                    ev.preventDefault();
-                    closeInfoModal();
-                }
-            });
         });
     } catch (e) { console.error(e); }
     try { cancelSubscriptionCloseBtn?.addEventListener("click", closeCancelSubscriptionModal); } catch (e) { console.error(e); }

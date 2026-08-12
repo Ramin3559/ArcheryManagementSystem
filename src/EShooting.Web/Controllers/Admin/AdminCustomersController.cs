@@ -129,11 +129,26 @@ public sealed class AdminCustomersController(IMediator mediator, ITrainingCenter
         }
     }
 
+    [HttpDelete("package-payments/{recordId:guid}")]
+    public async Task<IActionResult> DeletePackagePayment(Guid recordId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mediator.Send(new DeleteCustomerPackageRecordCommand(recordId), cancellationToken);
+            return Ok(new { message = "Ödəniş qeydi silindi." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}/change-package/preview")]
     public async Task<IActionResult> PreviewChangePackage(
         Guid id,
         [FromQuery] Guid newServicePackageId,
         [FromQuery] decimal discountAmount,
+        [FromQuery] bool justRenew,
         CancellationToken cancellationToken)
     {
         try
@@ -143,7 +158,8 @@ public sealed class AdminCustomersController(IMediator mediator, ITrainingCenter
                 id,
                 newServicePackageId,
                 discountAmount,
-                cancellationToken);
+                cancellationToken,
+                justRenew);
             return Ok(new
             {
                 athleteId = preview.AthleteId,
@@ -158,7 +174,14 @@ public sealed class AdminCustomersController(IMediator mediator, ITrainingCenter
                 appliedCredit = preview.AppliedCredit,
                 additionalDue = preview.AdditionalDue,
                 refundDue = preview.RefundDue,
-                differenceKind = preview.DifferenceKind
+                differenceKind = preview.DifferenceKind,
+                isFixedWeekly = preview.IsFixedWeekly,
+                defaultWeeklyDaysCsv = preview.DefaultWeeklyDaysCsv,
+                weeklyDaysCount = preview.WeeklyDaysCount,
+                sessionDurationMinutes = preview.SessionDurationMinutes,
+                validityDays = preview.ValidityDays,
+                requiresNewPayment = preview.RequiresNewPayment,
+                lifecycleHint = preview.LifecycleHint
             });
         }
         catch (InvalidOperationException ex)
@@ -175,17 +198,28 @@ public sealed class AdminCustomersController(IMediator mediator, ITrainingCenter
     {
         try
         {
+            TimeSpan? weeklyStart = null;
+            if (!string.IsNullOrWhiteSpace(request.WeeklyStartTimeLocal)
+                && TimeSpan.TryParse(request.WeeklyStartTimeLocal.Trim(), out var parsedStart))
+            {
+                weeklyStart = parsedStart;
+            }
+
             var result = await mediator.Send(
                 new ChangeCustomerPackageCommand(
                     id,
                     request.NewServicePackageId,
                     request.PeriodStartLocal,
                     request.PeriodEndLocal,
+                    request.PeriodMonths,
                     request.DiscountAmount,
                     request.AmountPaidCash,
                     request.AmountPaidCard,
                     request.IsComplimentary,
                     request.ConfirmDifference,
+                    request.SkipPayment,
+                    request.WeeklyDaysOfWeek,
+                    weeklyStart,
                     CreatedByStaffId: null,
                     CanApplyDiscount: true,
                     CanGrantComplimentary: true),

@@ -30,13 +30,13 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return denied;
         }
 
-        // Dublikat yalnız dəqiq telefon / email / FİN (və ya kart) ilə — ad-soyad və qismən uyğunluq bloklamır.
+        // Dublikat yalnız Ş/V ilə — telefon/email paylaşila bilər.
         var phoneQ = NormalizeDigits(request.PhoneNumber);
         var emailQ = NormalizeText(request.Email);
         var idQ = NormalizeText(request.IdCardNumber);
         var clubCardQ = NormalizeText(request.ClubCardNumber);
         var clubCardTypeQ = ResolveClubCardType(request.ClubCardType, clubCardQ);
-        if (!string.IsNullOrWhiteSpace(phoneQ) || !string.IsNullOrWhiteSpace(emailQ) || !string.IsNullOrWhiteSpace(idQ))
+        if (!string.IsNullOrWhiteSpace(idQ))
         {
             var existing = await repository.FindAthleteByExactUniqueFieldsAsync(
                 phoneQ,
@@ -51,7 +51,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 {
                     return Conflict(new
                     {
-                        error = "Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
+                        error = "Bu Ş/V ilə şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
                         isInactive = true,
                         existingId = existing.Id,
                         existing = MapExistingAthlete(existing)
@@ -60,7 +60,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
                 return Conflict(new
                 {
-                    error = "Bu şəxs artıq sistemdə qeydiyyatdadır.",
+                    error = "Bu Ş/V nömrəsi artıq sistemdə qeydiyyatdadır.",
                     existingId = existing.Id,
                     existing = MapExistingAthlete(existing)
                 });
@@ -131,15 +131,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 return Conflict(new
                 {
                     error = existingAfterError.IsActive
-                        ? "Bu şəxs artıq sistemdə qeydiyyatdadır."
-                        : "Bu şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
+                        ? "Bu Ş/V nömrəsi artıq sistemdə qeydiyyatdadır."
+                        : "Bu Ş/V ilə şəxs «Silinmişlər» siyahısındadır. Yenidən aktiv etmək üçün adminə müraciət edin.",
                     isInactive = !existingAfterError.IsActive,
                     existingId = existingAfterError.Id,
                     existing = MapExistingAthlete(existingAfterError)
                 });
             }
 
-            return Conflict(new { error = "Bu məlumatlarla artıq qeydiyyat mövcuddur." });
+            return Conflict(new { error = "Bu Ş/V və ya kart məlumatları artıq qeydiyyatdadır." });
         }
     }
 
@@ -327,6 +327,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         [FromRoute] Guid id,
         [FromQuery] Guid newServicePackageId,
         [FromQuery] decimal discountAmount,
+        [FromQuery] bool justRenew,
         CancellationToken cancellationToken)
     {
         if (ReceptionPermissionGate.DenyUnless(this, ReceptionStaffClaims.CanChangeCustomerPackage) is { } denied)
@@ -341,7 +342,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 id,
                 newServicePackageId,
                 discountAmount,
-                cancellationToken);
+                cancellationToken,
+                justRenew);
             return Ok(new
             {
                 athleteId = preview.AthleteId,
@@ -356,7 +358,14 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 appliedCredit = preview.AppliedCredit,
                 additionalDue = preview.AdditionalDue,
                 refundDue = preview.RefundDue,
-                differenceKind = preview.DifferenceKind
+                differenceKind = preview.DifferenceKind,
+                isFixedWeekly = preview.IsFixedWeekly,
+                defaultWeeklyDaysCsv = preview.DefaultWeeklyDaysCsv,
+                weeklyDaysCount = preview.WeeklyDaysCount,
+                sessionDurationMinutes = preview.SessionDurationMinutes,
+                validityDays = preview.ValidityDays,
+                requiresNewPayment = preview.RequiresNewPayment,
+                lifecycleHint = preview.LifecycleHint
             });
         }
         catch (InvalidOperationException ex)
@@ -378,17 +387,28 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
         try
         {
+            TimeSpan? weeklyStart = null;
+            if (!string.IsNullOrWhiteSpace(request.WeeklyStartTimeLocal)
+                && TimeSpan.TryParse(request.WeeklyStartTimeLocal.Trim(), out var parsedStart))
+            {
+                weeklyStart = parsedStart;
+            }
+
             var result = await mediator.Send(
                 new ChangeCustomerPackageCommand(
                     id,
                     request.NewServicePackageId,
                     request.PeriodStartLocal,
                     request.PeriodEndLocal,
+                    request.PeriodMonths,
                     request.DiscountAmount,
                     request.AmountPaidCash,
                     request.AmountPaidCard,
                     request.IsComplimentary,
                     request.ConfirmDifference,
+                    request.SkipPayment,
+                    request.WeeklyDaysOfWeek,
+                    weeklyStart,
                     User.GetStaffMemberId(),
                     User.HasReceptionPermission(ReceptionStaffClaims.CanApplyDiscount),
                     User.HasReceptionPermission(ReceptionStaffClaims.CanGrantComplimentarySession)),
@@ -452,6 +472,25 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             if (existing is null)
             {
                 return NotFound(new { error = "Müştəri tapılmadı." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(idCard))
+            {
+                var idDup = await repository.FindAthleteByExactUniqueFieldsAsync(
+                    "",
+                    "",
+                    idCard,
+                    cancellationToken,
+                    includeInactive: true);
+                if (idDup is not null && idDup.Id != id)
+                {
+                    return Conflict(new
+                    {
+                        error = "Bu Ş/V nömrəsi başqa müştəridə qeydiyyatdadır.",
+                        existingId = idDup.Id,
+                        existing = MapExistingAthlete(idDup)
+                    });
+                }
             }
 
             var previousCard = existing.ClubCardNumber;
@@ -693,38 +732,75 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             return BadRequest(new { message = "Lookup requires at least phone/email/idCardNumber (min lengths: phone>=4, email>=4, id>=3)." });
         }
 
-        var best = await repository.FindAthleteForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
-        if (best is null || !AthleteSearchRules.IsSearchable(best))
+        var found = await repository.FindAthletesForLookupAsync(phoneQ, emailQ, idQ, cancellationToken);
+        var searchable = found.Where(AthleteSearchRules.IsSearchable).ToList();
+        if (searchable.Count == 0)
         {
             return NotFound();
         }
 
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-        var activeVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, best.Id, DateTime.Now);
-        var activeUnlimited = activeVip is null
-            ? WalkInSubscriptionRules.GetActiveUnlimitedSchedule(schedules, best.Id, DateTime.Now)
+
+        static object MapOne(
+            Domain.Entities.Athlete best,
+            IReadOnlyCollection<Domain.Entities.SubscriptionSchedule> schedules)
+        {
+            var activeVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, best.Id, DateTime.Now);
+            var activeUnlimited = activeVip is null
+                ? WalkInSubscriptionRules.GetActiveUnlimitedSchedule(schedules, best.Id, DateTime.Now)
+                : null;
+            var activeWalkIn = activeVip ?? activeUnlimited;
+            return new
+            {
+                best.Id,
+                best.FullName,
+                best.FirstName,
+                best.LastName,
+                best.PhoneNumber,
+                best.Email,
+                best.IdCardNumber,
+                best.ClubCardNumber,
+                best.ClubCardType,
+                best.Category,
+                best.MembershipType,
+                best.IsSubscriber,
+                best.IsFullPackage,
+                best.IsVip,
+                hasActiveWalkIn = activeWalkIn is not null,
+                walkInExpiresLocal = activeWalkIn is null ? null : DateDisplayFormats.FormatDate(activeWalkIn.ActiveToDateLocal),
+                walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 0
+            };
+        }
+
+        var matches = searchable.Select(a => MapOne(a, schedules)).ToList();
+        var first = searchable[0];
+        var firstWalkInVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, first.Id, DateTime.Now);
+        var firstWalkInUnlimited = firstWalkInVip is null
+            ? WalkInSubscriptionRules.GetActiveUnlimitedSchedule(schedules, first.Id, DateTime.Now)
             : null;
-        var activeWalkIn = activeVip ?? activeUnlimited;
+        var firstWalkIn = firstWalkInVip ?? firstWalkInUnlimited;
 
         return Ok(new
         {
-            best.Id,
-            best.FullName,
-            best.FirstName,
-            best.LastName,
-            best.PhoneNumber,
-            best.Email,
-            best.IdCardNumber,
-            best.ClubCardNumber,
-            best.ClubCardType,
-            best.Category,
-            best.MembershipType,
-            best.IsSubscriber,
-            best.IsFullPackage,
-            best.IsVip,
-            hasActiveWalkIn = activeWalkIn is not null,
-            walkInExpiresLocal = activeWalkIn is null ? null : DateDisplayFormats.FormatDate(activeWalkIn.ActiveToDateLocal),
-            walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 0
+            matchCount = matches.Count,
+            matches,
+            id = first.Id,
+            fullName = first.FullName,
+            firstName = first.FirstName,
+            lastName = first.LastName,
+            phoneNumber = first.PhoneNumber,
+            email = first.Email,
+            idCardNumber = first.IdCardNumber,
+            clubCardNumber = first.ClubCardNumber,
+            clubCardType = first.ClubCardType,
+            category = first.Category,
+            membershipType = first.MembershipType,
+            isSubscriber = first.IsSubscriber,
+            isFullPackage = first.IsFullPackage,
+            isVip = first.IsVip,
+            hasActiveWalkIn = firstWalkIn is not null,
+            walkInExpiresLocal = firstWalkIn is null ? null : DateDisplayFormats.FormatDate(firstWalkIn.ActiveToDateLocal),
+            walkInSessionDurationMinutes = firstWalkIn?.DurationMinutes ?? 0
         });
     }
 

@@ -156,11 +156,11 @@ public sealed class EquipmentSalesController(ITrainingCenterRepository repositor
     private static string MapSaleDbError(DbUpdateException ex)
     {
         var detail = ex.InnerException?.Message ?? ex.Message;
-        if (detail.Contains("UX_Athletes_PhoneNumber", StringComparison.OrdinalIgnoreCase)
+        if (detail.Contains("UX_Athletes_IdCardNumber", StringComparison.OrdinalIgnoreCase)
             || (detail.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
-                && detail.Contains("PhoneNumber", StringComparison.OrdinalIgnoreCase)))
+                && detail.Contains("IdCardNumber", StringComparison.OrdinalIgnoreCase)))
         {
-            return "Bu telefon nömrəsi artıq qeydiyyatdadır. Müştərini axtarışdan seçin.";
+            return "Bu Ş/V nömrəsi artıq qeydiyyatdadır. Müştərini axtarışdan seçin.";
         }
 
         if (detail.Contains("FK_EquipmentSaleReceiptLines", StringComparison.OrdinalIgnoreCase)

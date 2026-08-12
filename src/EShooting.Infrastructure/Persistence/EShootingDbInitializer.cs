@@ -244,32 +244,26 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             INNER JOIN dupCards d ON d.[Id] = a.[Id]
             WHERE d.rn > 1;
 
-            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_PhoneNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
-               AND NOT EXISTS (
-                    SELECT 1
-                    FROM [dbo].[Athletes]
-                    WHERE [PhoneNumber] IS NOT NULL AND LTRIM(RTRIM([PhoneNumber])) <> N''
-                    GROUP BY LTRIM(RTRIM([PhoneNumber]))
-                    HAVING COUNT(*) > 1
-               )
+            -- Telefon və email artıq unik deyil (valideyn nömrəsi bir neçə uşaqda ola bilər).
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_PhoneNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
             BEGIN
-                CREATE UNIQUE INDEX [UX_Athletes_PhoneNumber]
-                ON [dbo].[Athletes]([PhoneNumber])
-                WHERE [PhoneNumber] IS NOT NULL AND [PhoneNumber] <> '';
+                DROP INDEX [UX_Athletes_PhoneNumber] ON [dbo].[Athletes];
             END;
 
-            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_Email' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
-               AND NOT EXISTS (
-                    SELECT 1
-                    FROM [dbo].[Athletes]
-                    WHERE [Email] IS NOT NULL AND LTRIM(RTRIM([Email])) <> N''
-                    GROUP BY LOWER(LTRIM(RTRIM([Email])))
-                    HAVING COUNT(*) > 1
-               )
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_Email' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
             BEGIN
-                CREATE UNIQUE INDEX [UX_Athletes_Email]
-                ON [dbo].[Athletes]([Email])
-                WHERE [Email] IS NOT NULL AND [Email] <> '';
+                DROP INDEX [UX_Athletes_Email] ON [dbo].[Athletes];
+            END;
+
+            -- Axtarış üçün qeyri-unik indekslər.
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Athletes_PhoneNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+            BEGIN
+                CREATE INDEX [IX_Athletes_PhoneNumber] ON [dbo].[Athletes]([PhoneNumber]);
+            END;
+
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Athletes_Email' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))
+            BEGIN
+                CREATE INDEX [IX_Athletes_Email] ON [dbo].[Athletes]([Email]);
             END;
 
             IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Athletes_IdCardNumber' AND object_id = OBJECT_ID(N'[dbo].[Athletes]'))

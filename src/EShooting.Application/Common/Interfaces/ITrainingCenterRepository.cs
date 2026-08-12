@@ -35,10 +35,18 @@ public interface ITrainingCenterRepository
         CancellationToken cancellationToken,
         bool includeInactive = false);
     /// <summary>
-    /// Qeydiyyat dublikatı: telefon / email / FİN dəqiq uyğunluq (OR).
-    /// Axtarış üçün istifadə olunan qismən (Contains) uyğunluq deyil.
+    /// Qeydiyyat dublikatı: yalnız Ş/V (IdCard) dəqiq uyğunluq.
+    /// Telefon və email bir neçə müştəridə təkrarlana bilər.
     /// </summary>
     Task<Athlete?> FindAthleteByExactUniqueFieldsAsync(
+        string phoneDigits,
+        string emailNormalized,
+        string idCardNormalized,
+        CancellationToken cancellationToken,
+        bool includeInactive = false);
+
+    /// <summary>Lookup üçün bütün uyğun namizədlər (telefon/email paylaşıla bilər).</summary>
+    Task<IReadOnlyList<Athlete>> FindAthletesForLookupAsync(
         string phoneDigits,
         string emailNormalized,
         string idCardNormalized,
@@ -96,6 +104,7 @@ public interface ITrainingCenterRepository
     Task<CustomerPackageRecord> AddCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
     Task<CustomerPackageRecord?> GetCustomerPackageRecordByIdAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateCustomerPackageRecordAsync(CustomerPackageRecord record, CancellationToken cancellationToken);
+    Task DeleteCustomerPackageRecordAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<CustomerPackageRecord>> GetCustomerPackageRecordsAsync(CancellationToken cancellationToken);
 
     Task<Athlete?> FindAthleteByClubCardAsync(
