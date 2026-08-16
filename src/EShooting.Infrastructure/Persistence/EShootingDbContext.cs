@@ -133,6 +133,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
                 .HasMaxLength(20)
                 .HasDefaultValue(PreferredLaneType.Any);
             entity.Property(x => x.IsFullPackage).HasDefaultValue(false);
+            entity.Property(x => x.VisitQuota);
             entity.Property(x => x.ExcludedOccurrenceDatesJson).HasColumnType("nvarchar(max)");
             entity.Property(x => x.OccurrenceOverridesJson).HasColumnType("nvarchar(max)");
 
@@ -153,6 +154,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.Price).HasPrecision(18, 2);
             entity.Property(x => x.WeeklyDaysCsv).HasMaxLength(30);
             entity.Property(x => x.WeeklyDaysCount);
+            entity.Property(x => x.VisitQuota);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.UnlimitedGym).HasDefaultValue(false);

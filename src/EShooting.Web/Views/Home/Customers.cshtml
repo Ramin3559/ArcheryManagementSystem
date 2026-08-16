@@ -436,7 +436,13 @@
                     tbody.appendChild(tr);
                 }
             }
-            document.getElementById("countLabel").textContent = "Cəmi: " + items.length + " müştəri";
+            if (data && data.visitRowsMode) {
+                const uniq = Number(data.uniqueCustomerCount || 0);
+                document.getElementById("countLabel").textContent = "Cəmi: " + items.length + " yazılma"
+                    + (uniq ? " (" + uniq + " müştəri)" : "");
+            } else {
+                document.getElementById("countLabel").textContent = "Cəmi: " + items.length + " müştəri";
+            }
         } finally {
             card.classList.remove("loading");
         }

@@ -29,6 +29,7 @@ public static class ServicePackageDisplayHelper
         PackageSchedulingMode.None => "—",
         PackageSchedulingMode.FixedWeekly => "Sabit həftəlik plan",
         PackageSchedulingMode.WalkInFlexible => "Çevik (walk-in)",
+        PackageSchedulingMode.FlexibleMonthly => "Aylıq sərbəst",
         _ => value.ToString()
     };
 
@@ -48,6 +49,7 @@ public static class ServicePackageDisplayHelper
     public static string WeeklyDaysShort(string? csv, PackageSchedulingMode schedulingMode = PackageSchedulingMode.None)
     {
         if (schedulingMode == PackageSchedulingMode.WalkInFlexible) return "Plan yox";
+        if (schedulingMode == PackageSchedulingMode.FlexibleMonthly) return "Aylıq sərbəst";
         if (string.IsNullOrWhiteSpace(csv)) return "—";
         var labels = new Dictionary<int, string>
         {

@@ -2588,6 +2588,17 @@
         }
     }
 
+    function isFlexibleMonthlyBookingPackage(pkg) {
+        return Boolean(pkg) && String(pkg.schedulingMode || "") === "FlexibleMonthly";
+    }
+
+    function syncFlexibleMonthlyBookingHint(pkg) {
+        if (bookingWalkInHint instanceof HTMLElement) {
+            bookingWalkInHint.style.display = "none";
+            bookingWalkInHint.textContent = "";
+        }
+    }
+
     function isWalkInPackage(pkg) {
         if (!pkg) return false;
         if (isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg)) return true;
@@ -2615,15 +2626,64 @@
         return "";
     }
 
+    function isFixedWeeklyBookingPackage(pkg) {
+        if (!pkg || isVipBillingPackage(pkg) || isUnlimitedBillingPackage(pkg) || isWalkInPackage(pkg)) return false;
+        if (isFlexibleMonthlyBookingPackage(pkg)) return false;
+        if (String(pkg.schedulingMode) === "FixedWeekly") return true;
+        const billing = String(pkg.billingType || "");
+        if (billing !== "Monthly" && billing !== "Yearly" && billing !== "Gym" && !isGymFixedWeeklyPackage(pkg)) {
+            return false;
+        }
+        const n = Number(pkg.weeklyDaysCount || 0);
+        if (Number.isInteger(n) && n >= 1 && n <= 7) return true;
+        return !!(pkg.weeklyDaysCsv && String(pkg.weeklyDaysCsv).trim());
+    }
+
+    function calcNthWeeklyOccurrenceEndIso(startIso, weekdays, visitCount) {
+        if (!startIso || !visitCount || !weekdays || !weekdays.length) return "";
+        const daySet = {};
+        weekdays.forEach(n => {
+            if (Number.isInteger(n) && n >= 0 && n <= 6) daySet[n] = true;
+        });
+        const d = new Date(`${startIso}T12:00:00`);
+        if (Number.isNaN(d.getTime())) return "";
+        let found = 0;
+        for (let i = 0; i < 800; i++) {
+            if (daySet[d.getDay()]) {
+                found++;
+                if (found >= visitCount) return d.toISOString().slice(0, 10);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        return "";
+    }
+
+    /** Plan bitməsi (N-ci gediş) + 1 ay bonus → saxlanılacaq ActiveTo. */
+    function addMakeupBonusMonthsIso(iso, bonusMonths = 1) {
+        if (!iso) return "";
+        const d = new Date(`${iso}T12:00:00`);
+        if (Number.isNaN(d.getTime())) return "";
+        d.setMonth(d.getMonth() + Math.max(0, Number(bonusMonths) || 0));
+        return d.toISOString().slice(0, 10);
+    }
+
     function calcSubscriptionEndDateLocal(startIso, pkg) {
         if (!startIso) return "";
         const n = Math.min(12, Math.max(1, Number(bookingSubMonths?.value ?? 1) || 1));
+        // Həftə günləri seçilən paket: N-ci plan günü + 1 ay bonus.
+        if (isFixedWeeklyBookingPackage(pkg)) {
+            const days = getSelectedBookingSubscriptionDays();
+            if (!days.length) return "";
+            const monthsForVisits = String(pkg?.billingType) === "Yearly" ? n * 12 : n;
+            const visitCount = Math.max(1, days.length) * 4 * monthsForVisits;
+            return calcNthWeeklyOccurrenceEndIso(startIso, days, visitCount);
+        }
         const start = new Date(`${startIso}T12:00:00`);
         if (Number.isNaN(start.getTime())) return "";
         if (String(pkg?.billingType) === "Yearly") {
             start.setFullYear(start.getFullYear() + n);
         } else {
-            // Aylıq / FixedWeekly / Limitsiz: eyni təqvim günü + N ay (məs. 08.08 → 08.09).
+            // Limitsiz / digər: eyni təqvim günü + N ay (məs. 08.08 → 08.09).
             start.setMonth(start.getMonth() + n);
         }
         return start.toISOString().slice(0, 10);
@@ -2866,7 +2926,8 @@
         const isUnlimited = isUnlimitedBillingPackage(pkg);
         const gymMode = isGymBookingMode();
         // Yalnız Trenajor birdəfəlik / köhnə Gym — həftə planı yox; aylıq Trenajor FixedWeekly — gün seçimi qalır.
-        const hideWeeklySchedule = isWalkIn || (pkg && isGymPackage(pkg) && !isGymFixedWeeklyPackage(pkg));
+        const hideWeeklySchedule = isWalkIn || isFlexibleMonthlyBookingPackage(pkg)
+            || (pkg && isGymPackage(pkg) && !isGymFixedWeeklyPackage(pkg));
         if (packageDurationHint instanceof HTMLElement) {
             packageDurationHint.textContent = "";
             packageDurationHint.style.display = "none";
@@ -2885,7 +2946,7 @@
             bookingSubscriptionScheduleRow.style.display = isSubscription && !hideWeeklySchedule ? "" : "none";
         }
         if (bookingWalkInHint instanceof HTMLElement) {
-            bookingWalkInHint.style.display = "none";
+            syncFlexibleMonthlyBookingHint(pkg);
         }
         if (bookingVipHint instanceof HTMLElement) {
             // Aktiv abunə/Limitsiz üçün əlavə uzun izah göstərmirik.
@@ -3026,6 +3087,7 @@
         if (!pkg) return;
         syncBookingPeriodUnitLabel(pkg);
         syncSubscriptionEndDateFromPeriod(pkg);
+        syncFlexibleMonthlyBookingHint(pkg);
         syncBookingListPriceDisplay(pkg);
         try { ensureBookingPaymentBinder().rebalance(); } catch { /* ignore */ }
         syncPaymentSummary(pkg);
@@ -3544,7 +3606,7 @@
 
     function validateBookingSubscriptionSchedule(pkg) {
         const package = pkg ?? getSelectedBookingPackage();
-        if (isWalkInPackage(package)) {
+        if (isWalkInPackage(package) || isFlexibleMonthlyBookingPackage(package)) {
             return validateWalkInSubscriptionPeriod(package);
         }
         // Trenajor birdəfəlik / walk-in — yalnız müddət; aylıq Trenajor həftə planı ilə gedir.
@@ -3699,7 +3761,7 @@
         const periodStart = bookingSubStartDate?.value ?? "";
         const periodEnd = calcSubscriptionEndDateLocal(periodStart, pkg);
 
-        if (isWalkInPackage(pkg)) {
+        if (isWalkInPackage(pkg) || isFlexibleMonthlyBookingPackage(pkg)) {
             const periodError = validateWalkInSubscriptionPeriod(pkg);
             if (periodError) {
                 alert(periodError);
@@ -4985,8 +5047,10 @@
                 return;
             }
             const schedules = await res.json().catch(() => []);
-            const active = (Array.isArray(schedules) ? schedules : [])
-                .filter(s => s?.isEnabled !== false && !s?.isFullPackage);
+            const list = Array.isArray(schedules) ? schedules : [];
+            const weekly = list.filter(s => s?.isEnabled !== false && !s?.isFullPackage);
+            const flexible = list.filter(s => s?.isEnabled !== false && s?.isFullPackage && Number(s.visitQuota || 0) > 0);
+            const active = weekly.length ? weekly : flexible;
             if (!active.length) {
                 syncVipReceptionBookingUi();
                 return;
@@ -5016,6 +5080,10 @@
                             return !visitedSet.has(d);
                         })
                         .sort((a, b) => String(a.dateLocal).localeCompare(String(b.dateLocal)));
+                    const remCap = visitStats?.remaining;
+                    if (remCap != null && Number.isFinite(Number(remCap))) {
+                        swapOccurrences = swapOccurrences.slice(0, Math.max(0, Number(remCap)));
+                    }
                     // Bitmə tarixinə qədər bütün plan günləri (Qalıb ilə kəsmirik — 08.09 kimi son gün itməsin).
                 }
             } catch { /* ignore */ }
@@ -5037,15 +5105,20 @@
                 || laneNo === GYM_LANE_NUMBER
                 || String(prefer?.preferredLaneTypeLabel || "").toLowerCase().includes("trenajor")
                 || String(prefer?.laneLabel || "").toLowerCase().includes("trenajor");
-            const dayOfWeeks = [...new Set(active.map(s => Number(s.dayOfWeek)).filter(d => Number.isInteger(d)))].sort((a, b) => a - b);
-            const dayLabels = formatWeeklyDayLabels(dayOfWeeks.join(","));
+            const isFlexible = Number(prefer?.visitQuota || 0) > 0 && Boolean(prefer?.isFullPackage);
+            const dayOfWeeks = isFlexible
+                ? []
+                : [...new Set(active.map(s => Number(s.dayOfWeek)).filter(d => Number.isInteger(d)))].sort((a, b) => a - b);
+            const dayLabels = isFlexible ? "istənilən gün" : formatWeeklyDayLabels(dayOfWeeks.join(","));
             _receptionMonthlyActive = {
                 durationMinutes: dur > 0 ? dur : 60,
                 isGym: Boolean(isGym),
+                isFlexible: Boolean(isFlexible),
                 dayOfWeeks,
                 dayLabels,
                 periodFrom: visitStats?.periodFromLocal || active[0]?.activeFromDateLocal || "",
                 periodTo: visitStats?.periodToLocal || active[0]?.activeToDateLocal || "",
+                makeupDeadline: visitStats?.makeupDeadlineLocal || "",
                 visitLimit: visitStats?.visitLimit ?? null,
                 visited: visitStats?.visited ?? null,
                 remaining: visitStats?.remaining ?? null,
@@ -5081,9 +5154,21 @@
             };
         }
 
-        // Qalıq gediş + dövr bitibsə — istənilən gün yaza bilərik (gün əvəzi lazım deyil).
-        if (monthly.hasCarryover || monthly.periodExpired) {
+        // Plan bitib, amma qalıq gediş makeup pəncərəsindədir — istənilən gün yaza bilərik.
+        if (monthly.hasCarryover) {
             return { ok: true };
+        }
+
+        if (monthly.periodExpired) {
+            _receptionMonthlyActive = null;
+            syncVipReceptionBookingUi();
+            return {
+                ok: false,
+                renew: true,
+                message: "Bu müştərinin paket müddəti bitib" +
+                    (monthly.makeupDeadline ? ` (makeup: ${formatDateDisplayAz(monthly.makeupDeadline)}).` : ".") +
+                    "\n\nPaketi yeniləyin və ya birdəfəlik seçin."
+            };
         }
 
         const todayDow = new Date().getDay();
@@ -5992,6 +6077,7 @@
             const today = getTodayLocalIso();
             const active = schedules.filter(s => {
                 if (s?.isEnabled === false || !s?.isFullPackage) return false;
+                if (Number(s.visitQuota || 0) > 0) return false;
                 const from = String(s.activeFromDateLocal ?? "").slice(0, 10);
                 const to = String(s.activeToDateLocal ?? "").slice(0, 10);
                 return from && to && from <= today && to >= today;
@@ -7270,17 +7356,32 @@
 
         if (infoVisitStats instanceof HTMLElement) {
             const vs = data?.visitStats;
-            if (vs && (vs.hasActiveSubscription || Number(vs.visited) > 0)) {
+            if (vs && (vs.hasActiveSubscription || Number(vs.visited) > 0 || Number(vs.oneTimeVisited) > 0)) {
                 const visited = Number(vs.visited ?? 0);
                 const rem = vs.remainingLabel != null ? String(vs.remainingLabel) : "—";
                 const limit = vs.visitLimit != null ? Number(vs.visitLimit) : null;
                 infoVisitStats.style.display = "block";
-                infoVisitStats.innerHTML =
-                    `Gəlib: <strong>${visited}</strong> dəfə` +
-                    ` &nbsp;·&nbsp; Qalıb: <strong>${escapeHtml2(rem)}</strong>` +
-                    (limit != null && !vs.isUnlimited ? ` &nbsp;·&nbsp; Limit: <strong>${limit}</strong>` : "") +
-                    (vs.hasCarryover ? " <span style=\"color:#7a86a8;font-weight:600;\">(qalıq gediş)</span>" : "") +
-                    (vs.isUnlimited ? " <span style=\"color:#7a86a8;font-weight:600;\">(limitsiz abunə)</span>" : "");
+                infoVisitStats.innerHTML = "";
+                const oneTime = Number(vs.oneTimeVisited ?? 0);
+                const monthly = Number(vs.monthlyVisited ?? visited);
+                const parts = [];
+                if (oneTime > 0) {
+                    parts.push(`Birdəfəlik: gəlib <strong>${oneTime}</strong>`);
+                }
+                if (vs.isUnlimited) {
+                    parts.push("Aylıq: <span style=\"color:#7a86a8;font-weight:600;\">limitsiz</span>");
+                } else if (vs.hasActiveSubscription || monthly > 0) {
+                    let monthlyHtml = `Aylıq: gəlib <strong>${monthly}</strong>` +
+                        ` · qalıb <strong>${escapeHtml2(rem)}</strong>`;
+                    if (limit != null) {
+                        monthlyHtml += ` · limit <strong>${limit}</strong>`;
+                    }
+                    parts.push(monthlyHtml);
+                }
+                if (vs.hasCarryover) {
+                    parts.push("<span style=\"color:#7a86a8;font-weight:600;\">(qalıq gediş)</span>");
+                }
+                infoVisitStats.innerHTML = parts.join(" &nbsp;·&nbsp; ");
             } else {
                 infoVisitStats.style.display = "none";
                 infoVisitStats.innerHTML = "";
@@ -7404,18 +7505,21 @@
                     <th>Tarix</th>
                     <th>Gün</th>
                     <th>Saat</th>
+                    <th>Paket növü</th>
                 </tr>`;
             }
             const rows = Array.isArray(_infoVisitedRows) ? _infoVisitedRows : [];
             if (!rows.length) {
-                infoTableBody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#7a86a8;">Gəliş qeydi yoxdur.</td></tr>`;
+                infoTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#7a86a8;">Gəliş qeydi yoxdur.</td></tr>`;
             } else {
                 for (const v of rows) {
                     const tr = document.createElement("tr");
+                    const pkg = v?.packageTypeLabel || v?.packageType || "—";
                     tr.innerHTML = `
                         <td>${escapeHtml2(formatDateOnly(v?.dateLocal))}</td>
                         <td>${escapeHtml2(v?.dayLabel)}</td>
-                        <td>${escapeHtml2(v?.startTime)}${v?.endTime ? "–" + escapeHtml2(v.endTime) : ""}</td>`;
+                        <td>${escapeHtml2(v?.startTime)}${v?.endTime ? "–" + escapeHtml2(v.endTime) : ""}</td>
+                        <td>${escapeHtml2(pkg)}</td>`;
                     infoTableBody.appendChild(tr);
                 }
             }
@@ -7434,25 +7538,40 @@
         }
 
         const occ = Array.isArray(_occurrencesFlat) ? _occurrencesFlat : [];
-        const futureOcc = occ.filter(o => String(o?.dateLocal ?? "") >= todayIso);
-        if (futureOcc.length) {
-            for (const o of futureOcc) {
+        const visitedSet = new Set(
+            (Array.isArray(_infoVisitedRows) ? _infoVisitedRows : [])
+                .map(s => String(s?.dateLocal ?? "").slice(0, 10))
+                .filter(Boolean)
+        );
+        const plannedRows = occ.filter(o => {
+            const d = String(o?.dateLocal ?? "");
+            if (!d) return false;
+            if (d >= todayIso) return true;
+            return !visitedSet.has(d);
+        });
+        if (plannedRows.length) {
+            for (const o of plannedRows) {
                 const sid = escapeHtml2(o?.scheduleId ?? "");
                 const d = escapeHtml2(o?.dateLocal ?? "");
+                const dateKey = String(o?.dateLocal ?? "");
+                const missed = dateKey < todayIso && !visitedSet.has(dateKey);
                 const tr = document.createElement("tr");
-                tr.setAttribute("data-date", String(o?.dateLocal ?? ""));
-                if (String(o?.dateLocal ?? "") === todayIso) {
+                tr.setAttribute("data-date", dateKey);
+                if (dateKey === todayIso) {
                     tr.style.background = "rgba(79,70,229,0.06)";
+                } else if (missed) {
+                    tr.style.opacity = "0.78";
                 }
+                const actions = missed
+                    ? `<span style="color:#b45309;font-weight:800;">Gəlməyib</span>`
+                    : `<button type="button" class="btn btn-ghost btn-sm" data-edit-occurrence-schedule="${sid}" data-edit-occurrence-date="${d}">Dəyişdir</button>
+                        <button type="button" class="btn btn-danger btn-sm" data-exclude-occurrence-schedule="${sid}" data-exclude-occurrence-date="${d}">Ləğv et</button>`;
                 tr.innerHTML = `
                     <td>${escapeHtml2(formatDateOnly(o?.dateLocal))}</td>
                     <td>${escapeHtml2(o?.dayLabel)}</td>
                     <td>${escapeHtml2(o?.startTime)}–${escapeHtml2(o?.endTime)}</td>
-                    <td>${escapeHtml2(o?.laneLabel)}</td>
-                    <td style="white-space:nowrap;">
-                        <button type="button" class="btn btn-ghost btn-sm" data-edit-occurrence-schedule="${sid}" data-edit-occurrence-date="${d}">Dəyişdir</button>
-                        <button type="button" class="btn btn-danger btn-sm" data-exclude-occurrence-schedule="${sid}" data-exclude-occurrence-date="${d}">Ləğv et</button>
-                    </td>`;
+                    <td>${missed ? "—" : escapeHtml2(o?.laneLabel)}</td>
+                    <td style="white-space:nowrap;">${actions}</td>`;
                 infoTableBody.appendChild(tr);
             }
             requestAnimationFrame(() => {
@@ -9628,7 +9747,7 @@
         }
 
         if (registrationMode === "subscription") {
-            if (isWalkInPackage(pkg)) {
+            if (isWalkInPackage(pkg) || isFlexibleMonthlyBookingPackage(pkg)) {
                 return validateWalkInSubscriptionPeriod(pkg);
             }
             return validateBookingSubscriptionSchedule(pkg);
@@ -10377,6 +10496,7 @@
         bookingDaysRoot?.addEventListener("change", () => {
             syncBookingSubscriptionDayLimit();
             renderBookingSubscriptionLaneTypesByDay();
+            syncSubscriptionEndDateFromPeriod(getSelectedBookingPackage());
         });
         categoryInput?.addEventListener("change", () => { renderBookingSubscriptionLaneTypesByDay(); });
     } catch (e) { console.error(e); }
@@ -10565,19 +10685,47 @@
             if (m) return `${m[3]}-${m[2]}-${m[1]}`;
             return "";
         }
+        function isRxChangeFixedWeekly() {
+            if (rxChangePreview && rxChangePreview.isFixedWeekly) return true;
+            const pkgId = document.getElementById("rxChangePackageSelect")?.value || "";
+            const pkg = (Array.isArray(bookingPackagesCache) ? bookingPackagesCache : [])
+                .find(p => String(p.id) === String(pkgId));
+            return isFixedWeeklyBookingPackage(pkg);
+        }
         function syncRxChangeEndDate() {
             const end = document.getElementById("rxChangePackageEnd");
             const start = document.getElementById("rxChangePackageStart")?.value || "";
             const months = Math.min(12, Math.max(1, Number(document.getElementById("rxChangePackageMonths")?.value || 1) || 1));
             let endIso = "";
             if (start) {
-                const d = new Date(`${start}T12:00:00`);
-                if (String(rxChangePreview?.billingType || "") === "Yearly") {
-                    d.setFullYear(d.getFullYear() + months);
+                if (isRxChangeFixedWeekly()) {
+                    let days = getRxSelectedWeekdays();
+                    if (!days.length && rxChangePreview?.defaultWeeklyDaysCsv) {
+                        setRxChangeWeekdaysFromCsv(rxChangePreview.defaultWeeklyDaysCsv);
+                        days = getRxSelectedWeekdays();
+                    }
+                    if (!days.length) {
+                        const pkgId = document.getElementById("rxChangePackageSelect")?.value || "";
+                        const pkg = (Array.isArray(bookingPackagesCache) ? bookingPackagesCache : [])
+                            .find(p => String(p.id) === String(pkgId));
+                        if (pkg?.weeklyDaysCsv) {
+                            setRxChangeWeekdaysFromCsv(pkg.weeklyDaysCsv);
+                            days = getRxSelectedWeekdays();
+                        }
+                    }
+                    if (days.length) {
+                        const visitCount = Math.max(1, days.length) * 4 * months;
+                        endIso = calcNthWeeklyOccurrenceEndIso(start, days, visitCount);
+                    }
                 } else {
-                    d.setMonth(d.getMonth() + months);
+                    const d = new Date(`${start}T12:00:00`);
+                    if (String(rxChangePreview?.billingType || "") === "Yearly") {
+                        d.setFullYear(d.getFullYear() + months);
+                    } else {
+                        d.setMonth(d.getMonth() + months);
+                    }
+                    endIso = d.toISOString().slice(0, 10);
                 }
-                endIso = d.toISOString().slice(0, 10);
             }
             if (end instanceof HTMLInputElement) {
                 end.dataset.iso = endIso || "";
@@ -10604,12 +10752,19 @@
         }
         function syncRxChangeWeeklyUi(preview) {
             const row = document.getElementById("rxChangePackageWeeklyRow");
-            const fixed = !!(preview && preview.isFixedWeekly);
+            const fixed = isRxChangeFixedWeekly() || !!(preview && preview.isFixedWeekly);
             if (row) row.style.display = fixed ? "block" : "none";
             if (fixed) {
                 ensureRxChangeWeekdays();
                 if (!getRxSelectedWeekdays().length) {
-                    setRxChangeWeekdaysFromCsv(preview.defaultWeeklyDaysCsv || "");
+                    let csv = preview?.defaultWeeklyDaysCsv || "";
+                    if (!csv) {
+                        const pkgId = document.getElementById("rxChangePackageSelect")?.value || "";
+                        const pkg = (Array.isArray(bookingPackagesCache) ? bookingPackagesCache : [])
+                            .find(p => String(p.id) === String(pkgId));
+                        csv = pkg?.weeklyDaysCsv || "";
+                    }
+                    if (csv) setRxChangeWeekdaysFromCsv(csv);
                 }
                 syncRxChangeWeekdayLimit();
             }
@@ -10700,6 +10855,7 @@
         document.getElementById("rxChangePackageMonths")?.addEventListener("change", syncRxChangeEndDate);
         document.getElementById("rxChangePackageWeekdays")?.addEventListener("change", () => {
             syncRxChangeWeekdayLimit();
+            syncRxChangeEndDate();
         });
         document.getElementById("rxChangePackageSaveBtn")?.addEventListener("click", async () => {
             if (!_currentInfoAthleteId) return;
@@ -10709,9 +10865,15 @@
             if (!rxChangePreview) { alert("Hesablama alınmadı."); return; }
             const justRenew = !!document.getElementById("rxChangePackageSkipPayment")?.checked;
             const planOnly = justRenew || !rxChangePreview.requiresNewPayment;
-            if (rxChangePreview.isFixedWeekly) {
+            const fixedWeekly = isRxChangeFixedWeekly();
+            if (fixedWeekly) {
                 const days = getRxSelectedWeekdays();
-                const limit = Number(rxChangePreview.weeklyDaysCount || 0);
+                let limit = Number(rxChangePreview.weeklyDaysCount || 0);
+                if (!limit) {
+                    const pkg = (Array.isArray(bookingPackagesCache) ? bookingPackagesCache : [])
+                        .find(p => String(p.id) === String(pkgId));
+                    limit = Number(pkg?.weeklyDaysCount || 0);
+                }
                 if (!days.length) {
                     alert("Aylıq plan üçün həftə günlərini seçin.");
                     return;
@@ -10724,7 +10886,7 @@
             syncRxChangeEndDate();
             const endIso = getRxChangeEndIso();
             if (!endIso) {
-                alert("Bitmə tarixi hesablanmadı.");
+                alert("Bitmə tarixi hesablanmadı. Həftə günlərini seçin.");
                 return;
             }
             const months = Math.min(12, Math.max(1, Number(document.getElementById("rxChangePackageMonths")?.value || 1) || 1));
@@ -10745,8 +10907,8 @@
                 isComplimentary: planOnly ? false : !!document.getElementById("rxChangePackageComplimentary")?.checked,
                 confirmDifference: true,
                 skipPayment: justRenew,
-                weeklyDaysOfWeek: rxChangePreview.isFixedWeekly ? getRxSelectedWeekdays() : null,
-                weeklyStartTimeLocal: rxChangePreview.isFixedWeekly
+                weeklyDaysOfWeek: fixedWeekly ? getRxSelectedWeekdays() : null,
+                weeklyStartTimeLocal: fixedWeekly
                     ? (document.getElementById("rxChangePackageWeeklyTime")?.value || "18:00")
                     : null
             };

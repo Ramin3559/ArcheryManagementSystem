@@ -61,6 +61,8 @@ public sealed class AdminPackagesController(IMediator mediator, IRealtimeNotifie
             Price = item.Price,
             SessionDurationMinutes = item.SessionDurationMinutes,
             WeeklyDaysCount = item.WeeklyDaysCount,
+            VisitQuota = item.VisitQuota,
+            IsFlexibleMonthly = item.SchedulingMode == PackageSchedulingMode.FlexibleMonthly,
             IsActive = item.IsActive
         });
     }
@@ -194,7 +196,9 @@ public sealed class AdminPackagesController(IMediator mediator, IRealtimeNotifie
                 default:
                     // Aylıq / İllik
                     if (scope == PackageScope.Vip) scope = PackageScope.Archery;
-                    scheduling = PackageSchedulingMode.FixedWeekly;
+                    scheduling = model.IsFlexibleMonthly
+                        ? PackageSchedulingMode.FlexibleMonthly
+                        : PackageSchedulingMode.FixedWeekly;
                     sessionDuration = model.SessionDurationMinutes;
                     validity = model.BillingType switch
                     {
@@ -208,7 +212,23 @@ public sealed class AdminPackagesController(IMediator mediator, IRealtimeNotifie
             }
 
             int? weeklyDaysCount = null;
-            if (scheduling == PackageSchedulingMode.FixedWeekly && sessionDuration > 0)
+            int? visitQuota = null;
+            if (scheduling == PackageSchedulingMode.FlexibleMonthly)
+            {
+                visitQuota = model.VisitQuota;
+                if (visitQuota is null or < 1 or > 31)
+                {
+                    ModelState.AddModelError(nameof(model.VisitQuota), "Aylıq sərbəst paketdə gediş limiti 1–31 arası seçilməlidir.");
+                    return View("~/Views/Admin/Packages/Form.cshtml", model);
+                }
+
+                if (sessionDuration <= 0)
+                {
+                    ModelState.AddModelError(nameof(model.SessionDurationMinutes), "Aylıq sərbəst paketdə sessiya müddəti 1–600 dəqiqə olmalıdır.");
+                    return View("~/Views/Admin/Packages/Form.cshtml", model);
+                }
+            }
+            else if (scheduling == PackageSchedulingMode.FixedWeekly && sessionDuration > 0)
             {
                 weeklyDaysCount = model.WeeklyDaysCount;
                 if (weeklyDaysCount is null or < 1 or > 7)
@@ -229,6 +249,7 @@ public sealed class AdminPackagesController(IMediator mediator, IRealtimeNotifie
                 PeriodMinutesQuota: null,
                 WeeklyDaysCsv: null,
                 WeeklyDaysCount: weeklyDaysCount,
+                VisitQuota: visitQuota,
                 validity,
                 unlimitedGym,
                 model.IsActive), cancellationToken);

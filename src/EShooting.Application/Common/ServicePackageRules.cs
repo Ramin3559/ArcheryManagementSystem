@@ -49,4 +49,19 @@ public static class ServicePackageRules
         _ = sessionDurationMinutes;
         return schedulingMode == PackageSchedulingMode.WalkInFlexible;
     }
+
+    public static bool IsFlexibleMonthlyPackage(ServicePackage package) =>
+        package.SchedulingMode == PackageSchedulingMode.FlexibleMonthly;
+
+    /// <summary>
+    /// Həftə günləri seçilən aylıq/illik plan (limitsiz/VIP/sərbəst deyil).
+    /// </summary>
+    public static bool IsFixedWeeklyPackage(ServicePackage package) =>
+        !IsFlexibleMonthlyPackage(package)
+        && (package.SchedulingMode == PackageSchedulingMode.FixedWeekly
+            || ((package.WeeklyDaysCount is >= 1
+                    || !string.IsNullOrWhiteSpace(package.WeeklyDaysCsv))
+                && package.BillingType is PackageBillingType.Monthly or PackageBillingType.Yearly or PackageBillingType.Gym
+                && !IsUnlimitedPackage(package)
+                && !IsVipPackage(package)));
 }

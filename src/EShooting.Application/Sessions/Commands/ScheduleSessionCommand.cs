@@ -156,6 +156,11 @@ public sealed class ScheduleSessionCommandHandler(
 
         var isGymLane = GymLaneRules.IsGymLane(lane.Number);
         var dayLocal = AzerbaijanTime.UtcToLocalDate(startTimeUtc);
+        FlexibleMonthlyRules.EnsureCanStartVisit(
+            subscriptionSchedules,
+            allSessions,
+            request.AthleteId,
+            dayLocal);
         var reusePlanned = SubscriptionPlannedSessionConsume.FindOpenSameDayPlanned(
             allSessions,
             request.AthleteId,
@@ -228,6 +233,7 @@ public sealed class ScheduleSessionCommandHandler(
         var equipmentIssues = request.EquipmentIssues ?? [];
         var hasRentalEquipment = equipmentIssues.Any(x => x.IssueType == EquipmentIssueType.Rental);
         var legacyEquipmentFlag = request.IsEquipmentIssued && equipmentIssues.Count == 0;
+        var flexibleSchedule = FlexibleMonthlyRules.GetEnabledSchedule(subscriptionSchedules, request.AthleteId);
 
         TrainingSession target;
         if (reusePlanned is not null)
@@ -238,6 +244,10 @@ public sealed class ScheduleSessionCommandHandler(
             reusePlanned.Status = SessionStatus.Scheduled;
             reusePlanned.IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag;
             reusePlanned.EquipmentReturnedAtUtc = null;
+            if (flexibleSchedule is not null)
+            {
+                reusePlanned.SubscriptionScheduleId = flexibleSchedule.Id;
+            }
             if (request.ActivateImmediately)
             {
                 SessionActivationRules.MarkActivated(reusePlanned, nowUtc);
@@ -265,7 +275,8 @@ public sealed class ScheduleSessionCommandHandler(
                 EndTimeUtc = requestedEndTimeUtc,
                 Status = SessionStatus.Scheduled,
                 IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
-                EquipmentReturnedAtUtc = null
+                EquipmentReturnedAtUtc = null,
+                SubscriptionScheduleId = flexibleSchedule?.Id
             };
 
             target = await repository.AddSessionAsync(session, cancellationToken);

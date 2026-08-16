@@ -24,6 +24,9 @@ public sealed class ServicePackage
     /// <summary>Aylıq/illik paketdə həftədə neçə gün seçilə bilər (1–7).</summary>
     public int? WeeklyDaysCount { get; set; }
 
+    /// <summary>Aylıq sərbəst: hər ay üçün gediş limiti (1–31). Resepsiyada ay sayı ilə vurulur.</summary>
+    public int? VisitQuota { get; set; }
+
     /// <summary>Abunə müddəti (gün): aylıq 30, illik 365.</summary>
     public int? ValidityDays { get; set; }
 

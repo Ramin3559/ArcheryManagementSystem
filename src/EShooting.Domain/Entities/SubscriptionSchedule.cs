@@ -15,6 +15,9 @@ public sealed class SubscriptionSchedule
     public bool IsEnabled { get; set; } = true;
     public PreferredLaneType PreferredLaneType { get; set; } = PreferredLaneType.Any;
     public bool IsFullPackage { get; set; }
+
+    /// <summary>Aylıq sərbəst: bu dövrün cəmi gediş limiti (aylıq kvota × ay sayı). Limitsiz/VIP-də null.</summary>
+    public int? VisitQuota { get; set; }
     public int? LastAssignedLaneNumber { get; set; }
     public DateTime? LastAutoStartedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

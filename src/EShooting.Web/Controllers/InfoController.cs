@@ -50,6 +50,10 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
 
         var sessions = await repository.GetSessionsAsync(cancellationToken);
         var schedules = (await repository.GetSubscriptionSchedulesAsync(cancellationToken)).ToList();
+        var packageRecords = (await repository.GetCustomerPackageRecordsAsync(cancellationToken))
+            .Where(r => r.AthleteId == athlete.Id)
+            .ToList();
+        var athleteSchedules = schedules.Where(s => s.AthleteId == athlete.Id).ToList();
 
         var packages = schedules
             .Where(x => x.AthleteId == athlete.Id && x.IsEnabled)
@@ -60,7 +64,12 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                 var from = g.Key.From;
                 var to = g.Key.To;
                 var dayLabels = g.Key.IsFullPackage
-                    ? new List<string> { "Limitsiz — istənilən vaxt gəliş" }
+                    ? new List<string>
+                    {
+                        g.Any(FlexibleMonthlyRules.IsFlexibleMonthlySchedule)
+                            ? "Aylıq sərbəst"
+                            : "Limitsiz — istənilən vaxt gəliş"
+                    }
                     : g
                         .Select(x => DayLabelAz(x.DayOfWeek))
                         .Distinct()
@@ -105,15 +114,21 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .Cast<object>()
             .ToList();
 
-        var occurrencesFlat = BuildFlatOccurrences(athlete.FullName ?? "", activeSchedules);
+        var occurrencesAll = BuildFlatOccurrences(athlete.FullName ?? "", activeSchedules);
         var todayIso = AzerbaijanTime.TodayLocal.ToString("yyyy-MM-dd");
-        var remainingPlanned = occurrencesFlat.Count(o =>
+        var remainingPlanned = occurrencesAll.Count(o =>
             o is OccurrenceRow row && string.CompareOrdinal(row.DateLocal, todayIso) >= 0);
-        var visitStats = BuildVisitStats(athlete.Id, sessions, activeSchedules, remainingPlanned);
+        var visitStats = BuildVisitStats(
+            athlete.Id,
+            sessions,
+            activeSchedules,
+            athleteSchedules,
+            packageRecords,
+            remainingPlanned);
 
         var lastSessions = sessions
             .Where(x => x.AthleteId == athlete.Id)
-            .Where(x => x.Status is SessionStatus.Active or SessionStatus.Completed)
+            .Where(SessionActivationRules.CountsAsAttendedVisit)
             .OrderByDescending(x => x.StartTimeUtc)
             .Take(30)
             .Select(ses =>
@@ -126,10 +141,17 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                     dayLabel = DayLabelAz((int)startLocal.DayOfWeek),
                     startTime = $"{startLocal:HH:mm}",
                     endTime = $"{endLocal:HH:mm}",
-                    durationHours = Math.Round((endLocal - startLocal).TotalMinutes / 60.0, 2)
+                    durationHours = Math.Round((endLocal - startLocal).TotalMinutes / 60.0, 2),
+                    packageTypeLabel = ResolveVisitPackageTypeLabel(ses, packageRecords, athleteSchedules)
                 };
             })
             .ToList();
+
+        var visitedDates = lastSessions
+            .Select(x => (string)x.dateLocal)
+            .ToHashSet(StringComparer.Ordinal);
+        var remainingCap = visitStats.Remaining;
+        var occurrencesFlat = CapRemainingOccurrences(occurrencesAll, todayIso, visitedDates, remainingCap);
 
         return Ok(new
         {
@@ -163,7 +185,8 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                 laneLabel = o.LaneLabel,
                 preferredLaneType = o.PreferredLaneType,
                 isFullPackage = o.IsFullPackage,
-                isRescheduled = o.IsRescheduled
+                isRescheduled = o.IsRescheduled,
+                isMissed = string.CompareOrdinal(o.DateLocal, todayIso) < 0 && !visitedDates.Contains(o.DateLocal)
             }),
             visitStats,
             lastSessions
@@ -184,10 +207,29 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         bool IsFullPackage,
         bool IsRescheduled = false);
 
-    private static object BuildVisitStats(
+    private sealed record VisitStatsResult(
+        int Visited,
+        int OneTimeVisited,
+        int MonthlyVisited,
+        int? Remaining,
+        string RemainingLabel,
+        int? VisitLimit,
+        int WeeklyDays,
+        bool IsUnlimited,
+        bool HasActiveSubscription,
+        string? PeriodFromLocal,
+        string? PeriodToLocal,
+        string? MakeupDeadlineLocal,
+        bool PeriodExpired,
+        bool PackageEnded,
+        bool HasCarryover);
+
+    private static VisitStatsResult BuildVisitStats(
         Guid athleteId,
         IReadOnlyCollection<TrainingSession> sessions,
         List<SubscriptionSchedule> activeSchedules,
+        List<SubscriptionSchedule> athleteSchedules,
+        IReadOnlyList<CustomerPackageRecord> packageRecords,
         int remainingPlanned)
     {
         DateTime? periodFrom = null;
@@ -198,26 +240,34 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             periodTo = activeSchedules.Max(s => s.ActiveToDateLocal.Date);
         }
 
-        var athleteSessions = sessions
-            .Where(s => s.AthleteId == athleteId)
-            .Where(s => s.Status is SessionStatus.Active or SessionStatus.Completed)
-            .Select(s => AzerbaijanTime.UtcToLocalDate(s.StartTimeUtc))
-            .ToList();
+        var enabledIds = activeSchedules.Select(s => s.Id).ToHashSet();
+        var oneTimeVisited = 0;
+        var monthlyVisited = 0;
+        foreach (var session in sessions.Where(s => s.AthleteId == athleteId)
+                     .Where(SessionActivationRules.CountsAsAttendedVisit))
+        {
+            var label = ResolveVisitPackageTypeLabel(session, packageRecords, athleteSchedules);
+            if (IsOneTimeVisitLabel(label))
+            {
+                oneTimeVisited++;
+                continue;
+            }
+
+            var day = AzerbaijanTime.UtcToLocalDate(session.StartTimeUtc);
+            var onCurrentPlan = session.SubscriptionScheduleId is Guid sid && enabledIds.Contains(sid);
+            var inPeriod = periodFrom is DateTime pf && day >= pf;
+            if (onCurrentPlan || inPeriod)
+            {
+                monthlyVisited++;
+            }
+        }
 
         var fixedWeekly = activeSchedules.Where(s => !s.IsFullPackage).ToList();
-        var isUnlimited = activeSchedules.Any(s => s.IsFullPackage);
+        var flexibleMonthly = activeSchedules.Where(FlexibleMonthlyRules.IsFlexibleMonthlySchedule).ToList();
+        var isUnlimited = activeSchedules.Any(s =>
+            s.IsFullPackage && !FlexibleMonthlyRules.IsFlexibleMonthlySchedule(s));
         var today = AzerbaijanTime.TodayLocal;
-
-        int visited;
-        if (periodFrom is DateTime from)
-        {
-            // Dövr başlanğıcından indiyə qədər (qalıq gediş üçün bitmə tarixindən sonra da sayılır).
-            visited = athleteSessions.Count(d => d >= from);
-        }
-        else
-        {
-            visited = athleteSessions.Count;
-        }
+        var visited = monthlyVisited;
 
         int? visitLimit = null;
         int? remaining = null;
@@ -235,24 +285,32 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
         {
             remainingLabel = "Limitsiz";
         }
+        else if (flexibleMonthly.Count > 0 && periodTo is DateTime flexTo)
+        {
+            visitLimit = flexibleMonthly.Max(s => s.VisitQuota ?? 0);
+            remaining = Math.Max(0, visitLimit.Value - visited);
+            remainingLabel = remaining.Value.ToString();
+            var makeupDeadline = WeeklyVisitPeriodRules.MakeupDeadline(flexTo);
+            var makeupOpen = today <= makeupDeadline;
+            hasCarryover = periodExpired && remaining.Value > 0 && makeupOpen;
+            packageEnded = remaining.Value <= 0 || !makeupOpen;
+        }
         else if (fixedWeekly.Count > 0 && periodFrom is DateTime pf && periodTo is DateTime pt)
         {
-            // Limit = dövr ərzində seçilmiş həftə günlərinin real sayı (məcburi 4×həftə deyil).
-            visitLimit = WeeklyVisitPeriodRules.CountPlannedOccurrences(
+            visitLimit = WeeklyVisitPeriodRules.ResolveVisitLimit(
                 fixedWeekly.Select(s => (
                     s.DayOfWeek,
                     (IReadOnlySet<string>)OccurrenceJson.DeserializeExcluded(s.ExcludedOccurrenceDatesJson))),
                 pf,
-                pt);
-            if (visitLimit <= 0)
-            {
-                visitLimit = Math.Max(1, weeklyDays);
-            }
+                pt,
+                weeklyDays);
 
             remaining = Math.Max(0, visitLimit.Value - visited);
             remainingLabel = remaining.Value.ToString();
-            packageEnded = remaining.Value <= 0;
-            hasCarryover = periodExpired && remaining.Value > 0;
+            var makeupDeadline = WeeklyVisitPeriodRules.MakeupDeadline(pt);
+            var makeupOpen = today <= makeupDeadline;
+            hasCarryover = periodExpired && remaining.Value > 0 && makeupOpen;
+            packageEnded = remaining.Value <= 0 || !makeupOpen;
         }
         else
         {
@@ -260,21 +318,64 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             remainingLabel = remainingPlanned.ToString();
         }
 
-        return new
+        DateTime? makeupDeadlineLocal = null;
+        if ((fixedWeekly.Count > 0 || flexibleMonthly.Count > 0) && periodTo is DateTime pt2)
         {
+            makeupDeadlineLocal = WeeklyVisitPeriodRules.MakeupDeadline(pt2);
+        }
+
+        return new VisitStatsResult(
             visited,
+            oneTimeVisited,
+            monthlyVisited,
             remaining,
             remainingLabel,
             visitLimit,
             weeklyDays,
             isUnlimited,
-            hasActiveSubscription = activeSchedules.Count > 0,
-            periodFromLocal = periodFrom?.ToString("yyyy-MM-dd"),
-            periodToLocal = periodTo?.ToString("yyyy-MM-dd"),
+            activeSchedules.Count > 0,
+            periodFrom?.ToString("yyyy-MM-dd"),
+            periodTo?.ToString("yyyy-MM-dd"),
+            makeupDeadlineLocal?.ToString("yyyy-MM-dd"),
             periodExpired,
             packageEnded,
-            hasCarryover
-        };
+            hasCarryover);
+    }
+
+    private static List<OccurrenceRow> CapRemainingOccurrences(
+        List<OccurrenceRow> all,
+        string todayIso,
+        HashSet<string> visitedDates,
+        int? remaining)
+    {
+        if (remaining is null)
+        {
+            return all;
+        }
+
+        var ordered = all
+            .OrderBy(o => o.DateLocal, StringComparer.Ordinal)
+            .ThenBy(o => o.StartTime, StringComparer.Ordinal)
+            .ToList();
+        var missed = ordered.Where(o =>
+            string.CompareOrdinal(o.DateLocal, todayIso) < 0
+            && !visitedDates.Contains(o.DateLocal));
+        var upcoming = ordered.Where(o => string.CompareOrdinal(o.DateLocal, todayIso) >= 0);
+        return missed.Concat(upcoming).Take(Math.Max(0, remaining.Value)).ToList();
+    }
+
+    private static bool IsOneTimeVisitLabel(string? label)
+    {
+        var t = (label ?? "").Trim();
+        if (t.Length == 0)
+        {
+            return false;
+        }
+
+        return t.Contains("Birdəfəlik", StringComparison.OrdinalIgnoreCase)
+            || t.Contains("Birdefəlik", StringComparison.OrdinalIgnoreCase)
+            || t.Contains("Birdefelik", StringComparison.OrdinalIgnoreCase)
+            || t.Contains("OneTime", StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<OccurrenceRow> BuildFlatOccurrences(string athleteFullName, List<SubscriptionSchedule> schedules)
@@ -392,6 +493,94 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .ThenBy(x => x.startKey, StringComparer.Ordinal)
             .Select(x => x.row)
             .ToList();
+    }
+
+    private static string ResolveVisitPackageTypeLabel(
+        TrainingSession session,
+        IReadOnlyList<CustomerPackageRecord> packageRecords,
+        IReadOnlyList<SubscriptionSchedule> athleteSchedules)
+    {
+        var bySession = packageRecords.FirstOrDefault(r => r.SessionId == session.Id);
+        if (bySession is not null)
+        {
+            return FormatPackageTypeLabel(bySession);
+        }
+
+        if (session.SubscriptionScheduleId is Guid scheduleId && scheduleId != Guid.Empty)
+        {
+            var byScheduleRecord = packageRecords
+                .Where(r => r.SubscriptionScheduleId == scheduleId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .FirstOrDefault();
+            if (byScheduleRecord is not null)
+            {
+                return FormatPackageTypeLabel(byScheduleRecord);
+            }
+
+            var schedule = athleteSchedules.FirstOrDefault(s => s.Id == scheduleId);
+            if (schedule is not null)
+            {
+                return schedule.IsFullPackage ? "Limitsiz" : "Abunə";
+            }
+        }
+
+        var day = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(session.StartTimeUtc));
+        var covering = athleteSchedules
+            .Where(s => s.ActiveFromDateLocal.Date <= day && s.ActiveToDateLocal.Date >= day)
+            .OrderByDescending(s => s.IsEnabled)
+            .ThenByDescending(s => s.CreatedAtUtc)
+            .FirstOrDefault();
+        if (covering is not null)
+        {
+            var recNear = packageRecords
+                .Where(r => r.CreatedAtUtc <= DateTimeAssumedUtc.AsUtc(session.StartTimeUtc).AddHours(12))
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .FirstOrDefault();
+            if (recNear is not null
+                && (recNear.SubscriptionScheduleId is null
+                    || covering.Id == recNear.SubscriptionScheduleId
+                    || !string.IsNullOrWhiteSpace(recNear.PackageName)))
+            {
+                var label = FormatPackageTypeLabel(recNear);
+                if (!string.IsNullOrWhiteSpace(label) && label != "—")
+                {
+                    return label;
+                }
+            }
+
+            return covering.IsFullPackage ? "Limitsiz" : "Abunə";
+        }
+
+        var oneTimeNear = packageRecords
+            .Where(r => r.SessionId == session.Id
+                || (r.CreatedAtUtc <= DateTimeAssumedUtc.AsUtc(session.StartTimeUtc).AddHours(1)
+                    && r.CreatedAtUtc >= DateTimeAssumedUtc.AsUtc(session.StartTimeUtc).AddHours(-6)))
+            .OrderByDescending(r => r.SessionId == session.Id)
+            .ThenByDescending(r => r.CreatedAtUtc)
+            .FirstOrDefault();
+        if (oneTimeNear is not null)
+        {
+            return FormatPackageTypeLabel(oneTimeNear);
+        }
+
+        return "Birdefəlik";
+    }
+
+    private static string FormatPackageTypeLabel(CustomerPackageRecord record)
+    {
+        var name = (record.PackageName ?? "").Trim();
+        var billing = (record.BillingTypeLabel ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(billing))
+        {
+            return billing;
+        }
+
+        return "—";
     }
 
     private static string NormalizeDigits(string? value)

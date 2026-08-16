@@ -21,6 +21,8 @@ public sealed class ServicePackagesController(IMediator mediator) : ControllerBa
             billingType = p.BillingType.ToString(),
             billingTypeLabel = ServicePackageRules.IsVipPackage(p.BillingType, p.Scope, p.SchedulingMode, p.SessionDurationMinutes)
                 ? "VIP"
+                : p.SchedulingMode == PackageSchedulingMode.FlexibleMonthly
+                ? "Aylıq sərbəst"
                 : ServicePackageRules.IsUnlimitedPackage(p.BillingType, p.SchedulingMode, p.SessionDurationMinutes, p.Scope)
                 ? "Limitsiz"
                 : p.BillingType switch
@@ -46,6 +48,7 @@ public sealed class ServicePackagesController(IMediator mediator) : ControllerBa
             p.PeriodMinutesQuota,
             p.WeeklyDaysCsv,
             p.WeeklyDaysCount,
+            p.VisitQuota,
             p.ValidityDays,
             schedulingMode = p.SchedulingMode.ToString(),
             p.UnlimitedGym,

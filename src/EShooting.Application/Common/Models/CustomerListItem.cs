@@ -55,4 +55,7 @@ public sealed class CustomersListResult
 {
     public IReadOnlyCollection<CustomerListItem> Items { get; init; } = [];
     public int TotalCount { get; init; }
+    /// <summary>Tarix filtri: hər zolağa yazılma ayrı sətir.</summary>
+    public bool VisitRowsMode { get; init; }
+    public int UniqueCustomerCount { get; init; }
 }

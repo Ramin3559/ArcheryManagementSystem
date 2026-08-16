@@ -111,9 +111,17 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
    
     public async Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken)
     {
-        await dbContext.Sessions.AddAsync(session, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return session;
+        try
+        {
+            await dbContext.Sessions.AddAsync(session, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return session;
+        }
+        catch
+        {
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public Task<TrainingSession?> GetSessionByIdAsync(Guid sessionId, CancellationToken cancellationToken)
@@ -123,6 +131,19 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
             .FirstOrDefaultAsync(x => x.Id == sessionId, cancellationToken);
     }
     public async Task UpdateSessionAsync(TrainingSession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UpdateSessionCoreAsync(session, cancellationToken);
+        }
+        catch
+        {
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
+    }
+
+    private async Task UpdateSessionCoreAsync(TrainingSession session, CancellationToken cancellationToken)
     {
         var trackedState = dbContext.Entry(session).State;
         if (trackedState is not EntityState.Detached)
@@ -449,6 +470,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.IsEnabled = schedule.IsEnabled;
         existing.PreferredLaneType = schedule.PreferredLaneType;
         existing.IsFullPackage = schedule.IsFullPackage;
+        existing.VisitQuota = schedule.VisitQuota;
         existing.LastAssignedLaneNumber = schedule.LastAssignedLaneNumber;
         existing.LastAutoStartedAtUtc = schedule.LastAutoStartedAtUtc;
         existing.CreatedAtUtc = schedule.CreatedAtUtc;
@@ -505,6 +527,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         existing.PeriodMinutesQuota = package.PeriodMinutesQuota;
         existing.WeeklyDaysCsv = package.WeeklyDaysCsv;
         existing.WeeklyDaysCount = package.WeeklyDaysCount;
+        existing.VisitQuota = package.VisitQuota;
         existing.ValidityDays = package.ValidityDays;
         existing.UnlimitedGym = package.UnlimitedGym;
         existing.IsActive = package.IsActive;

@@ -42,45 +42,153 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
         var localNow = AzerbaijanTime.NowLocal;
 
         // Abunə təqvimi var, TrainingSession yoxdursa — bu gün üçün yaradılır.
-        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, localNow.Date, cancellationToken);
+        // Sinxron xətası zolaq panelini boş qoymamalıdır (serverdə unique index 500 verirdi).
+        try
+        {
+            await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, localNow.Date, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Panel zolaqları yenə də yükləsin.
+        }
 
-        var lanes = await repository.GetLanesAsync(cancellationToken);
-        var sessions = await repository.GetSessionsAsync(cancellationToken);
-        var equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
+        IReadOnlyCollection<EShooting.Domain.Entities.Lane> lanes;
+        try
+        {
+            lanes = await repository.GetLanesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return [];
+        }
+        IReadOnlyCollection<EShooting.Domain.Entities.TrainingSession> sessions;
+        try
+        {
+            sessions = await repository.GetSessionsLightAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            sessions = [];
+        }
+
+        IReadOnlyCollection<EShooting.Domain.Entities.SessionEquipmentIssue> equipmentIssues;
+        try
+        {
+            equipmentIssues = await repository.GetSessionEquipmentIssuesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            equipmentIssues = [];
+        }
         foreach (var stale in sessions.Where(x => SessionHousekeeping.ShouldAutoComplete(x, nowUtc)).ToList())
         {
-            if (SessionEquipmentRules.HasPendingRentalEquipment(stale, equipmentIssues))
+            try
             {
-                continue;
+                if (SessionEquipmentRules.HasPendingRentalEquipment(stale, equipmentIssues))
+                {
+                    continue;
+                }
+
+                var hadActivation = SessionActivationRules.HasActivation(stale);
+                var athleteId = stale.AthleteId;
+                var dayLocal = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(stale.StartTimeUtc));
+                SessionHousekeeping.MarkCompleted(stale, nowUtc);
+                await repository.UpdateSessionAsync(stale, cancellationToken);
+
+                if (hadActivation)
+                {
+                    await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
+                        repository,
+                        sessions,
+                        athleteId,
+                        dayLocal,
+                        excludeSessionId: stale.Id,
+                        nowUtc,
+                        cancellationToken);
+                }
             }
-
-            var hadActivation = SessionActivationRules.HasActivation(stale);
-            var athleteId = stale.AthleteId;
-            var dayLocal = AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(stale.StartTimeUtc));
-            SessionHousekeeping.MarkCompleted(stale, nowUtc);
-            await repository.UpdateSessionAsync(stale, cancellationToken);
-
-            if (hadActivation)
+            catch (OperationCanceledException)
             {
-                await SubscriptionPlannedSessionConsume.CompleteLeftoverSameDayPlannedAsync(
-                    repository,
-                    sessions,
-                    athleteId,
-                    dayLocal,
-                    excludeSessionId: stale.Id,
-                    nowUtc,
-                    cancellationToken);
+                throw;
+            }
+            catch
+            {
+                // Bir seansın bağlanması paneli dayandırmasın.
             }
         }
 
-        var athletes = await repository.GetAthletesAsync(cancellationToken);
-        var subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-        var equipmentItems = await repository.GetEquipmentItemsAsync(activeOnly: false, cancellationToken);
-        var equipmentNames = equipmentItems.ToDictionary(x => x.Id, x => x.Name);
-        var athleteNameById = athletes.ToDictionary(x => x.Id, x => x.FullName ?? "—");
-        var athleteById = athletes.ToDictionary(
-            x => x.Id,
-            x => new { x.FullName, x.FirstName, x.LastName, x.MembershipType, x.IsVip });
+        IReadOnlyCollection<EShooting.Domain.Entities.Athlete> athletes;
+        try
+        {
+            athletes = await repository.GetAthletesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            athletes = [];
+        }
+
+        IReadOnlyCollection<EShooting.Domain.Entities.SubscriptionSchedule> subscriptionSchedules;
+        try
+        {
+            subscriptionSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            subscriptionSchedules = [];
+        }
+
+        IReadOnlyCollection<EShooting.Domain.Entities.EquipmentItem> equipmentItems;
+        try
+        {
+            equipmentItems = await repository.GetEquipmentItemsAsync(activeOnly: false, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            equipmentItems = [];
+        }
+        var equipmentNames = equipmentItems
+            .GroupBy(x => x.Id)
+            .ToDictionary(g => g.Key, g => g.First().Name);
+        var athleteNameById = athletes
+            .GroupBy(x => x.Id)
+            .ToDictionary(g => g.Key, g => g.First().FullName ?? "—");
+        var athleteById = athletes
+            .GroupBy(x => x.Id)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var x = g.First();
+                    return new { x.FullName, x.FirstName, x.LastName, x.MembershipType, x.IsVip };
+                });
 
         var result = lanes
             .Where(l => !GymLaneRules.IsGymLane(l.Number))

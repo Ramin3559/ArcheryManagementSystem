@@ -57,12 +57,12 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         }
         else if (!request.IncludeInactive)
         {
-            // Hamısı + includeInactive=false → yalnız aktiv (köhnə davranış).
             query = query.Where(x => x.IsActive);
         }
 
         var search = (request.Search ?? "").Trim();
-        if (!string.IsNullOrWhiteSpace(search))
+        var hasSearch = !string.IsNullOrWhiteSpace(search);
+        if (hasSearch)
         {
             query = query.Where(a => MatchesCustomerSearch(a, search));
         }
@@ -81,7 +81,12 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             query = query.Where(x => !x.IsVip);
         }
 
+        // Tarix filtri (axtarış yoxdursa): hər zolağa yazılma = ayrıca sətir.
+        var expandVisitRows = !hasSearch
+            && (request.RegisteredFrom is not null || request.RegisteredTo is not null);
+
         var items = new List<CustomerListItem>();
+        var visitSortRows = new List<(DateTime SortUtc, CustomerListItem Item)>();
         foreach (var athlete in query.OrderBy(x => x.FullName))
         {
             var athleteSchedules = schedules.Where(s => s.AthleteId == athlete.Id && s.IsEnabled).ToList();
@@ -112,6 +117,11 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             }
 
             var athleteRecords = packageRecords.Where(r => r.AthleteId == athlete.Id).ToList();
+            var allActiveRecords = packageRecords
+                .Where(r => r.AthleteId == athlete.Id && r.IsActive)
+                .ToList();
+            var records = allActiveRecords.Where(r => !r.IsComplimentary).ToList();
+
             var registeredUtc = AthleteRegistrationDateRules.ResolveRegisteredAtUtc(
                 athlete,
                 athleteSessions,
@@ -119,166 +129,236 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 athleteRecords);
             var registeredLocal = AzerbaijanTime.UtcToLocalDateTime(registeredUtc);
 
-            var lastSession = athleteSessions
-                .OrderByDescending(s => s.StartTimeUtc)
-                .FirstOrDefault();
-            DateTime? lastLaneLocalDate = lastSession is null
-                ? null
-                : AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(lastSession.StartTimeUtc));
+            var playSessions = athleteSessions
+                .Where(SessionActivationRules.CountsAsAttendedVisit)
+                .Select(s =>
+                {
+                    var local = AzerbaijanTime.UtcToLocalDateTime(DateTimeAssumedUtc.AsUtc(s.StartTimeUtc));
+                    return (Session: s, Local: local);
+                })
+                .ToList();
 
-            // Axtarış dolu olanda tarix filtri tətbiq olunmur — bütün müştərilər arasında axtarılır.
-            // Tarix filtri: son zolağa yazılma tarixinə görə.
-            var hasSearch = !string.IsNullOrWhiteSpace(request.Search);
-            if (!hasSearch && (request.RegisteredFrom is not null || request.RegisteredTo is not null))
+            if (expandVisitRows)
             {
-                if (lastLaneLocalDate is null)
+                var inRange = playSessions
+                    .Where(x => SessionInDateRange(x.Local.Date, request.RegisteredFrom, request.RegisteredTo))
+                    .OrderByDescending(x => x.Session.StartTimeUtc)
+                    .ToList();
+                if (inRange.Count == 0)
                 {
                     continue;
                 }
 
-                if (request.RegisteredFrom is DateTime from)
+                foreach (var hit in inRange)
                 {
-                    var fromDate = DateTime.SpecifyKind(from.Date, DateTimeKind.Unspecified);
-                    if (lastLaneLocalDate.Value < fromDate)
-                    {
-                        continue;
-                    }
+                    visitSortRows.Add((
+                        DateTimeAssumedUtc.AsUtc(hit.Session.StartTimeUtc),
+                        BuildItem(
+                            athlete,
+                            activeSub,
+                            packageType,
+                            registeredLocal,
+                            allActiveRecords,
+                            records,
+                            hasLane,
+                            hasStandaloneSale,
+                            hasSessionRental,
+                            hasPendingRental,
+                            staffNameById,
+                            laneById,
+                            nowUtc,
+                            athleteSessions,
+                            hit.Session)));
                 }
 
-                if (request.RegisteredTo is DateTime to)
-                {
-                    var toDate = DateTime.SpecifyKind(to.Date, DateTimeKind.Unspecified);
-                    if (lastLaneLocalDate.Value > toDate)
-                    {
-                        continue;
-                    }
-                }
+                continue;
             }
 
-            var allActiveRecords = packageRecords
-                .Where(r => r.AthleteId == athlete.Id && r.IsActive)
-                .ToList();
-            var records = allActiveRecords.Where(r => !r.IsComplimentary).ToList();
+            var lastSession = playSessions
+                .OrderByDescending(x => x.Session.StartTimeUtc)
+                .Select(x => x.Session)
+                .FirstOrDefault()
+                ?? athleteSessions.OrderByDescending(s => s.StartTimeUtc).FirstOrDefault();
 
-            string? lastLaneVisit = null;
-            int? lastLaneNumber = null;
-            if (lastSession is not null)
-            {
-                lastLaneVisit = DateDisplayFormats.FormatDateTime(
-                    AzerbaijanTime.UtcToLocalDateTime(
-                        DateTimeAssumedUtc.AsUtc(lastSession.StartTimeUtc)));
-                if (laneById.TryGetValue(lastSession.LaneId, out var lastLn))
-                {
-                    lastLaneNumber = lastLn;
-                }
-            }
-
-            var activeSession = athleteSessions
-                .FirstOrDefault(s => SessionHousekeeping.IsAthleteSessionCurrentlyActive(s, nowUtc));
-            int? activeLane = null;
-            if (activeSession is not null && laneById.TryGetValue(activeSession.LaneId, out var ln))
-            {
-                activeLane = ln;
-            }
-
-            var latestRecord = records.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
-            var latestBilling = allActiveRecords.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
-            var paymentLabel = "—";
-            decimal? paid = null;
-            decimal? paidCash = null;
-            decimal? paidCard = null;
-            var complimentary = false;
-            if (latestBilling is not null)
-            {
-                complimentary = latestBilling.IsComplimentary;
-                paid = latestBilling.AmountPaid;
-                paidCash = latestBilling.AmountPaidCash;
-                paidCard = latestBilling.AmountPaidCard;
-                if (complimentary)
-                {
-                    paymentLabel = "Pulsuz";
-                }
-                else if (latestBilling.AmountPaidCash > 0m && latestBilling.AmountPaidCard > 0m)
-                {
-                    paymentLabel =
-                        $"{latestBilling.AmountPaid:0.##} AZN (nağd {latestBilling.AmountPaidCash:0.##} + kart {latestBilling.AmountPaidCard:0.##})";
-                }
-                else if (latestBilling.AmountPaidCard > 0m)
-                {
-                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (kart)";
-                }
-                else if (latestBilling.AmountPaidCash > 0m)
-                {
-                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (nağd)";
-                }
-                else
-                {
-                    paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN";
-                }
-            }
-
-            var staffName = ResolveRegisteredByStaffName(
-                athlete.RegisteredByStaffId,
-                allActiveRecords,
-                staffNameById);
-            var deletedByName = ResolveDeletedByName(
+            items.Add(BuildItem(
                 athlete,
-                staffNameById);
-            string? deletedAtLocal = null;
-            if (athlete.DeletedAtUtc is DateTime deletedUtc)
-            {
-                deletedAtLocal = DateDisplayFormats.FormatDateTime(
-                    AzerbaijanTime.UtcToLocalDateTime(DateTimeAssumedUtc.AsUtc(deletedUtc)));
-            }
-
-            items.Add(new CustomerListItem
-            {
-                Id = athlete.Id,
-                FullName = athlete.FullName,
-                PhoneNumber = athlete.PhoneNumber,
-                Email = athlete.Email,
-                IdCardNumber = athlete.IdCardNumber,
-                ClubCardNumber = athlete.ClubCardNumber,
-                ClubCardLabel = FormatClubCardLabel(athlete),
-                HasClubCard = !string.IsNullOrWhiteSpace(athlete.ClubCardNumber),
-                Category = athlete.Category,
-                CategoryLabel = CategoryLabel(athlete.Category),
-                IsVip = athlete.IsVip,
-                IsActive = athlete.IsActive,
-                IsSubscriber = athlete.IsSubscriber,
-                PackageTypeLabel = packageType,
-                SubscriptionFromLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveFromDateLocal),
-                SubscriptionToLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveToDateLocal),
-                RegisteredAtLocal = DateDisplayFormats.FormatDateTime(registeredLocal),
-                RegisteredByStaffName = staffName,
-                DeletedAtLocal = deletedAtLocal,
-                DeletedByName = deletedByName,
-                HasLaneHistory = hasLane,
-                HasStandaloneEquipmentPurchase = hasStandaloneSale,
-                CustomerTypeLabel = "Müştəri",
-                HasSessionEquipmentRental = hasSessionRental,
-                HasPendingSessionRental = hasPendingRental,
-                HasEquipmentHistory = hasSessionRental,
-                HasPendingEquipment = hasPendingRental,
-                LastLaneVisitLocal = lastLaneVisit,
-                LastLaneNumber = lastLaneNumber,
-                LastVisitLocal = lastLaneVisit,
-                ActiveLaneNumber = activeLane,
-                CurrentPackageName = latestRecord?.PackageName ?? (activeSub is not null ? "Abunə" : null),
-                LatestAmountPaid = paid,
-                LatestAmountPaidCash = paidCash,
-                LatestAmountPaidCard = paidCard,
-                LatestPaymentIsComplimentary = complimentary,
-                LatestPaymentLabel = paymentLabel,
-                LatestPackageRecordId = latestBilling?.Id,
-                HasPackagePayments = allActiveRecords.Count > 0
-            });
+                activeSub,
+                packageType,
+                registeredLocal,
+                allActiveRecords,
+                records,
+                hasLane,
+                hasStandaloneSale,
+                hasSessionRental,
+                hasPendingRental,
+                staffNameById,
+                laneById,
+                nowUtc,
+                athleteSessions,
+                lastSession));
         }
 
+        if (expandVisitRows)
+        {
+            items = visitSortRows
+                .OrderByDescending(x => x.SortUtc)
+                .ThenBy(x => x.Item.FullName)
+                .Select(x => x.Item)
+                .ToList();
+        }
+
+        var uniqueCustomers = items.Select(x => x.Id).Distinct().Count();
         return new CustomersListResult
         {
             Items = items,
-            TotalCount = items.Count
+            TotalCount = items.Count,
+            VisitRowsMode = expandVisitRows,
+            UniqueCustomerCount = uniqueCustomers
+        };
+    }
+
+    private static bool SessionInDateRange(DateTime sessionLocalDate, DateTime? from, DateTime? to)
+    {
+        if (from is DateTime f && sessionLocalDate < f.Date)
+        {
+            return false;
+        }
+
+        if (to is DateTime t && sessionLocalDate > t.Date)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static CustomerListItem BuildItem(
+        Athlete athlete,
+        SubscriptionSchedule? activeSub,
+        string packageType,
+        DateTime registeredLocal,
+        List<CustomerPackageRecord> allActiveRecords,
+        List<CustomerPackageRecord> records,
+        bool hasLane,
+        bool hasStandaloneSale,
+        bool hasSessionRental,
+        bool hasPendingRental,
+        IReadOnlyDictionary<Guid, string> staffNameById,
+        IReadOnlyDictionary<Guid, int> laneById,
+        DateTime nowUtc,
+        List<TrainingSession> athleteSessions,
+        TrainingSession? laneSession)
+    {
+        string? lastLaneVisit = null;
+        int? lastLaneNumber = null;
+        if (laneSession is not null)
+        {
+            lastLaneVisit = DateDisplayFormats.FormatDateTime(
+                AzerbaijanTime.UtcToLocalDateTime(
+                    DateTimeAssumedUtc.AsUtc(laneSession.StartTimeUtc)));
+            if (laneById.TryGetValue(laneSession.LaneId, out var lastLn))
+            {
+                lastLaneNumber = lastLn;
+            }
+        }
+
+        var activeSession = athleteSessions
+            .FirstOrDefault(s => SessionHousekeeping.IsAthleteSessionCurrentlyActive(s, nowUtc));
+        int? activeLane = null;
+        if (activeSession is not null && laneById.TryGetValue(activeSession.LaneId, out var ln))
+        {
+            activeLane = ln;
+        }
+
+        var latestRecord = records.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
+        var latestBilling = allActiveRecords.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
+        var paymentLabel = "—";
+        decimal? paid = null;
+        decimal? paidCash = null;
+        decimal? paidCard = null;
+        var complimentary = false;
+        if (latestBilling is not null)
+        {
+            complimentary = latestBilling.IsComplimentary;
+            paid = latestBilling.AmountPaid;
+            paidCash = latestBilling.AmountPaidCash;
+            paidCard = latestBilling.AmountPaidCard;
+            if (complimentary)
+            {
+                paymentLabel = "Pulsuz";
+            }
+            else if (latestBilling.AmountPaidCash > 0m && latestBilling.AmountPaidCard > 0m)
+            {
+                paymentLabel =
+                    $"{latestBilling.AmountPaid:0.##} AZN (nağd {latestBilling.AmountPaidCash:0.##} + kart {latestBilling.AmountPaidCard:0.##})";
+            }
+            else if (latestBilling.AmountPaidCard > 0m)
+            {
+                paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (kart)";
+            }
+            else if (latestBilling.AmountPaidCash > 0m)
+            {
+                paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN (nağd)";
+            }
+            else
+            {
+                paymentLabel = $"{latestBilling.AmountPaid:0.##} AZN";
+            }
+        }
+
+        var staffName = ResolveRegisteredByStaffName(
+            athlete.RegisteredByStaffId,
+            allActiveRecords,
+            staffNameById);
+        var deletedByName = ResolveDeletedByName(athlete, staffNameById);
+        string? deletedAtLocal = null;
+        if (athlete.DeletedAtUtc is DateTime deletedUtc)
+        {
+            deletedAtLocal = DateDisplayFormats.FormatDateTime(
+                AzerbaijanTime.UtcToLocalDateTime(DateTimeAssumedUtc.AsUtc(deletedUtc)));
+        }
+
+        return new CustomerListItem
+        {
+            Id = athlete.Id,
+            FullName = athlete.FullName,
+            PhoneNumber = athlete.PhoneNumber,
+            Email = athlete.Email,
+            IdCardNumber = athlete.IdCardNumber,
+            ClubCardNumber = athlete.ClubCardNumber,
+            ClubCardLabel = FormatClubCardLabel(athlete),
+            HasClubCard = !string.IsNullOrWhiteSpace(athlete.ClubCardNumber),
+            Category = athlete.Category,
+            CategoryLabel = CategoryLabel(athlete.Category),
+            IsVip = athlete.IsVip,
+            IsActive = athlete.IsActive,
+            IsSubscriber = athlete.IsSubscriber,
+            PackageTypeLabel = packageType,
+            SubscriptionFromLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveFromDateLocal),
+            SubscriptionToLocal = activeSub is null ? null : DateDisplayFormats.FormatDate(activeSub.ActiveToDateLocal),
+            RegisteredAtLocal = DateDisplayFormats.FormatDateTime(registeredLocal),
+            RegisteredByStaffName = staffName,
+            DeletedAtLocal = deletedAtLocal,
+            DeletedByName = deletedByName,
+            HasLaneHistory = hasLane,
+            HasStandaloneEquipmentPurchase = hasStandaloneSale,
+            CustomerTypeLabel = "Müştəri",
+            HasSessionEquipmentRental = hasSessionRental,
+            HasPendingSessionRental = hasPendingRental,
+            HasEquipmentHistory = hasSessionRental,
+            HasPendingEquipment = hasPendingRental,
+            LastLaneVisitLocal = lastLaneVisit,
+            LastLaneNumber = lastLaneNumber,
+            LastVisitLocal = lastLaneVisit,
+            ActiveLaneNumber = activeLane,
+            CurrentPackageName = latestRecord?.PackageName ?? (activeSub is not null ? "Abunə" : null),
+            LatestAmountPaid = paid,
+            LatestAmountPaidCash = paidCash,
+            LatestAmountPaidCard = paidCard,
+            LatestPaymentIsComplimentary = complimentary,
+            LatestPaymentLabel = paymentLabel,
+            LatestPackageRecordId = latestBilling?.Id,
+            HasPackagePayments = allActiveRecords.Count > 0
         };
     }
 

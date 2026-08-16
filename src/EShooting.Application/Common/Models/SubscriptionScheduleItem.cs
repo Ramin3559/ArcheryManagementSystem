@@ -21,6 +21,7 @@ public sealed class SubscriptionScheduleItem
 
     public PreferredLaneType PreferredLaneType { get; init; } = PreferredLaneType.Any;
     public bool IsFullPackage { get; init; }
+    public int? VisitQuota { get; init; }
 
     public int? LastAssignedLaneNumber { get; init; }
     public DateTime? LastAutoStartedAtUtc { get; init; }

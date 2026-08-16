@@ -153,11 +153,11 @@
             <div class="field field--presets">
                 <span>Tarix</span>
                 <div class="preset-inline">
-                    <button type="button" class="preset-btn active" data-preset="today">Bu gün</button>
+                    <button type="button" class="preset-btn" data-preset="today">Bu gün</button>
                     <button type="button" class="preset-btn" data-preset="yesterday">Dünən</button>
                     <button type="button" class="preset-btn" data-preset="last7">Son 7 gün</button>
                     <button type="button" class="preset-btn" data-preset="month">Cari ay</button>
-                    <button type="button" class="preset-btn" data-preset="all">Hamısı</button>
+                    <button type="button" class="preset-btn active" data-preset="all">Hamısı</button>
                 </div>
             </div>
         </div>
@@ -323,7 +323,7 @@
 <script>
     (function () {
         // v2: köhnə sessionStorage (məcburi «bu gün» / dar tarix) sıfırlanır
-        var STORAGE_KEY = "admin-customers-v4";
+        var STORAGE_KEY = "admin-customers-v5";
         var form = document.getElementById("customersFilterForm");
         var exportBtn = document.getElementById("customersExportBtn");
         var tbody = document.getElementById("customersTableBody");
@@ -455,7 +455,7 @@
         function renderRows(items) {
             if (!tbody) return;
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Bu filtrə uyğun qeyd tapılmadı.</td></tr>';
                 return;
             }
             tbody.innerHTML = items.map(function (x) {
@@ -841,6 +841,28 @@
             return parts[2] + "." + parts[1] + "." + parts[0];
         }
 
+        function addMakeupBonusMonthsIso(iso, bonusMonths) {
+            if (!iso) return "";
+            var d = new Date(iso + "T12:00:00");
+            if (Number.isNaN(d.getTime())) return "";
+            d.setMonth(d.getMonth() + Math.max(0, Number(bonusMonths) || 0));
+            return isoDate(d);
+        }
+
+        function isChangePackageFixedWeekly() {
+            if (lastChangePreview && lastChangePreview.isFixedWeekly) return true;
+            var pkgId = document.getElementById("changePackageSelect")?.value || "";
+            var pkg = changePackagesCache.find(function (p) { return String(p.id) === String(pkgId); });
+            if (!pkg) return false;
+            if (String(pkg.schedulingMode || "") === "FlexibleMonthly") return false;
+            if (String(pkg.schedulingMode || "") === "FixedWeekly") return true;
+            var billing = String(pkg.billingType || "");
+            if (billing !== "Monthly" && billing !== "Yearly" && billing !== "Gym") return false;
+            var n = Number(pkg.weeklyDaysCount || 0);
+            if (Number.isInteger(n) && n >= 1 && n <= 7) return true;
+            return !!(pkg.weeklyDaysCsv && String(pkg.weeklyDaysCsv).trim());
+        }
+
         function calcNthWeeklyOccurrenceEndIso(startIso, weekdays, visitCount) {
             if (!startIso || !visitCount || !weekdays || !weekdays.length) return "";
             var daySet = {};
@@ -878,9 +900,29 @@
             var months = Math.min(12, Math.max(1, Number(document.getElementById("changePackageMonths")?.value || 1) || 1));
             var endIso = "";
             if (start) {
-                var d = new Date(start + "T12:00:00");
-                d.setMonth(d.getMonth() + months);
-                endIso = isoDate(d);
+                if (isChangePackageFixedWeekly()) {
+                    var days = getSelectedChangeWeekdays();
+                    if (!days.length && lastChangePreview && lastChangePreview.defaultWeeklyDaysCsv) {
+                        setChangeWeekdaysFromCsv(lastChangePreview.defaultWeeklyDaysCsv);
+                        days = getSelectedChangeWeekdays();
+                    }
+                    if (!days.length) {
+                        var pkgId = document.getElementById("changePackageSelect")?.value || "";
+                        var pkg = changePackagesCache.find(function (p) { return String(p.id) === String(pkgId); });
+                        if (pkg && pkg.weeklyDaysCsv) {
+                            setChangeWeekdaysFromCsv(pkg.weeklyDaysCsv);
+                            days = getSelectedChangeWeekdays();
+                        }
+                    }
+                    if (days.length) {
+                        var visitCount = Math.max(1, days.length) * 4 * months;
+                        endIso = calcNthWeeklyOccurrenceEndIso(start, days, visitCount);
+                    }
+                } else {
+                    var d = new Date(start + "T12:00:00");
+                    d.setMonth(d.getMonth() + months);
+                    endIso = isoDate(d);
+                }
             }
             if (endEl) {
                 endEl.dataset.iso = endIso || "";
@@ -936,12 +978,18 @@
 
         function syncChangePackageWeeklyUi(preview) {
             var row = document.getElementById("changePackageWeeklyRow");
-            var fixed = !!(preview && preview.isFixedWeekly);
+            var fixed = isChangePackageFixedWeekly() || !!(preview && preview.isFixedWeekly);
             if (row) row.style.display = fixed ? "block" : "none";
             if (fixed) {
                 ensureChangeWeekdayChips();
                 if (!getSelectedChangeWeekdays().length) {
-                    setChangeWeekdaysFromCsv(preview.defaultWeeklyDaysCsv || "");
+                    var csv = (preview && preview.defaultWeeklyDaysCsv) || "";
+                    if (!csv) {
+                        var pkgId = document.getElementById("changePackageSelect")?.value || "";
+                        var pkg = changePackagesCache.find(function (p) { return String(p.id) === String(pkgId); });
+                        csv = (pkg && pkg.weeklyDaysCsv) || "";
+                    }
+                    if (csv) setChangeWeekdaysFromCsv(csv);
                 }
                 syncChangePackageWeekdayLimit();
             }
@@ -1029,6 +1077,7 @@
         document.getElementById("changePackageMonths")?.addEventListener("change", syncChangePackageEndDate);
         document.getElementById("changePackageWeekdays")?.addEventListener("change", function () {
             syncChangePackageWeekdayLimit();
+            syncChangePackageEndDate();
         });
         document.getElementById("changePackageSaveBtn")?.addEventListener("click", async function () {
             if (!currentPaymentsAthleteId) return;
@@ -1038,9 +1087,14 @@
             if (!lastChangePreview) { alert("Hesablama alınmadı."); return; }
             var justRenew = isJustRenewChecked();
             var planOnly = justRenew || !lastChangePreview.requiresNewPayment;
-            if (lastChangePreview.isFixedWeekly) {
+            var fixedWeekly = isChangePackageFixedWeekly();
+            if (fixedWeekly) {
                 var days = getSelectedChangeWeekdays();
                 var dayLimit = Number(lastChangePreview.weeklyDaysCount || 0);
+                if (!dayLimit) {
+                    var pkg = changePackagesCache.find(function (p) { return String(p.id) === String(pkgId); });
+                    dayLimit = Number(pkg && pkg.weeklyDaysCount || 0);
+                }
                 if (!days.length) {
                     alert("Aylıq plan üçün həftə günlərini seçin.");
                     return;
@@ -1053,7 +1107,7 @@
             syncChangePackageEndDate();
             var end = getChangePackageEndIso();
             if (!end) {
-                alert("Bitmə tarixi hesablanmadı.");
+                alert("Bitmə tarixi hesablanmadı. Həftə günlərini seçin.");
                 return;
             }
             var months = Math.min(12, Math.max(1, Number(document.getElementById("changePackageMonths")?.value || 1) || 1));
@@ -1077,8 +1131,8 @@
                 isComplimentary: planOnly ? false : !!document.getElementById("changePackageComplimentary")?.checked,
                 confirmDifference: true,
                 skipPayment: justRenew,
-                weeklyDaysOfWeek: lastChangePreview.isFixedWeekly ? getSelectedChangeWeekdays() : null,
-                weeklyStartTimeLocal: lastChangePreview.isFixedWeekly
+                weeklyDaysOfWeek: fixedWeekly ? getSelectedChangeWeekdays() : null,
+                weeklyStartTimeLocal: fixedWeekly
                     ? (document.getElementById("changePackageWeeklyTime")?.value || "18:00")
                     : null
             };
@@ -1114,7 +1168,15 @@
                 var data = await res.json();
                 var items = Array.isArray(data?.items) ? data.items : [];
                 renderRows(items);
-                if (countLabel) countLabel.textContent = "Cəmi: " + items.length + " müştəri";
+                if (countLabel) {
+                    if (data && data.visitRowsMode) {
+                        var uniq = Number(data.uniqueCustomerCount || 0);
+                        countLabel.textContent = "Cəmi: " + items.length + " yazılma"
+                            + (uniq ? " (" + uniq + " müştəri)" : "");
+                    } else {
+                        countLabel.textContent = "Cəmi: " + items.length + " müştəri";
+                    }
+                }
             } catch (e) {
                 if (tbody) tbody.innerHTML = '<tr><td colspan="12" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
             } finally {
@@ -1148,7 +1210,8 @@
                     if (active && "value" in active) {
                         if (active.value !== "inactive") active.value = "active";
                     }
-                    setTodayDateRange();
+                    clearDateRange();
+                    markPresetActive("all");
                 }
             });
 
@@ -1160,17 +1223,25 @@
                 }
             })();
 
-            // Boş tarix → bu gün (açılış default).
+            // Boş tarix → Hamısı (açılış default).
             (function syncPresetFromDates() {
                 var from = fromEl && fromEl.value ? fromEl.value : "";
                 var to = toEl && toEl.value ? toEl.value : "";
                 if (!from && !to) {
-                    setTodayDateRange();
+                    markPresetActive("all");
                     return;
                 }
                 var todayIso = isoDate(new Date());
                 if (from === todayIso && to === todayIso) {
                     markPresetActive("today");
+                    return;
+                }
+                var monthStart = new Date();
+                monthStart.setHours(0, 0, 0, 0);
+                monthStart = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+                var monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+                if (from === isoDate(monthStart) && to === isoDate(monthEnd)) {
+                    markPresetActive("month");
                     return;
                 }
                 markPresetActive("");

@@ -22,8 +22,10 @@ public sealed record ChangeCustomerPackagePreview(
     decimal RefundDue,
     string DifferenceKind,
     bool IsFixedWeekly,
+    bool IsFlexibleMonthly,
     string? DefaultWeeklyDaysCsv,
     int? WeeklyDaysCount,
+    int? VisitQuota,
     int SessionDurationMinutes,
     int? ValidityDays,
     /// <summary>true = mövcud paket bitib, yeni ödənişlə yaratmaq lazımdır.</summary>
@@ -129,8 +131,12 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
             refundDue,
             kind,
             IsFixedWeeklyPackage(newPkg),
+            FlexibleMonthlyRules.IsFlexibleMonthlyPackage(newPkg),
             newPkg.WeeklyDaysCsv,
             newPkg.WeeklyDaysCount is >= 1 and <= 7 ? newPkg.WeeklyDaysCount : null,
+            FlexibleMonthlyRules.IsFlexibleMonthlyPackage(newPkg)
+                ? FlexibleMonthlyRules.MonthlyQuota(newPkg)
+                : null,
             Math.Max(0, newPkg.SessionDurationMinutes),
             newPkg.ValidityDays,
             requiresNewPayment,
@@ -169,6 +175,7 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
 
         var periodStart = request.PeriodStartLocal.Date;
         var fixedWeekly = IsFixedWeeklyPackage(newPkg);
+        var flexibleMonthly = FlexibleMonthlyRules.IsFlexibleMonthlyPackage(newPkg);
         var weeklyDays = ResolveWeeklyDays(request.WeeklyDaysOfWeek, newPkg);
         if (fixedWeekly && weeklyDays.Count == 0)
         {
@@ -185,7 +192,12 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
         DateTime periodEnd;
         if (request.PeriodMonths is int monthsRaw && monthsRaw > 0)
         {
-            periodEnd = periodStart.AddMonths(Math.Clamp(monthsRaw, 1, 12));
+            var months = Math.Clamp(monthsRaw, 1, 12);
+            // Limitsiz / Aylıq sərbəst: təqvim +N ay.
+            // Sabit həftəlik: N-ci plan günü (qalıq gediş üçün +1 ay yalnız icazədir, tarixə yazılmır).
+            periodEnd = fixedWeekly
+                ? WeeklyVisitPeriodRules.ComputeEndDate(periodStart, weeklyDays, months)
+                : periodStart.AddMonths(months);
         }
         else
         {
@@ -252,6 +264,14 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
         else
         {
             var duration = Math.Max(0, newPkg.SessionDurationMinutes);
+            if (flexibleMonthly)
+            {
+                duration = Math.Max(1, duration);
+            }
+
+            var visitQuota = flexibleMonthly
+                ? FlexibleMonthlyRules.TotalVisitQuota(newPkg, periodStart, periodEnd)
+                : (int?)null;
             var created = await repository.AddSubscriptionScheduleAsync(
                 new SubscriptionSchedule
                 {
@@ -266,7 +286,8 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
                     ActiveToDateLocal = periodEnd,
                     IsEnabled = true,
                     PreferredLaneType = PreferredLaneType.Any,
-                    IsFullPackage = true
+                    IsFullPackage = true,
+                    VisitQuota = visitQuota
                 },
                 cancellationToken);
             primaryScheduleId = created.Id;
@@ -385,11 +406,7 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
     }
 
     private static bool IsFixedWeeklyPackage(ServicePackage pkg) =>
-        pkg.SchedulingMode == PackageSchedulingMode.FixedWeekly
-        || (pkg.WeeklyDaysCount is >= 1
-            && pkg.BillingType is PackageBillingType.Monthly or PackageBillingType.Yearly
-            && !ServicePackageRules.IsUnlimitedPackage(pkg)
-            && !ServicePackageRules.IsVipPackage(pkg));
+        ServicePackageRules.IsFixedWeeklyPackage(pkg);
 
     private static List<int> ResolveWeeklyDays(IReadOnlyList<int>? requested, ServicePackage pkg)
     {

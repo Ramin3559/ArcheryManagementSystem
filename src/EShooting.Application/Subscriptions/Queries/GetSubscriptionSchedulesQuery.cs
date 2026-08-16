@@ -34,6 +34,7 @@ public sealed class GetSubscriptionSchedulesQueryHandler(ITrainingCenterReposito
                 LaneNumber = x.LaneNumber,
                 PreferredLaneType = x.PreferredLaneType,
                 IsFullPackage = x.IsFullPackage,
+                VisitQuota = x.VisitQuota,
                 LastAssignedLaneNumber = x.LastAssignedLaneNumber,
                 LastAutoStartedAtUtc = x.LastAutoStartedAtUtc
             })

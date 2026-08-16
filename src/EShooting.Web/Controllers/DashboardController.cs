@@ -9,7 +9,8 @@ namespace EShooting.Web.Controllers;
 [Route("dashboard")]
 public sealed class DashboardController(
     CachedLaneDashboardService laneDashboard,
-    IMediator mediator) : ControllerBase
+    IMediator mediator,
+    ILogger<DashboardController> logger) : ControllerBase
 {
     /// <summary>
     /// Monitor ve admin paneli ucun lane veziyyetlerini cemlenmis sekilde qaytarir.
@@ -17,21 +18,37 @@ public sealed class DashboardController(
     [HttpGet("lanes")]
     public async Task<IActionResult> GetLanes(CancellationToken cancellationToken)
     {
-        var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
-        return Ok(lanes);
+        try
+        {
+            var lanes = await laneDashboard.GetLanesAsync(cancellationToken);
+            return Ok(lanes);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Zolaq paneli yüklənmədi.");
+            throw;
+        }
     }
 
     /// <summary>Resepsiya üst kartları — yalnız cari gün.</summary>
     [HttpGet("day-stats")]
     public async Task<IActionResult> GetDayStats(CancellationToken cancellationToken)
     {
-        var stats = await mediator.Send(new GetReceptionDayStatsQuery(), cancellationToken);
-        return Ok(new
+        try
         {
-            incomingCustomersToday = stats.IncomingCustomersToday,
-            activeSessions = stats.ActiveSessions,
-            scheduledSessionsToday = stats.ScheduledSessionsToday,
-            completedSessionsToday = stats.CompletedSessionsToday
-        });
+            var stats = await mediator.Send(new GetReceptionDayStatsQuery(), cancellationToken);
+            return Ok(new
+            {
+                incomingCustomersToday = stats.IncomingCustomersToday,
+                activeSessions = stats.ActiveSessions,
+                scheduledSessionsToday = stats.ScheduledSessionsToday,
+                completedSessionsToday = stats.CompletedSessionsToday
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Gün statistikasi yüklənmədi.");
+            throw;
+        }
     }
 }

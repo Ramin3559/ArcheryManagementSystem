@@ -23,11 +23,37 @@ public sealed class GetReceptionDayStatsQueryHandler(ITrainingCenterRepository r
         var nowUtc = DateTime.UtcNow;
         var todayLocal = AzerbaijanTime.TodayLocal;
 
-        await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, todayLocal, cancellationToken);
+        try
+        {
+            await SubscriptionPlannedSessionSync.EnsureForLocalDateAsync(repository, todayLocal, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Statistika zolaq sinxronu olmadan da sayılsın.
+        }
 
-        var sessions = await repository.GetSessionsLightAsync(cancellationToken);
+        IReadOnlyCollection<EShooting.Domain.Entities.TrainingSession> sessions;
+        try
+        {
+            sessions = await repository.GetSessionsLightAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            sessions = [];
+        }
+
         var athletes = await repository.GetAthletesAsync(cancellationToken);
-        var athleteById = athletes.ToDictionary(x => x.Id);
+        var athleteById = athletes
+            .GroupBy(x => x.Id)
+            .ToDictionary(g => g.Key, g => g.First());
 
         static DateTime StartLocalDate(EShooting.Domain.Entities.TrainingSession s) =>
             AzerbaijanTime.UtcToLocalDate(DateTimeAssumedUtc.AsUtc(s.StartTimeUtc));

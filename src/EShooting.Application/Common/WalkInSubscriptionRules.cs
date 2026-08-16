@@ -15,6 +15,7 @@ public static class WalkInSubscriptionRules
             .Where(s =>
                 s.IsEnabled
                 && s.IsFullPackage
+                && !FlexibleMonthlyRules.IsFlexibleMonthlySchedule(s)
                 && s.AthleteId == athleteId
                 && s.ActiveFromDateLocal.Date <= today
                 && s.ActiveToDateLocal.Date >= today)

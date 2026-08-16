@@ -52,10 +52,18 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
             athlete.IsSubscriber = true;
         }
 
-        if (request.IsFullPackage)
+        ServicePackage? soldPackage = null;
+        if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)
+        {
+            soldPackage = await repository.GetServicePackageByIdAsync(pkgId, cancellationToken);
+        }
+
+        var isFlexibleMonthly = soldPackage is not null && FlexibleMonthlyRules.IsFlexibleMonthlyPackage(soldPackage);
+        if (request.IsFullPackage || isFlexibleMonthly)
         {
             var startDate = request.StartDateLocal.Date;
-            var endDate = request.EndDateLocal?.Date ?? startDate.AddDays(30);
+            var endDate = request.EndDateLocal?.Date
+                ?? (isFlexibleMonthly ? startDate.AddMonths(1) : startDate.AddDays(30));
             if (endDate < startDate)
             {
                 throw new InvalidOperationException("Abunə bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
@@ -67,8 +75,20 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
                 throw new InvalidOperationException("DurationMinutes must be between 0 and 600.");
             }
 
-            var walkInSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
-            foreach (var old in walkInSchedules.Where(x => x.AthleteId == athlete.Id && x.IsEnabled && x.IsFullPackage))
+            if (isFlexibleMonthly)
+            {
+                durationMinutes = Math.Max(1, soldPackage!.SessionDurationMinutes);
+            }
+
+            var visitQuota = isFlexibleMonthly
+                ? FlexibleMonthlyRules.TotalVisitQuota(soldPackage!, startDate, endDate)
+                : (int?)null;
+
+            var currentSchedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+            foreach (var old in currentSchedules.Where(x =>
+                         x.AthleteId == athlete.Id
+                         && x.IsEnabled
+                         && (x.IsFullPackage || isFlexibleMonthly)))
             {
                 old.IsEnabled = false;
                 await repository.UpdateSubscriptionScheduleAsync(old, cancellationToken);
@@ -77,23 +97,15 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
             athlete.IsSubscriber = true;
             athlete.IsFullPackage = true;
             // VIP yalnız VIP paket növündə; Limitsiz müddətsiz (DurationMinutes=0) VIP sayılmır.
-            var markAsVip = false;
-            if (request.ServicePackageId is Guid pkgId && pkgId != Guid.Empty)
-            {
-                var soldPackage = await repository.GetServicePackageByIdAsync(pkgId, cancellationToken);
-                if (soldPackage is not null)
-                {
-                    markAsVip = ServicePackageRules.IsVipPackage(soldPackage);
-                }
-            }
-
-            athlete.IsVip = markAsVip;
+            athlete.IsVip = soldPackage is not null && ServicePackageRules.IsVipPackage(soldPackage);
             await repository.UpdateAthleteAsync(athlete, cancellationToken);
 
             await repository.AddSubscriptionScheduleAsync(new SubscriptionSchedule
             {
                 AthleteId = athlete.Id,
-                LaneNumber = 0,
+                LaneNumber = soldPackage is { Scope: PackageScope.Gym } || soldPackage?.BillingType == PackageBillingType.Gym
+                    ? GymLaneRules.LaneNumber
+                    : 0,
                 DayOfWeek = 0,
                 StartTimeLocal = TimeSpan.Zero,
                 DurationMinutes = durationMinutes,
@@ -101,7 +113,8 @@ public sealed class CreateSubscriptionPackageCommandHandler(ITrainingCenterRepos
                 ActiveToDateLocal = endDate,
                 IsEnabled = true,
                 PreferredLaneType = PreferredLaneType.Any,
-                IsFullPackage = true
+                IsFullPackage = true,
+                VisitQuota = visitQuota
             }, cancellationToken);
 
             return new CreateSubscriptionPackageResult(1, startDate, endDate);

@@ -405,6 +405,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     [IsEnabled] BIT NOT NULL,
                     [PreferredLaneType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_SubscriptionSchedules_PreferredLaneType] DEFAULT ('Any'),
                     [IsFullPackage] BIT NOT NULL CONSTRAINT [DF_SubscriptionSchedules_IsFullPackage] DEFAULT (0),
+                    [VisitQuota] INT NULL,
                     [LastAssignedLaneNumber] INT NULL,
                     [LastAutoStartedAtUtc] DATETIME2 NULL,
                     [CreatedAtUtc] DATETIME2 NOT NULL,
@@ -446,6 +447,11 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 BEGIN
                     ALTER TABLE [dbo].[SubscriptionSchedules]
                     ADD [OccurrenceOverridesJson] NVARCHAR(MAX) NULL;
+                END
+                IF COL_LENGTH(N'[dbo].[SubscriptionSchedules]', N'VisitQuota') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[SubscriptionSchedules]
+                    ADD [VisitQuota] INT NULL;
                 END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_SubscriptionSchedules_Athlete_Day_Time_Lane_Enabled' AND object_id = OBJECT_ID(N'[dbo].[SubscriptionSchedules]'))
@@ -492,6 +498,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     [SessionDurationMinutes] INT NOT NULL,
                     [PeriodMinutesQuota] INT NULL,
                     [WeeklyDaysCsv] NVARCHAR(30) NULL,
+                    [VisitQuota] INT NULL,
                     [ValidityDays] INT NULL,
                     [UnlimitedGym] BIT NOT NULL CONSTRAINT [DF_ServicePackages_UnlimitedGym] DEFAULT (0),
                     [IsActive] BIT NOT NULL CONSTRAINT [DF_ServicePackages_IsActive] DEFAULT (1),
@@ -531,6 +538,12 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                AND COL_LENGTH(N'[dbo].[ServicePackages]', N'WeeklyDaysCount') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[ServicePackages] ADD [WeeklyDaysCount] INT NULL;
+            END
+
+            IF OBJECT_ID(N'[dbo].[ServicePackages]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ServicePackages]', N'VisitQuota') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[ServicePackages] ADD [VisitQuota] INT NULL;
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(alterSql, cancellationToken);

@@ -9,5 +9,8 @@ public enum PackageSchedulingMode
     FixedWeekly = 1,
 
     /// <summary>Full / çevik — gələndə boş zolaq, vaxt planı yoxdur.</summary>
-    WalkInFlexible = 2
+    WalkInFlexible = 2,
+
+    /// <summary>Aylıq sərbəst — həftə günü yox, dövr ərzində gediş limiti.</summary>
+    FlexibleMonthly = 3
 }

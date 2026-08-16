@@ -14,6 +14,7 @@ public sealed class ServicePackageItem
     public int? PeriodMinutesQuota { get; init; }
     public string? WeeklyDaysCsv { get; init; }
     public int? WeeklyDaysCount { get; init; }
+    public int? VisitQuota { get; init; }
     public int? ValidityDays { get; init; }
     public bool UnlimitedGym { get; init; }
     public bool IsActive { get; init; }
