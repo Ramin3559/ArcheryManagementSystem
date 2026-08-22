@@ -233,6 +233,7 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
 
         // 2) Yeni plan(lar)
         Guid? primaryScheduleId = null;
+        var newScheduleIds = new List<Guid>();
         if (fixedWeekly)
         {
             var duration = Math.Max(1, newPkg.SessionDurationMinutes);
@@ -258,6 +259,7 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
                         IsFullPackage = false
                     },
                     cancellationToken);
+                newScheduleIds.Add(created.Id);
                 primaryScheduleId ??= created.Id;
             }
         }
@@ -290,8 +292,16 @@ public sealed class ChangeCustomerPackageCommandHandler(ITrainingCenterRepositor
                     VisitQuota = visitQuota
                 },
                 cancellationToken);
+            newScheduleIds.Add(created.Id);
             primaryScheduleId = created.Id;
         }
+
+        await SubscriptionPlanReplace.CompleteOrphanScheduledAsync(
+            repository,
+            athlete.Id,
+            newScheduleIds,
+            DateTime.UtcNow,
+            cancellationToken);
 
         if (planOnly)
         {

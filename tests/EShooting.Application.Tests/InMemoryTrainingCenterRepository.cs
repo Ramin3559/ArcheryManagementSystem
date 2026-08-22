@@ -1,4 +1,5 @@
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.Common.Models;
 using EShooting.Application.StaffMembers;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
@@ -255,6 +256,19 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
     public Task<IReadOnlyCollection<TrainingSession>> GetSessionsLightAsync(CancellationToken cancellationToken)
     {
         return GetSessionsAsync(cancellationToken);
+    }
+
+    public Task<IReadOnlyDictionary<Guid, SessionScoreTotals>> GetSessionScoreTotalsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken)
+    {
+        var idSet = sessionIds.ToHashSet();
+        IReadOnlyDictionary<Guid, SessionScoreTotals> map = _sessions
+            .Where(s => idSet.Contains(s.Id))
+            .ToDictionary(
+                s => s.Id,
+                s => new SessionScoreTotals(s.TotalScore, s.Scores.Count));
+        return Task.FromResult(map);
     }
 
     public Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(

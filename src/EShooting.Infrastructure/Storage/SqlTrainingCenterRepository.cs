@@ -1,6 +1,7 @@
 using EShooting.Application.Athletes;
 using EShooting.Application.Common;
 using EShooting.Application.Common.Interfaces;
+using EShooting.Application.Common.Models;
 using EShooting.Application.StaffMembers;
 using EShooting.Application.Equipment;
 using EShooting.Domain.Entities;
@@ -230,6 +231,32 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         return await dbContext.Sessions
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, SessionScoreTotals>> GetSessionScoreTotalsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken)
+    {
+        if (sessionIds.Count == 0)
+        {
+            return new Dictionary<Guid, SessionScoreTotals>();
+        }
+
+        var ids = sessionIds.Distinct().ToList();
+        return await dbContext.Scores
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.SessionId))
+            .GroupBy(x => x.SessionId)
+            .Select(g => new
+            {
+                SessionId = g.Key,
+                Total = g.Sum(x => x.Value),
+                Count = g.Count()
+            })
+            .ToDictionaryAsync(
+                x => x.SessionId,
+                x => new SessionScoreTotals(x.Total, x.Count),
+                cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(

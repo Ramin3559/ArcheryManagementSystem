@@ -1,3 +1,4 @@
+using EShooting.Application.Common.Models;
 using EShooting.Domain.Entities;
 using EShooting.Domain.Enums;
 
@@ -16,6 +17,10 @@ public interface ITrainingCenterRepository
     Task<IReadOnlyCollection<TrainingSession>> GetSessionsAsync(CancellationToken cancellationToken);
     /// <summary>Sessiya planlaması üçün — xal cədvəli olmadan, daha sürətli.</summary>
     Task<IReadOnlyCollection<TrainingSession>> GetSessionsLightAsync(CancellationToken cancellationToken);
+    /// <summary>Açıq seansların cəmi xalı və atış sayı — ScoreEntries-i tam yükləmir.</summary>
+    Task<IReadOnlyDictionary<Guid, SessionScoreTotals>> GetSessionScoreTotalsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken);
     Task<IReadOnlyCollection<TrainingSession>> GetSessionsByLocalDateRangeAsync(
         DateTime fromLocalDate,
         DateTime toLocalDate,

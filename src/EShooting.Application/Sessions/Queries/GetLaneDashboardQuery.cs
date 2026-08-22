@@ -83,6 +83,25 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
             sessions = [];
         }
 
+        IReadOnlyDictionary<Guid, SessionScoreTotals> scoreTotals;
+        try
+        {
+            var openSessionIds = sessions
+                .Where(x => x.Status != SessionStatus.Completed)
+                .Select(x => x.Id)
+                .Distinct()
+                .ToList();
+            scoreTotals = await repository.GetSessionScoreTotalsAsync(openSessionIds, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            scoreTotals = new Dictionary<Guid, SessionScoreTotals>();
+        }
+
         IReadOnlyCollection<EShooting.Domain.Entities.SessionEquipmentIssue> equipmentIssues;
         try
         {
@@ -303,10 +322,16 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     athleteNameById,
                     nowUtc);
 
+                var score = activeSession is not null
+                    && scoreTotals.TryGetValue(activeSession.Id, out var sessionScore)
+                    ? sessionScore
+                    : default;
+                var totalScore = Math.Max(0, score.Total);
+
                 return new LaneDashboardItem
                 {
                     SessionId = activeSession?.Id,
-                    ScoreCount = activeSession?.Scores.Count ?? 0,
+                    ScoreCount = score.Count,
                     LaneNumber = lane.Number,
                     LaneType = lane.LaneType,
                     AthleteName = athleteName,
@@ -317,7 +342,7 @@ public sealed class GetLaneDashboardQueryHandler(ITrainingCenterRepository repos
                     StartTimeUtc = startTimeUtc,
                     EndTimeUtc = endTimeUtc,
                     CooldownUntilUtc = cooldownUntilUtc,
-                    TotalScore = activeSession?.TotalScore ?? 0,
+                    TotalScore = totalScore,
                     Status = status,
                     Warning = warning,
                     IsEquipmentIssued = activeSession?.IsEquipmentIssued ?? false,

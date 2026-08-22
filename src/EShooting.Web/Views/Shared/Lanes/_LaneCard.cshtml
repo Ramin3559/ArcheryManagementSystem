@@ -1,6 +1,6 @@
 @using EShooting.Web.Helpers
 @model EShooting.Application.Common.Models.LaneDashboardItem
-<article class="lane-card">
+<article class="lane-card" data-lane-number="@Model.LaneNumber">
     @{
         var st = Model.Status ?? "Idle";
         var isOpenEnded = LaneDisplayHelper.IsOpenEndedLaneSession(Model);

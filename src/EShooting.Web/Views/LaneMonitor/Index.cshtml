@@ -148,6 +148,13 @@
             gap: 12px;
         }
 
+        @@media (min-width: 1101px) {
+            .lane-grid > .lane-card[data-lane-number="6"],
+            .lane-grid > .lane-card[data-lane-number="9"] {
+                grid-column-start: 1;
+            }
+        }
+
         @@media (max-width: 1100px) {
             .lane-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
@@ -482,8 +489,11 @@
 
         .score-sheet-modal__panel {
             width: min(440px, 100%);
+            max-width: 100%;
+            box-sizing: border-box;
             max-height: min(92vh, 760px);
-            overflow: auto;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         .score-sheet-meta {
@@ -513,17 +523,24 @@
 
         .score-input-row {
             display: flex;
+            align-items: stretch;
             gap: 8px;
             margin-top: 10px;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .score-input-row input {
-            flex: 1;
-            min-height: 52px;
-            padding: 10px 14px;
+            flex: 1 1 0;
+            width: 0;
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
+            min-height: 48px;
+            padding: 8px 10px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 800;
             text-align: center;
             color: var(--text);
@@ -531,8 +548,11 @@
         }
 
         .score-clear-btn {
-            min-width: 52px;
-            min-height: 52px;
+            flex: 0 0 48px;
+            width: 48px;
+            min-width: 48px;
+            min-height: 48px;
+            box-sizing: border-box;
             border-radius: 12px;
             border: 1px solid var(--border);
             background: #fff;
@@ -549,6 +569,7 @@
         }
 
         .score-keypad .key {
+            min-width: 0;
             min-height: 54px;
             border-radius: 12px;
             border: 1px solid var(--border);
@@ -1279,8 +1300,8 @@
             }
 
             let value = Number(draft);
-            if (!Number.isFinite(value) || value < 0 || value > 999) {
-                showMonitorToast("Xal 0–999 aralığında olmalıdır", "bad");
+            if (!Number.isFinite(value) || value < 1 || value > 999) {
+                showMonitorToast("Xal 1–999 aralığında olmalıdır", "bad");
                 return;
             }
 
@@ -1322,7 +1343,17 @@
                     showMonitorToast(message, "bad");
                     return;
                 }
+                const payload = await response.json().catch(() => ({}));
+                const totalFromApi = Number(payload?.totalScore);
+                if (scoreSheetTotal instanceof HTMLInputElement && Number.isFinite(totalFromApi)) {
+                    scoreSheetTotal.value = String(Math.max(0, totalFromApi));
+                }
+                if (scoreSheetRound instanceof HTMLInputElement && !subtract) {
+                    const nextRound = Number(scoreSheetRound.value) + 1;
+                    scoreSheetRound.value = String(Number.isFinite(nextRound) && nextRound > 0 ? nextRound : 1);
+                }
                 setScoreDraft("");
+                syncScoreSheetControls();
                 showMonitorToast(subtract ? "Xal çıxıldı" : "Xal əlavə olundu", "ok");
                 await refreshScoreSheetFromDashboard();
                 void loadLaneGrid(true);
