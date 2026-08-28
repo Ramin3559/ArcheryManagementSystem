@@ -17,5 +17,11 @@ public sealed class TrainingSession
     public bool IsEquipmentIssued { get; set; }
     public DateTime? EquipmentReturnedAtUtc { get; set; }
 
+    /// <summary>Bu gəliş: oxatma / trenajor / hər ikisi. Köhnə qeydlərdə boş ola bilər.</summary>
+    public FacilityUsage? FacilityUsage { get; set; }
+
+    /// <summary>Zolağa/zala yazan və ya Aktiv et edən resepsiya işçisi.</summary>
+    public Guid? HandledByStaffId { get; set; }
+
     public int TotalScore => Scores.Sum(x => x.Value);
 }

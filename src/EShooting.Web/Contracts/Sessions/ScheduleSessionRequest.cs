@@ -1,3 +1,5 @@
+using EShooting.Domain.Enums;
+
 namespace EShooting.Web.Contracts.Sessions;
 
 /// <summary>
@@ -47,6 +49,14 @@ public sealed class ScheduleSessionRequest
     public bool AllowAmateurOnProLane { get; set; }
 
     public bool IsEquipmentIssued { get; set; }
+
+    /// <summary>0 = oxatma, 1 = trenajor, 2 = hər ikisi. Yalnız «Hər ikisi» paketində məcburidir.</summary>
+    public FacilityUsage? FacilityUsage { get; set; }
+
+    /// <summary>Zolağa yazanda verilən kart — qaytarılana qədər müştəridə qalır.</summary>
+    public string? ClubCardNumber { get; set; }
+
+    public ClubCardType? ClubCardType { get; set; }
 
     public List<SessionEquipmentIssueDto> EquipmentIssues { get; set; } = [];
 }

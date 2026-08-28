@@ -37,6 +37,8 @@ public sealed class CustomerListItem
     public bool HasPendingEquipment { get; init; }
     /// <summary>Son zolağa yazılma tarixi (Bakı vaxtı).</summary>
     public string? LastLaneVisitLocal { get; init; }
+    /// <summary>Son gəliş: «Zolaq 8 · Oxatma», «Trenajor», «Zolaq 3 · Hər ikisi».</summary>
+    public string? LastVisitPlaceLabel { get; init; }
     public int? LastLaneNumber { get; init; }
     public string? LastVisitLocal { get; init; }
     public int? ActiveLaneNumber { get; init; }

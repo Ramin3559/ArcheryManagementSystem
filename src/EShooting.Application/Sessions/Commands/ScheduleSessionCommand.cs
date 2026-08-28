@@ -19,7 +19,8 @@ public sealed record ScheduleSessionCommand(
     Guid? IssuedByStaffId = null,
     bool ForceOpenEnded = false,
     bool ActivateImmediately = false,
-    bool AllowAmateurOnProLane = false) : IRequest<Guid>;
+    bool AllowAmateurOnProLane = false,
+    FacilityUsage? FacilityUsage = null) : IRequest<Guid>;
 
 public sealed class ScheduleSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -66,18 +67,29 @@ public sealed class ScheduleSessionCommandHandler(
             ? startTimeUtc
             : startTimeUtc.AddMinutes(request.DurationMinutes);
 
+        var laneNumber = request.LaneNumber;
+        if (request.FacilityUsage == FacilityUsage.Gym)
+        {
+            laneNumber = GymLaneRules.LaneNumber;
+        }
+        else if (request.FacilityUsage == FacilityUsage.Archery
+                 && GymLaneRules.IsGymLane(laneNumber))
+        {
+            throw new InvalidOperationException("Oxatma üçün zolaq seçin.");
+        }
+
         static bool IsShortLane(int number) => number is >= 1 and <= 8;
         static bool IsLongLane(int number) => number is >= 9 and <= 11;
 
         // Category rules: Amateur → 1–8; fors-major ilə 9–11 icazə verilə bilər.
-        if (athlete.Category == CustomerCategory.Amateur && !GymLaneRules.IsGymLane(request.LaneNumber))
+        if (athlete.Category == CustomerCategory.Amateur && !GymLaneRules.IsGymLane(laneNumber))
         {
-            if (request.LaneNumber > 0 && !IsShortLane(request.LaneNumber) && !request.AllowAmateurOnProLane)
+            if (laneNumber > 0 && !IsShortLane(laneNumber) && !request.AllowAmateurOnProLane)
             {
                 throw new InvalidOperationException("Həvəskar yalnız 1-8 zolaqlarda ola bilər.");
             }
 
-            if (request.LaneNumber == 0 && request.PreferredLaneType == PreferredLaneType.Long && !request.AllowAmateurOnProLane)
+            if (laneNumber == 0 && request.PreferredLaneType == PreferredLaneType.Long && !request.AllowAmateurOnProLane)
             {
                 throw new InvalidOperationException("Həvəskar üçün yalnız qısa xətlər (1-8) mümkündür.");
             }
@@ -85,12 +97,12 @@ public sealed class ScheduleSessionCommandHandler(
 
         // Pick lane: manual (LaneNumber>0) or auto (LaneNumber==0).
         Lane? lane;
-        if (request.LaneNumber > 0)
+        if (laneNumber > 0)
         {
-            lane = lanes.FirstOrDefault(l => l.Number == request.LaneNumber);
+            lane = lanes.FirstOrDefault(l => l.Number == laneNumber);
             if (lane is null)
             {
-                throw new InvalidOperationException($"{request.LaneNumber} nömrəli zolaq mövcud deyil.");
+                throw new InvalidOperationException($"{laneNumber} nömrəli zolaq mövcud deyil.");
             }
         }
         else
@@ -244,6 +256,8 @@ public sealed class ScheduleSessionCommandHandler(
             reusePlanned.Status = SessionStatus.Scheduled;
             reusePlanned.IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag;
             reusePlanned.EquipmentReturnedAtUtc = null;
+            reusePlanned.FacilityUsage = request.FacilityUsage ?? FacilityUsageRules.InferFromLane(lane.Number);
+            reusePlanned.HandledByStaffId = request.IssuedByStaffId ?? reusePlanned.HandledByStaffId;
             if (flexibleSchedule is not null)
             {
                 reusePlanned.SubscriptionScheduleId = flexibleSchedule.Id;
@@ -276,7 +290,9 @@ public sealed class ScheduleSessionCommandHandler(
                 Status = SessionStatus.Scheduled,
                 IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
                 EquipmentReturnedAtUtc = null,
-                SubscriptionScheduleId = flexibleSchedule?.Id
+                SubscriptionScheduleId = flexibleSchedule?.Id,
+                FacilityUsage = request.FacilityUsage ?? FacilityUsageRules.InferFromLane(lane.Number),
+                HandledByStaffId = request.IssuedByStaffId
             };
 
             target = await repository.AddSessionAsync(session, cancellationToken);

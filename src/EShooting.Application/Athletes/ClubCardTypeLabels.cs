@@ -15,4 +15,7 @@ public static class ClubCardTypeLabels
 
     public static string FormatCard(ClubCardType type, string cardNumber) =>
         $"{Get(type)} · {cardNumber}";
+
+    public static string FormatUnavailable(ClubCardType type, string cardNumber) =>
+        "Mövcud deyil";
 }

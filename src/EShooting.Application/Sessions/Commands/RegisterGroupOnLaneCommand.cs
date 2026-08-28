@@ -120,7 +120,9 @@ public sealed class RegisterGroupOnLaneCommandHandler(
             EndTimeUtc = endTimeUtc,
             Status = SessionStatus.Scheduled,
             IsEquipmentIssued = hasRentalEquipment || legacyEquipmentFlag,
-            EquipmentReturnedAtUtc = null
+            EquipmentReturnedAtUtc = null,
+            FacilityUsage = FacilityUsage.Archery,
+            HandledByStaffId = request.IssuedByStaffId
         }, cancellationToken);
 
         if (request.ActivateImmediately)

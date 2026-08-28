@@ -217,6 +217,60 @@
             min-width: 140px;
         }
 
+        .reception-search-block {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) max-content;
+            grid-template-rows: auto auto;
+            gap: 10px;
+            align-items: stretch;
+            margin-bottom: 10px;
+        }
+
+        .reception-search-main {
+            grid-column: 1;
+            grid-row: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .reception-search-main .input-search {
+            flex: 1 1 220px;
+        }
+
+        .reception-side-actions {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: max-content;
+            min-width: 0;
+        }
+
+        .reception-side-actions .btn {
+            width: 100%;
+            min-height: 42px;
+            height: 42px;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 12px;
+            white-space: nowrap;
+        }
+
+        .reception-search-second {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
         input,
         select,
         textarea,
@@ -1466,19 +1520,34 @@
     <section class="grid">
         <article class="card col-12">
             <h2 class="section-heading">Müştəri axtarışı</h2>
-            <div class="row">
-                <input id="customerSearch"
-                       class="input-search"
-                       type="search"
-                       placeholder="Ad, telefon, email və ya Ş/V ilə axtarın…"
-                       autocomplete="off" />
-                <button id="addCustomerBtn" type="button" class="btn btn-primary" @(canRegisterCustomers ? "" : "disabled hidden")>Müştəri əlavə et</button>
-                @if (canViewCustomers) {
-                    <a href="/qeydiyyat/musteriler" class="btn btn-secondary">Müştərilər</a>
-                }
-                @if (canSellEquipment) {
-                    <a href="/qeydiyyat/avadanliq-satis" class="btn btn-secondary">Avadanlıq satışı</a>
-                }
+            <div class="reception-search-block">
+                <div class="reception-search-main">
+                    <input id="customerSearch"
+                           class="input-search"
+                           type="search"
+                           placeholder="Ad, telefon, email və ya Ş/V ilə axtarın…"
+                           autocomplete="off" />
+                    <button id="addCustomerBtn" type="button" class="btn btn-primary" @(canRegisterCustomers ? "" : "disabled hidden")>Müştəri əlavə et</button>
+                    @if (canViewCustomers) {
+                        <a href="/qeydiyyat/musteriler" class="btn btn-secondary">Müştərilər</a>
+                    }
+                </div>
+                <div class="reception-side-actions">
+                    @if (canSellEquipment) {
+                        <a href="/qeydiyyat/avadanliq-satis" class="btn btn-secondary">Avadanlıq satışı</a>
+                    }
+                    <button id="clubCardsListBtn" type="button" class="btn btn-secondary">Müştəridə olan kartlar</button>
+                </div>
+                <div class="reception-search-second" id="groupModeRow">
+                    <label class="checkbox-chip" title="Eyni zolaqda bir neçə nəfər">
+                        <input type="checkbox" id="groupModeToggle" />
+                        Qrup rejimi (eyni zolaq)
+                    </label>
+                    <label id="bookingComplimentaryWrap" class="checkbox-chip" style="display:none;" title="Birdefəlik paket — müştəridən pul alınmasın">
+                        <input type="checkbox" id="bookingComplimentary" />
+                        Ödənişsiz
+                    </label>
+                </div>
             </div>
             <div class="notice" id="receptionLookupHint" style="display:none;"></div>
 
@@ -1490,17 +1559,6 @@
                 <div class="selected-customer-card__actions">
                     <button id="clearCustomerBtn" type="button" class="btn btn-ghost btn-sm">Təmizlə</button>
                 </div>
-            </div>
-
-            <div class="row" id="groupModeRow" style="margin-top:10px;">
-                <label class="checkbox-chip" title="Eyni zolaqda bir neçə nəfər">
-                    <input type="checkbox" id="groupModeToggle" />
-                    Qrup rejimi (eyni zolaq)
-                </label>
-                <label id="bookingComplimentaryWrap" class="checkbox-chip" style="display:none;" title="Birdefəlik paket — müştəridən pul alınmasın">
-                    <input type="checkbox" id="bookingComplimentary" />
-                    Ödənişsiz
-                </label>
             </div>
             <div id="groupBookingPanel" class="group-booking-panel" style="display:none;">
                 <div class="group-booking-panel__head">
@@ -1572,6 +1630,17 @@
                 </label>
                 }
             </div>
+            <div class="row" id="visitFacilityWrap" style="display:none; align-items:flex-end;">
+                <label style="display:flex;flex-direction:column;gap:4px; min-width:280px;">
+                    <span class="section-hint" style="margin:0;">İstifadə sahəsi</span>
+                    <select id="visitFacilityUsage" title="Bu gəlişdə oxatma, trenajor, yoxsa hər ikisi">
+                        <option value="" selected disabled>Seçin</option>
+                        <option value="0">Yalnız oxatma</option>
+                        <option value="1">Yalnız Trenajor</option>
+                        <option value="2">Hər ikisi (oxatma + Trenajor)</option>
+                    </select>
+                </label>
+            </div>
             <div id="subscriptionPeriodRow" style="display:none; flex-direction:row; flex-wrap:wrap; gap:10px; margin-bottom:10px; align-items:flex-end;">
                 <label style="display:flex;flex-direction:column;gap:4px; min-width:160px;">
                     <span class="section-hint" style="margin:0;">Abunə başlanğıcı</span>
@@ -1638,6 +1707,7 @@
                     <option value="9">Zolaq 9 (Peşəkar)</option>
                     <option value="10">Zolaq 10 (Peşəkar)</option>
                     <option value="11">Zolaq 11 (Peşəkar)</option>
+                    <option value="12" hidden disabled>Trenajor</option>
                 </select>
                 <select id="clubCardType" title="Kart növü">
                     <option value="" selected>Kart növü</option>
@@ -1646,10 +1716,12 @@
                     <option value="2">Qara</option>
                     <option value="3">VIP-Qızılı</option>
                 </select>
-                <input id="clubCardNumber" placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" />
+                <input id="clubCardNumber" placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" list="clubCardNumberSuggestions" />
+                <datalist id="clubCardNumberSuggestions"></datalist>
                 <button id="scheduleBtn" type="button" class="btn btn-primary">Zolağa yaz</button>
             </div>
             <div id="receptionWalkInBanner" class="notice" style="display:none; margin-top:8px; border-color:rgba(15,157,119,0.35); background:rgba(15,157,119,0.08); color:#0b6b52;"></div>
+            <p id="clubCardStockHint" class="section-hint" style="margin:6px 0 0; display:none;"></p>
             <div class="notice" id="groupInfo" style="display:none;" aria-hidden="true"></div>
             <div class="notice" id="sessionInfo">Müştəri və paket seçin, sonra zolaq və vaxt təyin edin.</div>
         </article>
@@ -1763,6 +1835,47 @@
         <div id="subscriptionConflictList" style="margin-top:10px; max-height:60vh; overflow:auto; border:1px solid rgba(41,55,89,0.15); border-radius:12px; background:#fff;"></div>
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
             <button id="subscriptionConflictConfirmBtn" type="button" class="btn btn-primary" disabled>Təsdiqlə</button>
+        </div>
+    </div>
+</div>
+
+<div id="clubCardsModal"
+     style="display:none; position:fixed; inset:0; background:rgba(11,18,32,0.45); backdrop-filter: blur(5px); z-index:10002; padding:16px; overflow:auto;">
+    <div class="customer-modal-panel" style="max-width:820px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+            <h3 class="customer-modal-title">Müştəridə olan kartlar</h3>
+            <button id="clubCardsModalCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+        </div>
+        <p id="clubCardsModalSummary" class="section-hint" style="margin-top:0;"></p>
+        <div class="row" style="margin-bottom:10px;">
+            <label class="field" style="display:flex; flex-direction:column; gap:4px; min-width:160px;">
+                <span style="font-size:12px; color:var(--muted); font-weight:700;">Kart növü</span>
+                <select id="clubCardsFilterType">
+                    <option value="">Hamısı</option>
+                    <option value="Boz">Boz</option>
+                    <option value="Qirmizi">Qırmızı</option>
+                    <option value="Qara">Qara</option>
+                    <option value="VipQizili">VIP-Qızılı</option>
+                </select>
+            </label>
+            <label class="field" style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:200px;">
+                <span style="font-size:12px; color:var(--muted); font-weight:700;">Müştəri adı</span>
+                <input id="clubCardsFilterName" type="search" placeholder="Ad ilə axtarın…" autocomplete="off" />
+            </label>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Növ</th>
+                    <th>Nömrə</th>
+                    <th>Müştəri</th>
+                    <th>Telefon</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="clubCardsModalBody"></tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -2530,8 +2643,70 @@
         return Boolean(pkg && isGymPackage(pkg));
     }
 
+    function isFullScopeValue(val) {
+        const s = String(val ?? "");
+        return s === "Full" || s === "2";
+    }
+
+    function packageScopeLabelAz(scope) {
+        if (isFullScopeValue(scope)) return "Hər ikisi";
+        const s = String(scope ?? "");
+        if (s === "Gym" || s === "1") return "Yalnız Trenajor";
+        if (s === "Archery" || s === "0") return "Yalnız oxatma";
+        if (s === "Vip" || s === "3") return "VIP";
+        return "";
+    }
+
+    function formatCurrentPackageCaption() {
+        const name = String(_receptionMonthlyActive?.packageName || _receptionWalkIn?.packageName || "").trim();
+        const scope = _receptionMonthlyActive?.packageScope || _receptionWalkIn?.packageScope;
+        const scopeLabel = packageScopeLabelAz(scope);
+        if (name && scopeLabel) return `${name} · ${scopeLabel}`;
+        return name || scopeLabel || "";
+    }
+
+    function isSubscriptionOnlyRegistration() {
+        const mode = (registrationModeInput?.value ?? "").trim();
+        if (mode !== "subscription") return false;
+        if (hasActiveCustomerPackage()) return false;
+        return Boolean(getSelectedBookingPackage());
+    }
+
+    function visitUsageChoiceRequired() {
+        if (isSubscriptionOnlyRegistration()) return false;
+        const pkg = getSelectedBookingPackage();
+        if (pkg && isFullScopeValue(pkg.scope)) return true;
+        if (isFullScopeValue(_receptionMonthlyActive?.packageScope)) return true;
+        if (isFullScopeValue(_receptionWalkIn?.packageScope)) return true;
+        return false;
+    }
+
+    function getSelectedVisitFacilityUsage() {
+        const sel = document.getElementById("visitFacilityUsage");
+        if (!(sel instanceof HTMLSelectElement)) return null;
+        if (sel.value === "0" || sel.value === "1" || sel.value === "2") return Number(sel.value);
+        return null;
+    }
+
+    function resetVisitFacilityUsage() {
+        const sel = document.getElementById("visitFacilityUsage");
+        if (sel instanceof HTMLSelectElement) sel.value = "";
+    }
+
+    function syncVisitFacilityUi() {
+        const wrap = document.getElementById("visitFacilityWrap");
+        const show = visitUsageChoiceRequired();
+        if (wrap instanceof HTMLElement) wrap.style.display = show ? "" : "none";
+        if (!show) resetVisitFacilityUsage();
+        try { ensureGymLaneForPackage(); } catch { /* ignore */ }
+        try { refreshLaneOptions(); } catch { /* ignore */ }
+        try { syncScheduleButtonLabel(); } catch { /* ignore */ }
+    }
+
     function isGymBookingMode() {
-        // Trenajor: seçilmiş paket və ya aktiv aylıq Trenajor abunəsi.
+        if (visitUsageChoiceRequired()) {
+            return getSelectedVisitFacilityUsage() === 1;
+        }
         if (isGymPackageSelected()) return true;
         if (_receptionMonthlyActive?.isGym) return true;
         return false;
@@ -2545,21 +2720,39 @@
     function ensureGymLaneForPackage() {
         if (!(laneNumberInput instanceof HTMLSelectElement)) return;
         const pkg = getSelectedBookingPackage();
-        if (pkg && isGymPackage(pkg)) {
-            // Gizli Trenajor zolağı — UI-də option olmasa belə value saxlanır.
-            let opt = Array.from(laneNumberInput.options).find(o => Number(o.value) === GYM_LANE_NUMBER);
-            if (!opt) {
-                opt = document.createElement("option");
-                opt.value = String(GYM_LANE_NUMBER);
-                opt.textContent = "Trenajor";
+        const usage = visitUsageChoiceRequired() ? getSelectedVisitFacilityUsage() : null;
+        const forceGym = (pkg && isGymPackage(pkg)) || usage === 1;
+        const allowGymChoice = usage === 2;
+        let opt = Array.from(laneNumberInput.options).find(o => Number(o.value) === GYM_LANE_NUMBER);
+        if (!opt && (forceGym || allowGymChoice)) {
+            opt = document.createElement("option");
+            opt.value = String(GYM_LANE_NUMBER);
+            opt.textContent = "Trenajor";
+            laneNumberInput.appendChild(opt);
+        }
+        if (forceGym) {
+            if (opt) {
                 opt.hidden = true;
-                laneNumberInput.appendChild(opt);
+                opt.disabled = false;
             }
             laneNumberInput.value = String(GYM_LANE_NUMBER);
             lastValidLaneNumber = String(GYM_LANE_NUMBER);
             return;
         }
-        if (pkg && !isGymPackage(pkg) && isGymLaneNumber(laneNumberInput.value)) {
+        if (allowGymChoice) {
+            if (opt) {
+                opt.hidden = false;
+                opt.disabled = false;
+            }
+            return;
+        }
+        if (opt) {
+            opt.hidden = true;
+            opt.disabled = true;
+        }
+        const leaveGym = usage === 0
+            || (pkg && !isGymPackage(pkg) && isGymLaneNumber(laneNumberInput.value));
+        if (leaveGym && isGymLaneNumber(laneNumberInput.value)) {
             const fallback = lastValidLaneNumber && !isGymLaneNumber(lastValidLaneNumber)
                 ? lastValidLaneNumber
                 : "1";
@@ -2905,6 +3098,7 @@
                 bookingVipHint.textContent = "";
             }
         }
+        syncVisitFacilityUi();
     }
 
     function syncBookingPackageUi() {
@@ -4253,7 +4447,17 @@
         if (infoCategory instanceof HTMLSelectElement) infoCategory.value = categoryToSelectValue(data?.category);
         if (infoMembershipType instanceof HTMLSelectElement) infoMembershipType.value = membershipToSelectValue(data?.membershipType);
         if (infoMembershipTypeLabel instanceof HTMLElement) {
-            infoMembershipTypeLabel.textContent = membershipLabelFromValue(membershipToSelectValue(data?.membershipType));
+            const pkgName = String(data?.currentPackageName || "").trim();
+            const scopeLabel = data?.currentPackageScopeLabel || packageScopeLabelAz(data?.currentPackageScope);
+            if (pkgName && scopeLabel) {
+                infoMembershipTypeLabel.textContent = `Cari paket: ${pkgName} · ${scopeLabel}`;
+            } else if (pkgName) {
+                infoMembershipTypeLabel.textContent = `Cari paket: ${pkgName}`;
+            } else if (scopeLabel) {
+                infoMembershipTypeLabel.textContent = `Cari paket: ${scopeLabel}`;
+            } else {
+                infoMembershipTypeLabel.textContent = "Cari paket: —";
+            }
         }
         if (infoIsVip instanceof HTMLInputElement) infoIsVip.checked = Boolean(data?.isVip);
         ensureInfoProfileCategoryEditable();
@@ -4458,6 +4662,21 @@
         return Number.isFinite(n) ? n : null;
     }
 
+    function normalizeClubCardNumber(raw) {
+        const digits = String(raw ?? "").replace(/\D/g, "");
+        if (!digits) return "";
+        const n = Number(digits);
+        if (!Number.isFinite(n) || n < 1) return String(raw ?? "").trim();
+        return n < 1000 ? String(n).padStart(3, "0") : String(n);
+    }
+
+    function applyClubCardNumberNormalize() {
+        if (!(clubCardNumberInput instanceof HTMLInputElement)) return "";
+        const next = normalizeClubCardNumber(clubCardNumberInput.value);
+        if (next) clubCardNumberInput.value = next;
+        return (clubCardNumberInput.value ?? "").toString().trim();
+    }
+
     function validateClubCardFields(cardNumber, cardType) {
         const card = (cardNumber ?? "").toString().trim();
         if (!card) return true;
@@ -4524,7 +4743,7 @@
                     phoneNumber: data?.phoneNumber ?? "",
                     email: data?.email ?? "",
                     idCardNumber: data?.idCardNumber ?? "",
-                    clubCardNumber: (clubCardNumberInput?.value ?? "").toString().trim(),
+                    clubCardNumber: applyClubCardNumberNormalize(),
                     clubCardType: readClubCardTypeValue(clubCardTypeInput),
                     category: Number(data?.category ?? 0),
                     isSubscriber: Boolean(data?.isSubscriber),
@@ -4532,27 +4751,292 @@
                     isVip: Boolean(data?.isVip)
                 })
             });
+            if (put.ok) {
+                try { allAthletesCache = []; athletesCacheLoadedAtMs = 0; } catch { }
+            }
             return put.ok;
         } catch {
             return false;
         }
     }
 
-    async function ensureClubCardBeforeLaneWrite(athleteId) {
-        if (receptionHasClubCardAssigned()) {
-            const id = athleteId || receptionMatchedAthleteId;
-            if (id) {
-                await persistReceptionClubCardToAthlete(id);
-            }
-            return true;
+    function receptionClubCardPayload() {
+        const clubCardNumber = applyClubCardNumberNormalize();
+        const clubCardType = readClubCardTypeValue(clubCardTypeInput);
+        if (!clubCardNumber) return {};
+        return { clubCardNumber, clubCardType };
+    }
+
+    async function fetchClubCardHolder(cardType, cardNumber) {
+        const num = normalizeClubCardNumber(cardNumber);
+        if (cardType === null || cardType === undefined || !num) return null;
+        try {
+            const qs = new URLSearchParams();
+            qs.set("cardType", String(cardType));
+            qs.set("cardNumber", num);
+            const res = await apiFetch(`/athletes/club-card-holder?${qs.toString()}`, { timeoutMs: 15000 });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }
+
+    async function confirmClubCardReplaceIfNeeded(athleteId) {
+        const nextNumber = applyClubCardNumberNormalize();
+        const nextType = readClubCardTypeValue(clubCardTypeInput);
+        if (!athleteId || !nextNumber || nextType === null) return true;
+        const status = await fetchAthleteClubCardStatus(athleteId);
+        if (!status.hasCard) return true;
+        const oldNumber = normalizeClubCardNumber(status.clubCardNumber);
+        const oldType = clubCardTypeToSelectValue(status.clubCardType);
+        const newType = clubCardTypeToSelectValue(nextType);
+        if (oldNumber === nextNumber && oldType === newType) return true;
+        const oldLabel = formatClubCardDisplay(status.clubCardType, status.clubCardNumber) || "köhnə";
+        const newLabel = formatClubCardDisplay(nextType, nextNumber);
+        return window.confirm(
+            `Köhnə kart (${oldLabel}) qaytarılacaq, yeni kart (${newLabel}) veriləcək.\n\nDavam edilsin?`
+        );
+    }
+
+    async function ensureClubCardNotHeldByOther(athleteId) {
+        const number = applyClubCardNumberNormalize();
+        const type = readClubCardTypeValue(clubCardTypeInput);
+        if (!number || type === null) return true;
+        const holder = await fetchClubCardHolder(type, number);
+        if (!holder?.held) return true;
+        const hid = holder.holder?.id;
+        if (athleteId && hid && String(hid) === String(athleteId)) return true;
+        alert(holder.error || "Bu kart başqa müştəridədir.");
+        return false;
+    }
+
+    async function guardClubCardAssignment(athleteId) {
+        const number = applyClubCardNumberNormalize();
+        const type = readClubCardTypeValue(clubCardTypeInput);
+        if (!number) return true;
+        if (!validateClubCardFields(number, type)) return false;
+        if (!(await confirmClubCardReplaceIfNeeded(athleteId))) return false;
+        if (!(await ensureClubCardNotHeldByOther(athleteId))) return false;
+        return true;
+    }
+
+    let clubCardSummaryCache = null;
+    let clubCardsHeldCache = [];
+    let clubCardSuggestTimer = 0;
+
+    function setClubCardHint(text, isError) {
+        const el = document.getElementById("clubCardStockHint");
+        if (!(el instanceof HTMLElement)) return;
+        if (!text) {
+            el.style.display = "none";
+            el.textContent = "";
+            return;
+        }
+        el.style.display = "";
+        el.textContent = text;
+        el.style.color = isError ? "#991b1b" : "";
+    }
+
+    async function loadClubCardSummary(force) {
+        if (clubCardSummaryCache && !force) return clubCardSummaryCache;
+        try {
+            const res = await apiFetch("/club-cards/summary", { timeoutMs: 15000 });
+            if (!res.ok) return clubCardSummaryCache;
+            clubCardSummaryCache = await res.json();
+            return clubCardSummaryCache;
+        } catch {
+            return clubCardSummaryCache;
+        }
+    }
+
+    async function refreshClubCardStockHint() {
+        const type = readClubCardTypeValue(clubCardTypeInput);
+        const number = (clubCardNumberInput?.value ?? "").toString().trim();
+        const summary = await loadClubCardSummary();
+        const rows = Array.isArray(summary) ? summary : [];
+        const row = type === null ? null : rows.find(s => Number(s.cardType) === Number(type));
+        const stockEmpty = rows.length > 0 && rows.every(s => Number(s.total) === 0);
+
+        if (type === null) {
+            setClubCardHint(stockEmpty ? "Kart stoku boşdur. Admin kataloqu doldurmalıdır." : "");
+            return;
         }
 
+        let msg = row ? `${row.typeLabel}: ${row.available} sərbəst / ${row.total}` : "";
+        if (number) {
+            const holder = await fetchClubCardHolder(type, number);
+            if (holder?.held) {
+                const hid = holder.holder?.id;
+                const own = receptionMatchedAthleteId && hid && String(hid) === String(receptionMatchedAthleteId);
+                if (!own) {
+                    setClubCardHint(holder.error || "Bu kart başqa müştəridədir.", true);
+                    return;
+                }
+            } else if (row && Number(row.total) > 0) {
+                try {
+                    const qs = new URLSearchParams();
+                    qs.set("cardType", String(type));
+                    qs.set("q", normalizeClubCardNumber(number) || number);
+                    const res = await apiFetch(`/club-cards/available?${qs.toString()}`, { timeoutMs: 15000 });
+                    if (res.ok) {
+                        const list = await res.json();
+                        const want = normalizeClubCardNumber(number) || number;
+                        const inList = Array.isArray(list) && list.some(n => String(n) === want);
+                        if (!inList) {
+                            setClubCardHint(`Kart «${clubCardTypeLabel(type)} · ${want}» stokda yoxdur. Admin əlavə etsin.`, true);
+                            return;
+                        }
+                    }
+                } catch { /* ignore */ }
+            }
+        }
+        setClubCardHint(msg);
+    }
+
+    async function refreshClubCardSuggestions() {
+        const list = document.getElementById("clubCardNumberSuggestions");
+        if (!(list instanceof HTMLDataListElement)) return;
+        list.innerHTML = "";
+        const type = readClubCardTypeValue(clubCardTypeInput);
+        const q = (clubCardNumberInput?.value ?? "").toString().trim();
+        if (type === null || q.length < 1) return;
+        try {
+            const qs = new URLSearchParams();
+            qs.set("cardType", String(type));
+            qs.set("q", q);
+            const res = await apiFetch(`/club-cards/available?${qs.toString()}`, { timeoutMs: 15000 });
+            if (!res.ok) return;
+            const numbers = await res.json();
+            if (!Array.isArray(numbers)) return;
+            for (const n of numbers) {
+                const opt = document.createElement("option");
+                opt.value = String(n);
+                list.appendChild(opt);
+            }
+        } catch { /* ignore */ }
+    }
+
+    function clubCardsModalMatches(h) {
+        const typeEl = document.getElementById("clubCardsFilterType");
+        const nameEl = document.getElementById("clubCardsFilterName");
+        const type = typeEl instanceof HTMLSelectElement ? typeEl.value : "";
+        const name = nameEl instanceof HTMLInputElement ? nameEl.value.trim().toLowerCase() : "";
+        if (type !== "") {
+            const raw = String(h.cardType ?? "");
+            if (raw !== type && raw !== String(Number(type))) return false;
+        }
+        if (name) {
+            const full = String(h.athleteFullName || "").toLowerCase();
+            if (!full.includes(name)) return false;
+        }
+        return true;
+    }
+
+    function paintClubCardsModalRows() {
+        const body = document.getElementById("clubCardsModalBody");
+        if (!(body instanceof HTMLElement)) return;
+        if (!Array.isArray(clubCardsHeldCache) || clubCardsHeldCache.length === 0) {
+            body.innerHTML = `<tr><td colspan="5">Müştəridə kart yoxdur.</td></tr>`;
+            return;
+        }
+        const rows = clubCardsHeldCache.filter(clubCardsModalMatches);
+        if (rows.length === 0) {
+            body.innerHTML = `<tr><td colspan="5">Filterə uyğun kart yoxdur.</td></tr>`;
+            return;
+        }
+        body.innerHTML = rows.map(h => `
+                <tr>
+                    <td>${escapeHtml(h.typeLabel || "")}</td>
+                    <td>${escapeHtml(h.cardNumber || "")}</td>
+                    <td>${escapeHtml(h.athleteFullName || "")}</td>
+                    <td>${escapeHtml(h.phoneNumber || "")}</td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn btn-ghost btn-sm" data-return-club-card="${escapeHtml(h.athleteId || "")}">Qaytar</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-keep-club-card>Qalsın</button>
+                    </td>
+                </tr>`).join("");
+    }
+
+    async function renderClubCardsModal() {
+        const body = document.getElementById("clubCardsModalBody");
+        const sumEl = document.getElementById("clubCardsModalSummary");
+        if (!(body instanceof HTMLElement)) return;
+        body.innerHTML = `<tr><td colspan="5">Yüklənir...</td></tr>`;
+        try {
+            const [heldRes, sumRes] = await Promise.all([
+                apiFetch("/club-cards/held", { timeoutMs: 20000 }),
+                apiFetch("/club-cards/summary", { timeoutMs: 20000 })
+            ]);
+            if (!heldRes.ok) {
+                body.innerHTML = `<tr><td colspan="5">${escapeHtml(await readErrorMessage(heldRes))}</td></tr>`;
+                return;
+            }
+            const held = await heldRes.json();
+            clubCardsHeldCache = Array.isArray(held) ? held : [];
+            if (sumRes.ok && sumEl instanceof HTMLElement) {
+                const summary = await sumRes.json();
+                clubCardSummaryCache = summary;
+                if (Array.isArray(summary)) {
+                    sumEl.textContent = summary
+                        .map(s => `${s.typeLabel}: ${s.available} sərbəst / ${s.total} (verilib ${s.issued})`)
+                        .join(" · ");
+                }
+            }
+            paintClubCardsModalRows();
+        } catch {
+            body.innerHTML = `<tr><td colspan="5">Siyahı yüklənmədi.</td></tr>`;
+        }
+    }
+
+    function openClubCardsModal() {
+        const modal = document.getElementById("clubCardsModal");
+        if (modal instanceof HTMLElement) modal.style.display = "block";
+        void renderClubCardsModal();
+    }
+
+    function closeClubCardsModal() {
+        const modal = document.getElementById("clubCardsModal");
+        if (modal instanceof HTMLElement) modal.style.display = "none";
+    }
+
+    async function returnClubCardFromModal(athleteId) {
+        if (!athleteId) return;
+        if (!window.confirm("Kart qaytarılsın? Nömrə sərbəst olacaq.")) return;
+        try {
+            const res = await apiFetch(`/athletes/${encodeURIComponent(athleteId)}/return-club-card`, {
+                method: "POST",
+                timeoutMs: 20000
+            });
+            if (!res.ok) {
+                alert(await readErrorMessage(res));
+                return;
+            }
+            if (receptionMatchedAthleteId && String(receptionMatchedAthleteId) === String(athleteId)) {
+                if (clubCardNumberInput instanceof HTMLInputElement) clubCardNumberInput.value = "";
+                if (clubCardTypeInput instanceof HTMLSelectElement) clubCardTypeInput.value = "";
+                try { refreshSelectedCustomerCard(); } catch { }
+            }
+            clubCardSummaryCache = null;
+            await renderClubCardsModal();
+            await refreshClubCardStockHint();
+        } catch {
+            alert("Kart qaytarılmadı.");
+        }
+    }
+
+    async function ensureClubCardBeforeLaneWrite(athleteId) {
+        applyClubCardNumberNormalize();
         const id = athleteId || receptionMatchedAthleteId;
+        if (receptionHasClubCardAssigned()) {
+            return await guardClubCardAssignment(id);
+        }
+
         if (id) {
             const status = await fetchAthleteClubCardStatus(id);
             if (status.hasCard) {
                 if (clubCardNumberInput instanceof HTMLInputElement) {
-                    clubCardNumberInput.value = status.clubCardNumber || "";
+                    clubCardNumberInput.value = normalizeClubCardNumber(status.clubCardNumber) || status.clubCardNumber || "";
                 }
                 if (clubCardTypeInput instanceof HTMLSelectElement) {
                     clubCardTypeInput.value = clubCardTypeToSelectValue(status.clubCardType);
@@ -4659,7 +5143,7 @@
         const vipActive = isActiveVipReception();
         const gymMode = isGymBookingMode();
         const groupOn = groupModeToggle instanceof HTMLInputElement && groupModeToggle.checked;
-        if (gymMode) return "Trenajora yaz";
+        if (gymMode || isGymLaneSelected()) return "Trenajora yaz";
         if (isSubscription && !vipActive) return "Abunə qeyd et";
         if (groupOn && countGroupParticipantsForBooking() >= 2) return "Qrupu zolağa yaz";
         return "Zolağa yaz";
@@ -4819,7 +5303,7 @@
             athleteId: ensured.athleteId,
             fullName: ensured.fullName,
             phone: ensured.phone,
-            clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+            clubCardNumber: applyClubCardNumberNormalize(),
             clubCardType: readClubCardTypeValue(clubCardTypeInput)
         };
         // Kart məcburi deyil — zolağa yazanda qrupda ən azı bir kart yoxlanılır.
@@ -4921,6 +5405,9 @@
         if (!validateClubCardFields(clubCardNumberInput?.value, readClubCardTypeValue(clubCardTypeInput))) {
             return { ok: false, error: "Kart növü seçin." };
         }
+        if (!(await ensureClubCardNotHeldByOther(null))) {
+            return { ok: false, error: "Bu kart başqa müştəridədir." };
+        }
 
         const athleteResponse = await apiFetch("/athletes", {
             method: "POST",
@@ -4932,7 +5419,7 @@
                 phoneNumber,
                 email: emailInput?.value?.trim() || "",
                 idCardNumber: idCardNumberInput?.value?.trim() || "",
-                clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                clubCardNumber: applyClubCardNumberNormalize(),
                 clubCardType: readClubCardTypeValue(clubCardTypeInput),
                 category: Number(categoryRaw),
                 isSubscriber: false,
@@ -4993,7 +5480,7 @@
         }
 
         if (laneNumberInput instanceof HTMLSelectElement) {
-            laneNumberInput.style.display = (hideInstantControls || isGymPackageSelected() || (isSubscription && vipPkgSelected && !vipActive)) ? "none" : "";
+            laneNumberInput.style.display = (hideInstantControls || isGymPackageSelected() || isGymBookingMode() || (isSubscription && vipPkgSelected && !vipActive)) ? "none" : "";
         }
 
         syncGroupBookingUi();
@@ -5026,7 +5513,9 @@
                 isVip: isVip,
                 isUnlimited: isUnlimited,
                 expiresLocal: athlete.walkInExpiresLocal ?? "",
-                sessionDurationMinutes: dur
+                sessionDurationMinutes: dur,
+                packageName: athlete.currentPackageName ?? "",
+                packageScope: athlete.currentPackageScope ?? null
             };
             _receptionMonthlyActive = null;
             if (durationMinutesInput instanceof HTMLInputElement) {
@@ -5034,6 +5523,7 @@
             }
         }
         syncReceptionWalkInUi();
+        try { refreshSelectedCustomerCard(); } catch { /* ignore */ }
     }
 
     async function refreshReceptionMonthlyStatus(athleteId) {
@@ -5065,11 +5555,17 @@
 
             let visitStats = null;
             let swapOccurrences = [];
+            let currentPackageScope = null;
+            let currentPackageName = "";
+            let hasTodayPlan = false;
+            let hasTodayVisit = false;
             try {
                 const infoRes = await apiFetch(`/info/athlete?id=${encodeURIComponent(athleteId)}`, { timeoutMs: 30000 });
                 if (infoRes.ok) {
                     const info = await infoRes.json().catch(() => ({}));
                     visitStats = info?.visitStats ?? null;
+                    currentPackageScope = info?.currentPackageScope ?? null;
+                    currentPackageName = String(info?.currentPackageName || "").trim();
                     const todayIso = getTodayLocalIso();
                     const visitedSet = new Set(
                         (Array.isArray(info?.lastSessions) ? info.lastSessions : [])
@@ -5077,13 +5573,15 @@
                             .filter(Boolean)
                     );
                     const allOcc = Array.isArray(info?.occurrencesFlat) ? info.occurrencesFlat : [];
+                    hasTodayPlan = allOcc.some(o => String(o?.dateLocal ?? "") === todayIso);
+                    hasTodayVisit = visitedSet.has(todayIso);
                     // Gələcək planlar + gəlmədiyi keçmiş plan günləri (əvəz üçün).
                     swapOccurrences = allOcc
                         .filter(o => {
                             const d = String(o?.dateLocal ?? "");
                             if (!d || !o?.scheduleId) return false;
+                            if (d === todayIso) return false;
                             if (d > todayIso) return true;
-                            if (d >= todayIso) return false;
                             return !visitedSet.has(d);
                         })
                         .sort((a, b) => String(a.dateLocal).localeCompare(String(b.dateLocal)));
@@ -5091,7 +5589,6 @@
                     if (remCap != null && Number.isFinite(Number(remCap))) {
                         swapOccurrences = swapOccurrences.slice(0, Math.max(0, Number(remCap)));
                     }
-                    // Bitmə tarixinə qədər bütün plan günləri (Qalıb ilə kəsmirik — 08.09 kimi son gün itməsin).
                 }
             } catch { /* ignore */ }
 
@@ -5121,6 +5618,8 @@
                 durationMinutes: dur > 0 ? dur : 60,
                 isGym: Boolean(isGym),
                 isFlexible: Boolean(isFlexible),
+                packageName: currentPackageName,
+                packageScope: currentPackageScope,
                 dayOfWeeks,
                 dayLabels,
                 periodFrom: visitStats?.periodFromLocal || active[0]?.activeFromDateLocal || "",
@@ -5131,6 +5630,8 @@
                 remaining: visitStats?.remaining ?? null,
                 periodExpired: Boolean(visitStats?.periodExpired),
                 hasCarryover: Boolean(visitStats?.hasCarryover),
+                hasTodayPlan: Boolean(hasTodayPlan),
+                hasTodayVisit: Boolean(hasTodayVisit),
                 futureOccurrences: swapOccurrences,
                 schedules: active
             };
@@ -5139,6 +5640,7 @@
             }
         } catch { /* ignore */ }
         syncVipReceptionBookingUi();
+        try { refreshSelectedCustomerCard(); } catch { /* ignore */ }
     }
 
     function weekdayLabelAz(dow) {
@@ -5176,6 +5678,11 @@
                     (monthly.makeupDeadline ? ` (makeup: ${formatDateDisplayAz(monthly.makeupDeadline)}).` : ".") +
                     "\n\nPaketi yeniləyin və ya birdəfəlik seçin."
             };
+        }
+
+        // Bu günə plan varsa — əvəz yox, birbaşa bu günü yaz.
+        if (monthly.hasTodayPlan) {
+            return { ok: true };
         }
 
         const todayDow = new Date().getDay();
@@ -5318,6 +5825,7 @@
         }
         syncRegistrationModeUi();
         refreshSelectedCustomerCard();
+        try { syncVisitFacilityUi(); } catch { /* ignore */ }
     }
 
     function defaultScheduledStartTimeValue() {
@@ -5470,8 +5978,10 @@
             return;
         }
         const vip = isVipInput instanceof HTMLInputElement && isVipInput.checked ? " · VIP" : "";
-        const gym = includesGymInput instanceof HTMLInputElement && includesGymInput.checked ? " · Trenajor" : "";
-        selectedCustomerName.textContent = `${first} ${last}${vip}${gym}`;
+        const pkg = formatCurrentPackageCaption();
+        selectedCustomerName.textContent = pkg
+            ? `${first} ${last}${vip} · ${pkg}`
+            : `${first} ${last}${vip}`;
         const parts = [phone];
         const em = (emailInput?.value ?? "").trim();
         const idc = (idCardNumberInput?.value ?? "").trim();
@@ -5726,9 +6236,20 @@
         Array.from(laneNumberInput.options).forEach(opt => {
             const lane = Number(opt.value);
             if (isGymLaneNumber(lane)) {
-                opt.hidden = true;
-                opt.disabled = true;
+                const usage = visitUsageChoiceRequired() ? getSelectedVisitFacilityUsage() : null;
+                const showGymChoice = usage === 2;
+                const forceGym = isGymPackageSelected() || usage === 1;
                 opt.textContent = "Trenajor";
+                if (showGymChoice) {
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else if (forceGym) {
+                    opt.hidden = true;
+                    opt.disabled = false;
+                } else {
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
                 return;
             }
             opt.hidden = false;
@@ -6432,9 +6953,10 @@
         const categoryRaw = categoryInput?.value ?? "";
         if (!categoryRaw) { alert("Kateqoriya seçin."); return false; }
 
-        const clubCardNumber = clubCardNumberInput?.value?.trim() || "";
+        const clubCardNumber = applyClubCardNumberNormalize();
         const clubCardType = readClubCardTypeValue(clubCardTypeInput);
         if (!validateClubCardFields(clubCardNumber, clubCardType)) return false;
+        if (!opts.skipClubCardGuard && !(await guardClubCardAssignment(id))) return false;
 
         const response = await apiFetch(`/athletes/${encodeURIComponent(id)}`, {
             method: "PUT",
@@ -6982,17 +7504,8 @@
     async function ensurePlannedActivateCard(sessionId, athleteId) {
         const panel = readPlannedPanelCard(sessionId);
         if (panel.alreadyOnAthlete) return true;
-        if (panel.hasCard) {
-            const ok = await persistClubCardValuesToAthlete(athleteId, panel.cardNumber, panel.cardType);
-            if (!ok) {
-                alert("Kart təqdim edilməyib");
-                return false;
-            }
-            return true;
-        }
-        if (receptionHasClubCardAssigned()) {
-            return persistReceptionClubCardToAthlete(athleteId);
-        }
+        if (panel.hasCard) return true;
+        if (receptionHasClubCardAssigned()) return true;
         if (athleteId) {
             const status = await fetchAthleteClubCardStatus(athleteId);
             if (status.hasCard) return true;
@@ -7031,8 +7544,18 @@
         return "";
     }
 
-    function showPlannedActivatePanel(sessionId, lanes, athleteId, cardStatus) {
+    function readPlannedFacilityUsage(sessionId, fallback = null) {
+        if (fallback === 0 || fallback === 1 || fallback === 2) return fallback;
+        const popover = plannedSessionsBody?.querySelector(
+            `.planned-lane-popover[data-planned-lane-pick-for="${CSS.escape(String(sessionId))}"]`);
+        const v = popover?.querySelector("[data-planned-facility-usage]")?.value;
+        if (v === "0" || v === "1" || v === "2") return Number(v);
+        return null;
+    }
+
+    function showPlannedActivatePanel(sessionId, lanes, athleteId, cardStatus, selectedUsage = null) {
         if (!(plannedSessionsBody instanceof HTMLElement) || !sessionId) return;
+        const typed = readPlannedPanelCard(sessionId);
         clearPlannedLanePicker();
         const mainRow = plannedSessionsBody.querySelector(`tr[data-planned-session="${CSS.escape(String(sessionId))}"]`);
         if (!(mainRow instanceof HTMLTableRowElement)) return;
@@ -7042,7 +7565,7 @@
 
         const nums = (Array.isArray(lanes) ? lanes : [])
             .map(n => Number(n))
-            .filter(n => Number.isFinite(n) && n > 0)
+            .filter(n => Number.isFinite(n) && n > 0 && n !== GYM_LANE_NUMBER)
             .sort((a, b) => a - b);
 
         const categoryValue = cardStatus?.category ?? mainRow.getAttribute("data-athlete-category") ?? "";
@@ -7053,9 +7576,14 @@
             ? `<div class="planned-lane-pick__category">Növ: <span>${escapeHtml2(categoryLabel)}</span></div>`
             : "";
 
-        const hasCard = !!cardStatus?.hasCard && !cardStatus?.clubCardNumber;
-        const prefillType = clubCardTypeToSelectValue(cardStatus?.clubCardType);
-        const prefillNum = (cardStatus?.clubCardNumber ?? "").toString();
+        const keepTyped = !typed.alreadyOnAthlete && (typed.cardType != null || Boolean(typed.cardNumber));
+        const hasCard = !keepTyped && !!cardStatus?.hasCard && !cardStatus?.clubCardNumber;
+        const prefillType = keepTyped && typed.cardType != null
+            ? clubCardTypeToSelectValue(typed.cardType)
+            : clubCardTypeToSelectValue(cardStatus?.clubCardType);
+        const prefillNum = keepTyped && typed.cardNumber
+            ? String(typed.cardNumber)
+            : (cardStatus?.clubCardNumber ?? "").toString();
         const cardBlock = hasCard
             ? `<div class="planned-lane-pick__card-ok">Kart var</div>`
             : `<div class="planned-lane-pick__card">
@@ -7069,15 +7597,46 @@
                     <input data-planned-card-number placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" value="${escapeHtml2(prefillNum)}" />
                </div>`;
 
-        const lanesBlock = nums.length
-            ? `<div class="planned-lane-pick__label">Boş zolaq seçin:</div>
-               <div class="planned-lane-pick__lanes">
-                    ${nums.map(n => {
-                        const pro = n >= 9;
-                        return `<button type="button" class="planned-lane-chip${pro ? " planned-lane-chip--pro" : ""}" data-activate-session="${escapeHtml2(sessionId)}" data-activate-lane="${escapeHtml2(n)}" data-athlete-id="${escapeHtml2(athleteId || "")}" data-athlete-category="${escapeHtml2(categoryValue)}" data-needs-lane-pick="0">Zolaq ${escapeHtml2(n)}${pro ? " (P)" : ""}</button>`;
-                    }).join("")}
+        const requiresUsage = mainRow.getAttribute("data-requires-facility-usage") === "1";
+        const usageVal = selectedUsage === 0 || selectedUsage === 1 || selectedUsage === 2
+            ? String(selectedUsage)
+            : (selectedUsage === "0" || selectedUsage === "1" || selectedUsage === "2" ? selectedUsage : "");
+        const usageBlock = requiresUsage
+            ? `<div class="planned-lane-pick__usage" style="margin-bottom:8px;">
+                    <div class="planned-lane-pick__label">İstifadə sahəsi</div>
+                    <select data-planned-facility-usage title="Bu gəlişdə oxatma, trenajor, yoxsa hər ikisi">
+                        <option value="" ${usageVal === "" ? "selected" : ""} disabled>Seçin</option>
+                        <option value="0"${usageVal === "0" ? " selected" : ""}>Yalnız oxatma</option>
+                        <option value="1"${usageVal === "1" ? " selected" : ""}>Yalnız Trenajor</option>
+                        <option value="2"${usageVal === "2" ? " selected" : ""}>Hər ikisi (oxatma + Trenajor)</option>
+                    </select>
                </div>`
-            : `<div class="planned-lane-pick__label" style="color:#c21b33;">Boş zolaq yoxdur</div>`;
+            : "";
+
+        const showGym = requiresUsage && (usageVal === "1" || usageVal === "2");
+        const showLanes = !requiresUsage || usageVal === "0" || usageVal === "2";
+        const gymFacility = usageVal === "2" ? "2" : "1";
+        const gymBlock = showGym
+            ? `<button type="button" class="btn btn-primary btn-sm" data-activate-session="${escapeHtml2(sessionId)}" data-activate-lane="${GYM_LANE_NUMBER}" data-activate-facility="${gymFacility}" data-athlete-id="${escapeHtml2(athleteId || "")}" data-athlete-category="${escapeHtml2(categoryValue)}" data-needs-lane-pick="0">Trenajora yaz</button>`
+            : "";
+        const laneFacilityAttr = usageVal === "0" || usageVal === "2"
+            ? ` data-activate-facility="${usageVal}"`
+            : "";
+        const lanesBlock = !showLanes
+            ? ""
+            : (nums.length
+                ? `<div class="planned-lane-pick__label">Boş zolaq seçin:</div>
+                   <div class="planned-lane-pick__lanes">
+                        ${nums.map(n => {
+                            const pro = n >= 9;
+                            return `<button type="button" class="planned-lane-chip${pro ? " planned-lane-chip--pro" : ""}" data-activate-session="${escapeHtml2(sessionId)}" data-activate-lane="${escapeHtml2(n)}"${laneFacilityAttr} data-athlete-id="${escapeHtml2(athleteId || "")}" data-athlete-category="${escapeHtml2(categoryValue)}" data-needs-lane-pick="0">Zolaq ${escapeHtml2(n)}${pro ? " (P)" : ""}</button>`;
+                        }).join("")}
+                   </div>`
+                : (requiresUsage && usageVal === ""
+                    ? `<div class="planned-lane-pick__label">Əvvəl istifadə sahəsini seçin.</div>`
+                    : (showGym
+                        ? `<div class="planned-lane-pick__label">Boş zolaq yoxdur — Trenajora yaza bilərsiniz.</div>`
+                        : `<div class="planned-lane-pick__label" style="color:#c21b33;">Boş zolaq yoxdur</div>`)));
 
         popover.setAttribute("data-card-ready", hasCard ? "1" : "0");
         popover.setAttribute("data-athlete-category", String(categoryValue ?? ""));
@@ -7085,9 +7644,53 @@
             <div class="planned-lane-pick">
                 ${categoryBlock}
                 ${cardBlock}
+                ${usageBlock}
+                ${gymBlock}
                 ${lanesBlock}
             </div>`;
         popover.classList.add("is-open");
+    }
+
+    async function onPlannedFacilityUsageChange(sessionId) {
+        if (!sessionId || !(plannedSessionsBody instanceof HTMLElement)) return;
+        const row = plannedSessionsBody.querySelector(`tr[data-planned-session="${CSS.escape(String(sessionId))}"]`);
+        if (!(row instanceof HTMLTableRowElement)) return;
+        const usage = readPlannedFacilityUsage(sessionId);
+        const athleteId = row.getAttribute("data-athlete-id") || "";
+        const typedCard = readPlannedPanelCard(sessionId);
+        const cardStatus = await fetchAthleteClubCardStatus(athleteId);
+        if (!typedCard.alreadyOnAthlete) {
+            if (typedCard.cardType != null) cardStatus.clubCardType = typedCard.cardType;
+            if (typedCard.cardNumber) cardStatus.clubCardNumber = typedCard.cardNumber;
+        }
+        if (usage === 1) {
+            showPlannedActivatePanel(sessionId, [], athleteId, cardStatus, 1);
+            return;
+        }
+        if (usage !== 0 && usage !== 2) {
+            showPlannedActivatePanel(sessionId, [], athleteId, cardStatus, "");
+            return;
+        }
+        const probe = await probePlannedAvailableLanes(sessionId);
+        if (probe.activated) {
+            clearPlannedLanePicker(sessionId);
+            showPlannedSessionsHint("Sessiya aktiv edildi.", "ok");
+            await refreshReceptionPanelData({ force: true });
+            await loadPlannedSessionsToday();
+            return;
+        }
+        const lanes = probe.lanes;
+        if (probe.athleteCategory != null && probe.athleteCategory !== undefined) {
+            cardStatus.category = probe.athleteCategory;
+            cardStatus.categoryLabel = probe.athleteCategoryLabel
+                || formatAthleteCategoryLabel(probe.athleteCategory, null);
+        }
+        if (!lanes.length) {
+            showPlannedActivatePanel(sessionId, [], athleteId, cardStatus, usage);
+            showPlannedSessionsHint(probe.error || "Boş zolaq yoxdur.", "error");
+            return;
+        }
+        showPlannedActivatePanel(sessionId, lanes, athleteId, cardStatus, usage);
     }
 
     async function loadPlannedSessionsToday() {
@@ -7121,7 +7724,7 @@
                     ? `${escapeHtml2(x.athleteName)} <span style="color:#667395;font-weight:700;">(${escapeHtml2(catLabel)})</span>`
                     : escapeHtml2(x.athleteName);
                 return `
-                    <tr data-planned-session="${escapeHtml2(x.sessionId)}" data-athlete-id="${escapeHtml2(athleteId)}" data-athlete-category="${escapeHtml2(x.athleteCategory ?? "")}" data-athlete-category-label="${escapeHtml2(catLabel)}" data-needs-lane-pick="${needsLanePick ? "1" : "0"}" data-lane-number="${escapeHtml2(lane)}">
+                    <tr data-planned-session="${escapeHtml2(x.sessionId)}" data-athlete-id="${escapeHtml2(athleteId)}" data-athlete-category="${escapeHtml2(x.athleteCategory ?? "")}" data-athlete-category-label="${escapeHtml2(catLabel)}" data-needs-lane-pick="${needsLanePick ? "1" : "0"}" data-lane-number="${escapeHtml2(lane)}" data-requires-facility-usage="${x.requiresFacilityUsageChoice ? "1" : "0"}">
                         <td style="white-space:nowrap;">${start}–${end}</td>
                         <td>${nameCell}</td>
                         <td style="white-space:nowrap;">${escapeHtml2(laneLabel)}</td>
@@ -7141,9 +7744,13 @@
         }
     }
 
-    async function activatePlannedSession(sessionId, laneNumber = 0, athleteId = null, needsLanePick = false, cardSnap = null) {
+    async function activatePlannedSession(sessionId, laneNumber = 0, athleteId = null, needsLanePick = false, cardSnap = null, facilityUsage = null) {
         if (!sessionId) return;
         showPlannedSessionsHint("", "warn");
+
+        const plannedRow = plannedSessionsBody?.querySelector(`tr[data-planned-session="${CSS.escape(String(sessionId))}"]`);
+        const requiresUsage = plannedRow?.getAttribute("data-requires-facility-usage") === "1";
+        const chosenUsage = readPlannedFacilityUsage(sessionId, facilityUsage);
 
         // Zolaq chip seçilib — kartı paneldən oxu və Aktiv et ilə göndər.
         if (Number(laneNumber) > 0) {
@@ -7205,6 +7812,13 @@
             }
 
             const body = { laneNumber: Number(laneNumber) };
+            if (requiresUsage && chosenUsage == null) {
+                alert("İstifadə sahəsini seçin (yalnız oxatma, yalnız trenajor və ya hər ikisi).");
+                return;
+            }
+            if (chosenUsage === 0 || chosenUsage === 1 || chosenUsage === 2) {
+                body.facilityUsage = chosenUsage;
+            }
             if (clubCardNumber) {
                 body.clubCardNumber = clubCardNumber;
                 body.clubCardType = clubCardType;
@@ -7246,6 +7860,13 @@
         }
 
         // Panel aç: kart + boş zolaqlar (aktivasiya yalnız zolaq seçiləndə).
+        if (requiresUsage) {
+            const usageCard = await fetchAthleteClubCardStatus(athleteId);
+            showPlannedActivatePanel(sessionId, [], athleteId, usageCard, "");
+            showPlannedSessionsHint("İstifadə sahəsini seçin, sonra təsdiq edin.", "warn");
+            return;
+        }
+
         clearPlannedLanePicker(sessionId);
         const cardStatus = await fetchAthleteClubCardStatus(athleteId);
         let lanes = [];
@@ -7513,20 +8134,26 @@
                     <th>Gün</th>
                     <th>Saat</th>
                     <th>Paket növü</th>
+                    <th>İstifadə</th>
+                    <th>İşçi</th>
                 </tr>`;
             }
             const rows = Array.isArray(_infoVisitedRows) ? _infoVisitedRows : [];
             if (!rows.length) {
-                infoTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#7a86a8;">Gəliş qeydi yoxdur.</td></tr>`;
+                infoTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#7a86a8;">Gəliş qeydi yoxdur.</td></tr>`;
             } else {
                 for (const v of rows) {
                     const tr = document.createElement("tr");
                     const pkg = v?.packageTypeLabel || v?.packageType || "—";
+                    const usage = v?.facilityUsageLabel || "—";
+                    const staff = v?.handledByStaffName || "—";
                     tr.innerHTML = `
                         <td>${escapeHtml2(formatDateOnly(v?.dateLocal))}</td>
                         <td>${escapeHtml2(v?.dayLabel)}</td>
                         <td>${escapeHtml2(v?.startTime)}${v?.endTime ? "–" + escapeHtml2(v.endTime) : ""}</td>
-                        <td>${escapeHtml2(pkg)}</td>`;
+                        <td>${escapeHtml2(pkg)}</td>
+                        <td>${escapeHtml2(usage)}</td>
+                        <td>${escapeHtml2(staff)}</td>`;
                     infoTableBody.appendChild(tr);
                 }
             }
@@ -7921,6 +8548,7 @@
                     preferredLaneType: preferredLaneTypeFromLane(laneNumber),
                     startTimeUtc: localStart.toISOString(),
                     durationMinutes: durationMinutes,
+                    ...receptionClubCardPayload(),
                     ...equipPayload
                 })
             });
@@ -8048,6 +8676,7 @@
     }
 
     function clearReceptionPersonFields() {
+        try { allAthletesCache = []; athletesCacheLoadedAtMs = 0; } catch { /* ignore */ }
         if (firstNameInput instanceof HTMLInputElement) firstNameInput.value = "";
         if (lastNameInput instanceof HTMLInputElement) lastNameInput.value = "";
         if (phoneNumberInput instanceof HTMLInputElement) phoneNumberInput.value = "";
@@ -8098,6 +8727,7 @@
             receptionLookupHint.textContent = "";
         }
         try { populateBookingPackageSelect(); syncBookingPackageUi(); } catch { }
+        try { resetVisitFacilityUsage(); syncVisitFacilityUi(); } catch { }
         try { syncSubscriptionAthleteNameFromReception(); } catch { }
         try { syncRegistrationModeUi(); } catch { }
         refreshSelectedCustomerCard();
@@ -9167,7 +9797,7 @@
                         phoneNumber,
                         email: emailInput?.value?.trim() || "",
                         idCardNumber: idCardNumberInput?.value?.trim() || "",
-                        clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                        clubCardNumber: applyClubCardNumberNormalize(),
                         clubCardType: readClubCardTypeValue(clubCardTypeInput),
                         category: Number(categoryRaw),
                         isSubscriber: true,
@@ -9643,10 +10273,10 @@
     }
 
     function validateReceptionBeforeSchedule() {
+        if (visitUsageChoiceRequired() && getSelectedVisitFacilityUsage() == null) {
+            return "İstifadə sahəsini seçin (yalnız oxatma, yalnız trenajor və ya hər ikisi).";
+        }
         if (isGymBookingMode()) {
-            const firstName = firstNameInput?.value?.trim() ?? "";
-            const lastName = lastNameInput?.value?.trim() ?? "";
-            const phoneNumber = phoneNumberInput?.value?.trim() ?? "";
             if (!hasRequiredCustomerContactFields()) {
                 return customerRequiredFieldsMessage + " «Müştəri əlavə et» ilə qeydə alın.";
             }
@@ -9654,24 +10284,26 @@
                 return null;
             }
             const pkg = getSelectedBookingPackage();
-            if (!pkg || !isGymPackage(pkg)) {
-                return "Trenajor paketi seçin.";
+            if (!visitUsageChoiceRequired()) {
+                if (!pkg || !isGymPackage(pkg)) {
+                    return "Trenajor paketi seçin.";
+                }
+                const categoryRaw = categoryInput?.value ?? "";
+                if (!categoryRaw) {
+                    return "Kateqoriya seçin (müştəri məlumatlarında).";
+                }
+                const gymRegMode = registrationModeInput?.value ?? "";
+                if (gymRegMode === "subscription") {
+                    return isGymFixedWeeklyPackage(pkg)
+                        ? validateBookingSubscriptionSchedule(pkg)
+                        : validateWalkInSubscriptionPeriod(pkg);
+                }
+                const durationValue = Number(durationMinutesInput?.value ?? "0");
+                if (!Number.isInteger(durationValue) || durationValue <= 0) {
+                    return "Seçilmiş paketin müddəti düzgün deyil.";
+                }
+                return null;
             }
-            const categoryRaw = categoryInput?.value ?? "";
-            if (!categoryRaw) {
-                return "Kateqoriya seçin (müştəri məlumatlarında).";
-            }
-            const registrationMode = registrationModeInput?.value ?? "";
-            if (registrationMode === "subscription") {
-                return isGymFixedWeeklyPackage(pkg)
-                    ? validateBookingSubscriptionSchedule(pkg)
-                    : validateWalkInSubscriptionPeriod(pkg);
-            }
-            const durationValue = Number(durationMinutesInput?.value ?? "0");
-            if (!Number.isInteger(durationValue) || durationValue <= 0) {
-                return "Seçilmiş paketin müddəti düzgün deyil.";
-            }
-            return null;
         }
 
         const registrationMode = registrationModeInput?.value ?? "";
@@ -9897,7 +10529,7 @@
                     phoneNumber,
                     email: emailInput?.value?.trim() || "",
                     idCardNumber: idCardNumberInput?.value?.trim() || "",
-                    clubCardNumber: clubCardNumberInput?.value?.trim() || "",
+                    clubCardNumber: applyClubCardNumberNormalize(),
                     clubCardType: readClubCardTypeValue(clubCardTypeInput),
                     category: Number(categoryRaw),
                     isSubscriber,
@@ -9997,7 +10629,7 @@
                 if (registrationModeInput instanceof HTMLInputElement && isSubscriber) {
                     registrationModeInput.value = "subscription";
                 }
-                await updateAthleteFromReception({ silentSuccess: true });
+                await updateAthleteFromReception({ silentSuccess: true, skipClubCardGuard: true });
                 if (registrationModeInput instanceof HTMLInputElement) {
                     registrationModeInput.value = prevRegMode;
                 }
@@ -10041,6 +10673,8 @@
                             startTimeUtc: new Date().toISOString(),
                             durationMinutes: gymMinutes,
                             activateImmediately: true,
+                            facilityUsage: 1,
+                            ...receptionClubCardPayload(),
                             ...buildSessionEquipmentPayload()
                         })
                     });
@@ -10092,7 +10726,7 @@
             const equipPayload = buildSessionEquipmentPayload();
             const durationValue = resolveSessionDurationMinutes();
             let selectedLane = Number(laneNumberInput.value);
-            if (isGymBookingMode() || _receptionMonthlyActive?.isGym) {
+            if (isGymBookingMode()) {
                 selectedLane = GYM_LANE_NUMBER;
             }
             if (!confirmAmateurProLane(selectedLane)) {
@@ -10121,6 +10755,10 @@
                     activateImmediately: shouldActivateSessionImmediately(),
                     allowAmateurOnProLane: isAmateurProLaneSelection(selectedLane),
                     servicePackageId: selectedPkg?.id ?? null,
+                    facilityUsage: visitUsageChoiceRequired()
+                        ? getSelectedVisitFacilityUsage()
+                        : (isGymBookingMode() ? 1 : 0),
+                    ...receptionClubCardPayload(),
                     ...spreadPackagePaymentFields(selectedPkg, { includeEquipment: true }),
                     ...equipPayload
                 })
@@ -10173,7 +10811,7 @@
                 const periodStart = bookingSubStartDate?.value ?? "";
                 const periodEnd = getBookingSubEndDateIso();
                 showSessionNotice(`Abunə qeydə alındı (${pkgLabel}, ${periodStart} — ${periodEnd}). Sessiya yaradıldı.`, "ok");
-            } else if (isGymBookingMode()) {
+            } else if (isGymBookingMode() || isGymLaneSelected()) {
                 showSessionNotice(`Trenajora yazıldı (${selectedPkg?.name ?? "Trenajor"}).`, "ok");
             } else if (sessionData?.message) {
                 showSessionNotice(sessionData.message, "warn");
@@ -10471,6 +11109,11 @@
     try { loadEquipmentCatalog(); } catch (e) { console.error(e); }
     try { bookingPackageSelect?.addEventListener("change", syncBookingPackageUi); } catch (e) { console.error(e); }
     try {
+        document.getElementById("visitFacilityUsage")?.addEventListener("change", () => {
+            try { syncVisitFacilityUi(); } catch { /* ignore */ }
+        });
+    } catch (e) { console.error(e); }
+    try {
         bookingSubMonths?.addEventListener("input", refreshBookingPriceForPeriodChange);
         bookingSubMonths?.addEventListener("change", refreshBookingPriceForPeriodChange);
         bookingSubStartDate?.addEventListener("change", refreshBookingPriceForPeriodChange);
@@ -10557,7 +11200,7 @@
                 alert("Bu müştəridə qaytarılacaq kart yoxdur.");
                 return;
             }
-            const ok = window.confirm(`Kart «${typeLabel}» qaytarılsın?\nNömrə azad olacaq və yeni müştəriyə verilə bilər.`);
+            const ok = window.confirm(`Kart «${typeLabel}» qaytarılsın?\nNömrə sərbəst olacaq və yeni müştəriyə verilə bilər.`);
             if (!ok) return;
 
             if (infoReturnClubCardBtn instanceof HTMLButtonElement) {
@@ -10958,6 +11601,37 @@
         });
     } catch (e) { console.error(e); }
     try { document.getElementById("scheduleBtn")?.addEventListener("click", registerAndSchedule); } catch (e) { console.error(e); }
+    try {
+        document.getElementById("clubCardsListBtn")?.addEventListener("click", openClubCardsModal);
+        document.getElementById("clubCardsModalCloseBtn")?.addEventListener("click", closeClubCardsModal);
+        document.getElementById("clubCardsFilterType")?.addEventListener("change", paintClubCardsModalRows);
+        document.getElementById("clubCardsFilterName")?.addEventListener("input", paintClubCardsModalRows);
+        document.getElementById("clubCardsModal")?.addEventListener("click", (e) => {
+            if (e.target === document.getElementById("clubCardsModal")) closeClubCardsModal();
+        });
+        document.getElementById("clubCardsModalBody")?.addEventListener("click", (e) => {
+            const t = e.target;
+            if (!(t instanceof HTMLElement)) return;
+            if (t.hasAttribute("data-keep-club-card")) {
+                closeClubCardsModal();
+                return;
+            }
+            const aid = t.getAttribute("data-return-club-card");
+            if (aid) void returnClubCardFromModal(aid);
+        });
+        clubCardTypeInput?.addEventListener("change", () => {
+            void refreshClubCardStockHint();
+            void refreshClubCardSuggestions();
+        });
+        clubCardNumberInput?.addEventListener("blur", () => {
+            applyClubCardNumberNormalize();
+            void refreshClubCardStockHint();
+        });
+        clubCardNumberInput?.addEventListener("input", () => {
+            window.clearTimeout(clubCardSuggestTimer);
+            clubCardSuggestTimer = window.setTimeout(() => { void refreshClubCardSuggestions(); }, 220);
+        });
+    } catch (e) { console.error(e); }
     try { document.getElementById("refreshReceptionBtn")?.addEventListener("click", refreshReceptionPanel); } catch (e) { console.error(e); }
     try { document.getElementById("createSubscriptionBtn")?.addEventListener("click", createSubscriptionSchedule); } catch (e) { console.error(e); }
     try { document.getElementById("submitScoreBtn")?.addEventListener("click", submitScore); } catch (e) { console.error(e); }
@@ -10992,7 +11666,9 @@
                 if (sid) {
                     // Zolaq klikində kartı dərhal oxu (panel silinməmişdən).
                     const cardSnap = ln ? readPlannedPanelCard(sid) : null;
-                    void activatePlannedSession(sid, ln ? Number(ln) : 0, aid || null, needsPick && !ln, cardSnap);
+                    const facRaw = actBtn.getAttribute("data-activate-facility");
+                    const fac = facRaw === "0" || facRaw === "1" || facRaw === "2" ? Number(facRaw) : null;
+                    void activatePlannedSession(sid, ln ? Number(ln) : 0, aid || null, needsPick && !ln, cardSnap, fac);
                 }
                 return;
             }
@@ -11001,6 +11677,14 @@
                 const sid = cancelBtn.getAttribute("data-cancel-session");
                 if (sid) void cancelPlannedSession(sid);
             }
+        });
+    } catch (e) { console.error(e); }
+    try {
+        plannedSessionsBody?.addEventListener("change", e => {
+            const sel = e.target instanceof HTMLElement ? e.target.closest("[data-planned-facility-usage]") : null;
+            if (!(sel instanceof HTMLSelectElement)) return;
+            const sid = sel.closest("tr")?.getAttribute("data-planned-session");
+            if (sid) void onPlannedFacilityUsageChange(sid);
         });
     } catch (e) { console.error(e); }
 

@@ -276,7 +276,8 @@
                     <th>Telefon</th>
                     <th>Kart</th>
                     <th>VIP</th>
-                    <th>Paket</th>
+                    <th>Paket növü</th>
+                    <th>Paket adı</th>
                     <th>Abunə müddəti</th>
                     <th>Qeydiyyata alınma</th>
                     <th>Qeydiyyata alan</th>
@@ -405,7 +406,7 @@
             const tbody = document.getElementById("tbody");
             tbody.innerHTML = "";
             if (items.length === 0) {
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Bu filtrə uyğun müştəri tapılmadı.</td></tr>';
             } else {
                 for (const x of items) {
                     const tr = document.createElement("tr");
@@ -414,7 +415,7 @@
                     const vip = x.isVip ? '<span class="badge-vip">VIP</span>' : "—";
                     const card = x.clubCardLabel || x.clubCardNumber || "—";
                     const lastLane = x.lastLaneVisitLocal
-                        ? `${x.lastLaneVisitLocal}${x.lastLaneNumber ? ` · Zolaq ${x.lastLaneNumber}` : ""}`
+                        ? `${x.lastLaneVisitLocal}${x.lastVisitPlaceLabel ? ` · ${x.lastVisitPlaceLabel}` : (x.lastLaneNumber ? ` · Zolaq ${x.lastLaneNumber}` : "")}`
                         : "—";
                     tr.innerHTML = `
                         <td class="name-cell">${escapeHtml(x.fullName)}</td>
@@ -422,6 +423,7 @@
                         <td>${escapeHtml(card)}</td>
                         <td>${vip}</td>
                         <td>${escapeHtml(x.packageTypeLabel)}</td>
+                        <td>${escapeHtml(x.currentPackageName || "—")}</td>
                         <td>${escapeHtml(sub)}</td>
                         <td>${escapeHtml(x.registeredAtLocal)}</td>
                         <td>${escapeHtml(x.registeredByStaffName)}</td>

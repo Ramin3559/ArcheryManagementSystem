@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using EShooting.Application.Common;
 using EShooting.Application.Common.Models;
 
 namespace EShooting.Web.Controllers.Admin;
@@ -12,10 +13,10 @@ public static class AdminCustomersExcelExporter
         var headers = new[]
         {
             "Ad Soyad", "Telefon", "Email", "Ş/V", "Kart", "Kateqoriya", "VIP", "Status",
-            "Paket növü", "Cari paket", "Ödəniş", "Nağd", "Kart",
+            "Paket növü", "Paket adı", "Ödəniş", "Nağd", "Kart",
             "Abunə başlanğıc", "Abunə bitmə",
             "Qeydiyyata alınma", "Qeydiyyata alan", "Silinmə", "Silən",
-            "Son zolağa yazılma", "Son zolaq №",
+            "Son zolağa yazılma", "Son zolaq №", "İstifadə",
             "Oyun icarəsi", "Aktiv zolaq"
         };
         for (var c = 0; c < headers.Length; c++)
@@ -47,9 +48,14 @@ public static class AdminCustomersExcelExporter
             ws.Cell(r, 18).Value = x.DeletedAtLocal ?? "";
             ws.Cell(r, 19).Value = x.DeletedByName;
             ws.Cell(r, 20).Value = x.LastLaneVisitLocal ?? "";
-            ws.Cell(r, 21).Value = x.LastLaneNumber is int ln ? ln : "";
-            ws.Cell(r, 22).Value = FormatSessionRentalLabel(x);
-            ws.Cell(r, 23).Value = x.ActiveLaneNumber is int aln ? $"Zolaq {aln}" : "";
+            ws.Cell(r, 21).Value = x.LastLaneNumber is int ln
+                ? (GymLaneRules.IsGymLane(ln) ? "Trenajor" : ln.ToString())
+                : "";
+            ws.Cell(r, 22).Value = x.LastVisitPlaceLabel ?? "";
+            ws.Cell(r, 23).Value = FormatSessionRentalLabel(x);
+            ws.Cell(r, 24).Value = x.ActiveLaneNumber is int aln
+                ? (GymLaneRules.IsGymLane(aln) ? "Trenajor" : $"Zolaq {aln}")
+                : "";
             r++;
         }
 

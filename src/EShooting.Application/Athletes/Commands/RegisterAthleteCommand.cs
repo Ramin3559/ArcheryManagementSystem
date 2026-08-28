@@ -29,7 +29,7 @@ public sealed class RegisterAthleteCommandHandler(ITrainingCenterRepository repo
         var phone = AthleteRegistrationRules.NormalizeDigits(request.PhoneNumber);
         var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
         var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
-        var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+        var clubCard = ClubCardNumberRules.Normalize(request.ClubCardNumber);
         ClubCardType? clubCardType = string.IsNullOrWhiteSpace(clubCard) ? null : request.ClubCardType;
 
         if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))

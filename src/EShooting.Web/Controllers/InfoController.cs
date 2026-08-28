@@ -54,6 +54,17 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             .Where(r => r.AthleteId == athlete.Id)
             .ToList();
         var athleteSchedules = schedules.Where(s => s.AthleteId == athlete.Id).ToList();
+        var lanes = await repository.GetLanesAsync(cancellationToken);
+        var laneNoById = lanes.ToDictionary(l => l.Id, l => l.Number);
+        var staff = await repository.GetStaffMembersAsync(activeOnly: false, cancellationToken);
+        var staffNameById = staff.ToDictionary(
+            s => s.Id,
+            s => $"{s.FirstName} {s.LastName}".Trim());
+        var servicePackages = await repository.GetServicePackagesAsync(activeOnly: false, cancellationToken);
+        var currentPackageScope = FacilityUsageRules.CurrentPackageScope(
+            athlete.Id, packageRecords, servicePackages, athleteSchedules);
+        var currentPackageName = FacilityUsageRules.CurrentPackageName(
+            athlete.Id, packageRecords, servicePackages, athleteSchedules);
 
         var packages = schedules
             .Where(x => x.AthleteId == athlete.Id && x.IsEnabled)
@@ -142,7 +153,18 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
                     startTime = $"{startLocal:HH:mm}",
                     endTime = $"{endLocal:HH:mm}",
                     durationHours = Math.Round((endLocal - startLocal).TotalMinutes / 60.0, 2),
-                    packageTypeLabel = ResolveVisitPackageTypeLabel(ses, packageRecords, athleteSchedules)
+                    packageTypeLabel = ResolveVisitPackageTypeLabel(ses, packageRecords, athleteSchedules),
+                    facilityUsage = (int)FacilityUsageRules.Resolve(
+                        ses.FacilityUsage,
+                        laneNoById.TryGetValue(ses.LaneId, out var ln) ? ln : 0),
+                    facilityUsageLabel = FacilityUsageRules.FormatVisitPlace(
+                        laneNoById.TryGetValue(ses.LaneId, out var ln2) ? ln2 : 0,
+                        ses.FacilityUsage),
+                    handledByStaffName = ses.HandledByStaffId is Guid hid
+                        && staffNameById.TryGetValue(hid, out var staffNm)
+                        && !string.IsNullOrWhiteSpace(staffNm)
+                            ? staffNm
+                            : "—"
                 };
             })
             .ToList();
@@ -170,6 +192,11 @@ public sealed class InfoController(ITrainingCenterRepository repository) : Contr
             isFullPackage = athlete.IsFullPackage,
             isVip = athlete.IsVip,
             isActive = athlete.IsActive,
+            currentPackageName,
+            currentPackageScope = currentPackageScope?.ToString(),
+            currentPackageScopeLabel = FacilityUsageRules.ScopeLabel(currentPackageScope),
+            requiresFacilityUsageChoice = currentPackageScope is PackageScope s
+                && FacilityUsageRules.PackageRequiresVisitChoice(s),
             packages,
             weeklySchedules,
             occurrencesFlat = occurrencesFlat.Select(o => new

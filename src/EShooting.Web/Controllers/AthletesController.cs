@@ -34,7 +34,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var phoneQ = NormalizeDigits(request.PhoneNumber);
         var emailQ = NormalizeText(request.Email);
         var idQ = NormalizeText(request.IdCardNumber);
-        var clubCardQ = NormalizeText(request.ClubCardNumber);
+        var clubCardQ = ClubCardNumberRules.Normalize(request.ClubCardNumber)
+                        ?? NormalizeText(request.ClubCardNumber);
         var clubCardTypeQ = ResolveClubCardType(request.ClubCardType, clubCardQ);
         if (!string.IsNullOrWhiteSpace(idQ))
         {
@@ -460,7 +461,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         var phone = NormalizeDigits(request.PhoneNumber);
         var email = AthleteRegistrationRules.NormalizeOptionalEmail(request.Email);
         var idCard = AthleteRegistrationRules.NormalizeText(request.IdCardNumber);
-        var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
+        var clubCard = ClubCardNumberRules.Normalize(request.ClubCardNumber);
         var clubCardType = ResolveClubCardType(request.ClubCardType, clubCard);
         if (!AthleteRegistrationRules.HasRequiredContactFields(first, last, phone, idCard))
         {
@@ -497,9 +498,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
 
             var previousCard = existing.ClubCardNumber;
             var previousCardType = existing.ClubCardType;
-            var prevNorm = AthleteRegistrationRules.NormalizeText(previousCard);
             var cardChanged =
-                !string.Equals(prevNorm, clubCard ?? "", StringComparison.OrdinalIgnoreCase)
+                !ClubCardNumberRules.Same(previousCard, clubCard)
                 || previousCardType != clubCardType;
 
             if (!string.IsNullOrWhiteSpace(clubCard) && cardChanged)
@@ -578,7 +578,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     {
         if (!User.HasAnyReceptionPermission(
                 ReceptionStaffClaims.CanEditCustomerDetails,
-                ReceptionStaffClaims.CanRegisterCustomers))
+                ReceptionStaffClaims.CanRegisterCustomers,
+                ReceptionStaffClaims.CanManageSessions))
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
         }
@@ -586,7 +587,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         try
         {
             await mediator.Send(new ReturnClubCardCommand(id, User.GetStaffMemberId()), cancellationToken);
-            return Ok(new { message = "Kart qaytarıldı — nömrə azad edildi." });
+            return Ok(new { message = "Kart qaytarıldı — nömrə sərbəst edildi." });
         }
         catch (InvalidOperationException ex)
         {
@@ -600,7 +601,17 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         [FromQuery] ClubCardType? cardType,
         CancellationToken cancellationToken)
     {
-        var card = AthleteRegistrationRules.NormalizeText(cardNumber);
+        if (!User.HasAnyReceptionPermission(
+                ReceptionStaffClaims.CanManageSessions,
+                ReceptionStaffClaims.CanRegisterCustomers,
+                ReceptionStaffClaims.CanEditCustomerDetails,
+                ReceptionStaffClaims.CanViewCustomerDetails))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Bu əməliyyat üçün icazəniz yoxdur." });
+        }
+
+        var card = ClubCardNumberRules.Normalize(cardNumber)
+                   ?? AthleteRegistrationRules.NormalizeText(cardNumber);
         if (string.IsNullOrWhiteSpace(card) || card.Length < 1)
         {
             return BadRequest(new { error = "Kart nömrəsi daxil edin." });
@@ -742,16 +753,22 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         }
 
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var packageRecords = await repository.GetCustomerPackageRecordsAsync(cancellationToken);
+        var servicePackages = await repository.GetServicePackagesAsync(activeOnly: false, cancellationToken);
 
         static object MapOne(
             Domain.Entities.Athlete best,
-            IReadOnlyCollection<Domain.Entities.SubscriptionSchedule> schedules)
+            IReadOnlyCollection<Domain.Entities.SubscriptionSchedule> schedules,
+            IReadOnlyCollection<Domain.Entities.CustomerPackageRecord> records,
+            IReadOnlyCollection<Domain.Entities.ServicePackage> packages)
         {
             var activeVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, best.Id, DateTime.Now);
             var activeUnlimited = activeVip is null
                 ? WalkInSubscriptionRules.GetActiveUnlimitedSchedule(schedules, best.Id, DateTime.Now)
                 : null;
             var activeWalkIn = activeVip ?? activeUnlimited;
+            var athleteSchedules = schedules.Where(s => s.AthleteId == best.Id).ToList();
+            var scope = FacilityUsageRules.CurrentPackageScope(best.Id, records, packages, athleteSchedules);
             return new
             {
                 best.Id,
@@ -770,11 +787,15 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
                 best.IsVip,
                 hasActiveWalkIn = activeWalkIn is not null,
                 walkInExpiresLocal = activeWalkIn is null ? null : DateDisplayFormats.FormatDate(activeWalkIn.ActiveToDateLocal),
-                walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 0
+                walkInSessionDurationMinutes = activeWalkIn?.DurationMinutes ?? 0,
+                currentPackageName = FacilityUsageRules.CurrentPackageName(best.Id, records, packages, athleteSchedules),
+                currentPackageScope = scope?.ToString(),
+                currentPackageScopeLabel = FacilityUsageRules.ScopeLabel(scope),
+                requiresFacilityUsageChoice = scope is PackageScope ps && FacilityUsageRules.PackageRequiresVisitChoice(ps)
             };
         }
 
-        var matches = searchable.Select(a => MapOne(a, schedules)).ToList();
+        var matches = searchable.Select(a => MapOne(a, schedules, packageRecords, servicePackages)).ToList();
         var first = searchable[0];
         var firstWalkInVip = WalkInSubscriptionRules.GetActiveVipSchedule(schedules, first.Id, DateTime.Now);
         var firstWalkInUnlimited = firstWalkInVip is null
@@ -782,6 +803,8 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             : null;
         var firstWalkIn = firstWalkInVip ?? firstWalkInUnlimited;
 
+        var firstSchedules = schedules.Where(s => s.AthleteId == first.Id).ToList();
+        var firstScope = FacilityUsageRules.CurrentPackageScope(first.Id, packageRecords, servicePackages, firstSchedules);
         return Ok(new
         {
             matchCount = matches.Count,
@@ -802,7 +825,11 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
             isVip = first.IsVip,
             hasActiveWalkIn = firstWalkIn is not null,
             walkInExpiresLocal = firstWalkIn is null ? null : DateDisplayFormats.FormatDate(firstWalkIn.ActiveToDateLocal),
-            walkInSessionDurationMinutes = firstWalkIn?.DurationMinutes ?? 0
+            walkInSessionDurationMinutes = firstWalkIn?.DurationMinutes ?? 0,
+            currentPackageName = FacilityUsageRules.CurrentPackageName(first.Id, packageRecords, servicePackages, firstSchedules),
+            currentPackageScope = firstScope?.ToString(),
+            currentPackageScopeLabel = FacilityUsageRules.ScopeLabel(firstScope),
+            requiresFacilityUsageChoice = firstScope is PackageScope fps && FacilityUsageRules.PackageRequiresVisitChoice(fps)
         });
     }
 
@@ -846,7 +873,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
     }
 
     /// <summary>
-    /// Deaktiv müştərinin telefon/email/FİN-ini azad edir — eyni nömrə başqa şəxsə keçəndə yeni qeydiyyat üçün.
+    /// Deaktiv müştərinin telefon/email/FİN-ini sərbəst edir — eyni nömrə başqa şəxsə keçəndə yeni qeydiyyat üçün.
     /// </summary>
     [HttpPost("{id:guid}/release-identifiers")]
     public async Task<IActionResult> ReleaseIdentifiers(Guid id, CancellationToken cancellationToken)
@@ -854,7 +881,7 @@ public sealed class AthletesController(IMediator mediator, ITrainingCenterReposi
         try
         {
             await mediator.Send(new ReleaseInactiveAthleteIdentifiersCommand(id), cancellationToken);
-            return Ok(new { message = "Köhnə qeydiyyatın telefonu azad edildi." });
+            return Ok(new { message = "Köhnə qeydiyyatın telefonu sərbəst edildi." });
         }
         catch (InvalidOperationException ex)
         {

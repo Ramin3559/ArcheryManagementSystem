@@ -127,4 +127,14 @@ public interface ITrainingCenterRepository
     Task<IReadOnlyCollection<ClubCardAssignment>> GetClubCardAssignmentsForAthleteAsync(
         Guid athleteId,
         CancellationToken cancellationToken);
+
+    Task<bool> HasAnyClubCardStockAsync(CancellationToken cancellationToken);
+    Task<bool> ClubCardStockExistsAsync(ClubCardType cardType, string cardNumber, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ClubCardStock>> GetClubCardStockAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<string>> GetClubCardStockNumbersAsync(ClubCardType cardType, CancellationToken cancellationToken);
+    Task AddClubCardStockRangeAsync(IReadOnlyCollection<ClubCardStock> cards, CancellationToken cancellationToken);
+    Task<ClubCardStock?> FindClubCardStockAsync(ClubCardType cardType, string cardNumber, CancellationToken cancellationToken);
+    Task UpdateClubCardStockAsync(ClubCardStock card, CancellationToken cancellationToken);
+    Task DeleteClubCardStockAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<Athlete>> GetAthletesWithClubCardAsync(CancellationToken cancellationToken);
 }

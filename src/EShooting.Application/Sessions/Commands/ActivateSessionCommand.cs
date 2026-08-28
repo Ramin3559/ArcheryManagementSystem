@@ -7,7 +7,9 @@ namespace EShooting.Application.Sessions.Commands;
 
 public sealed record ActivateSessionCommand(
     Guid SessionId,
-    int LaneNumber = 0) : IRequest<int>;
+    int LaneNumber = 0,
+    FacilityUsage? FacilityUsage = null,
+    Guid? HandledByStaffId = null) : IRequest<int>;
 
 public sealed class ActivateSessionCommandHandler(
     ITrainingCenterRepository repository,
@@ -41,19 +43,28 @@ public sealed class ActivateSessionCommandHandler(
             ? subscriptionSchedules.FirstOrDefault(s => s.Id == sid)
             : null;
         var needsLanePick = linkedSchedule is not null
-            && SubscriptionPoolCapacity.ResolveExplicitLaneNumber(linkedSchedule, dayLocal) <= 0;
+            && SubscriptionPoolCapacity.ResolveExplicitLaneNumber(linkedSchedule, dayLocal) <= 0
+            && request.FacilityUsage != FacilityUsage.Gym
+            && !GymLaneRules.IsGymLane(request.LaneNumber);
 
         if (needsLanePick && request.LaneNumber <= 0)
         {
             throw new InvalidOperationException("Bu plan üçün zolaq seçilməlidir — zolaq hələ təyin olunmayıb.");
         }
 
-        var duration = SessionTimingRules.ResolvePlannedDuration(session);
-        var requestedStartUtc = nowUtc;
-        var requestedEndUtc = duration > TimeSpan.Zero ? nowUtc.Add(duration) : nowUtc;
+        var laneNumber = request.LaneNumber;
+        if (request.FacilityUsage == FacilityUsage.Gym)
+        {
+            laneNumber = GymLaneRules.LaneNumber;
+        }
+        else if (request.FacilityUsage == FacilityUsage.Archery
+                 && GymLaneRules.IsGymLane(laneNumber))
+        {
+            throw new InvalidOperationException("Oxatma üçün zolaq seçin.");
+        }
 
-        var lane = request.LaneNumber > 0
-            ? lanes.FirstOrDefault(x => x.Number == request.LaneNumber)
+        var lane = laneNumber > 0
+            ? lanes.FirstOrDefault(x => x.Number == laneNumber)
             : lanes.FirstOrDefault(x => x.Id == session.LaneId);
 
         if (lane is null)
@@ -61,17 +72,12 @@ public sealed class ActivateSessionCommandHandler(
             throw new InvalidOperationException("Seçilmiş zolaq tapılmadı.");
         }
 
-        if (!GymLaneRules.IsGymLane(lane.Number) && duration > TimeSpan.Zero)
+        if (!GymLaneRules.IsGymLane(lane.Number))
         {
-            if (LaneReservationRules.HasSubscriberConflictOnLane(subscriptionSchedules, lane.Number, requestedStartUtc, requestedEndUtc))
-            {
-                throw new InvalidOperationException($"{lane.Number} nömrəli zolaq həmin vaxt aralığında abunə rezervasiyası ilə üst-üstə düşür.");
-            }
-
+            // Planlı sessiya və köhnə abunə zolağı zolağı tutmur — yalnız indi aktiv olan.
             var hasOverlap = allSessions
                 .Where(x => x.Id != session.Id && x.LaneId == lane.Id)
-                .Where(x => !SubscriptionPoolCapacity.IsUnassignedPoolSession(x, subscriptionSchedules, dayLocal))
-                .Any(x => LaneReservationRules.OverlapsSession(x, requestedStartUtc, requestedEndUtc, nowUtc));
+                .Any(x => SessionHousekeeping.IsAthleteSessionCurrentlyActive(x, nowUtc));
 
             if (hasOverlap)
             {
@@ -80,6 +86,18 @@ public sealed class ActivateSessionCommandHandler(
         }
 
         session.LaneId = lane.Id;
+        if (request.FacilityUsage is FacilityUsage usage)
+        {
+            session.FacilityUsage = usage;
+        }
+        else
+        {
+            session.FacilityUsage ??= FacilityUsageRules.InferFromLane(lane.Number);
+        }
+        if (request.HandledByStaffId is Guid staffId)
+        {
+            session.HandledByStaffId = staffId;
+        }
         SessionActivationRules.MarkActivated(session, nowUtc);
         await repository.UpdateSessionAsync(session, cancellationToken);
 
@@ -95,20 +113,6 @@ public sealed class ActivateSessionCommandHandler(
 
         await notifier.PublishLaneUpdateAsync(lane.Number, cancellationToken);
         return lane.Number;
-    }
-}
-
-internal static class SessionTimingRules
-{
-    public static TimeSpan ResolvePlannedDuration(EShooting.Domain.Entities.TrainingSession session)
-    {
-        var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-        var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-        if (plannedEnd > plannedStart)
-        {
-            return plannedEnd - plannedStart;
-        }
-        return TimeSpan.Zero;
     }
 }
 

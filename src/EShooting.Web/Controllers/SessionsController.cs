@@ -49,6 +49,8 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
         var lanes = await repository.GetLanesAsync(cancellationToken);
         var athletes = await repository.GetAthletesAsync(cancellationToken);
         var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        var servicePackages = await repository.GetServicePackagesAsync(activeOnly: false, cancellationToken);
+        var packageRecords = await repository.GetCustomerPackageRecordsAsync(cancellationToken);
         var nowUtc = DateTime.UtcNow;
 
         // Aktiv (zolaqda) olan müştərinin eyni gün qalıq abunə planını bağla — Planlaşdırılanlarda qalmasın.
@@ -133,7 +135,10 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                     status = derivedStatus.ToString(),
                     statusLabel = LaneDisplayHelper.TranslateStatus(derivedStatus.ToString()),
                     kind,
-                    subscriptionScheduleId = s.SubscriptionScheduleId
+                    subscriptionScheduleId = s.SubscriptionScheduleId,
+                    requiresFacilityUsageChoice = FacilityUsageRules.PackageRequiresVisitChoice(
+                        FacilityUsageRules.CurrentPackageScope(s.AthleteId, packageRecords, servicePackages, schedules)
+                        ?? PackageScope.Archery)
                 };
             })
             .ToList();
@@ -202,6 +207,16 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         try
         {
+            var cardErr = await TryAssignClubCardAsync(
+                request.AthleteId,
+                request.ClubCardNumber,
+                request.ClubCardType,
+                cancellationToken);
+            if (cardErr is not null)
+            {
+                return cardErr;
+            }
+
             var sessionId = await mediator.Send(new ScheduleSessionCommand(
                 request.AthleteId,
                 request.LaneNumber,
@@ -213,7 +228,13 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 User.GetStaffMemberId(),
                 request.ForceOpenEnded,
                 request.ActivateImmediately,
-                request.AllowAmateurOnProLane), cancellationToken);
+                request.AllowAmateurOnProLane,
+                await ResolveFacilityUsageAsync(
+                    request.AthleteId,
+                    request.ServicePackageId,
+                    request.FacilityUsage,
+                    request.LaneNumber,
+                    cancellationToken)), cancellationToken);
 
             var session = await repository.GetSessionByIdAsync(sessionId, cancellationToken);
             var lanes = await repository.GetLanesAsync(cancellationToken);
@@ -237,6 +258,14 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
             }
 
             return Ok(new { sessionId, laneNumber });
+        }
+        catch (ClubCardHeldException ex)
+        {
+            return Conflict(new
+            {
+                error = ClubCardAssignmentService.FormatHeldByMessage(ex.CardType, ex.CardNumber, ex.Holder),
+                clubCardHeld = true
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -907,60 +936,39 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         try
         {
-            var clubCard = AthleteRegistrationRules.NormalizeOptionalText(request.ClubCardNumber);
-            if (!string.IsNullOrWhiteSpace(clubCard))
+            var sessionForCard = await repository.GetSessionByIdAsync(id, cancellationToken);
+            if (sessionForCard is null)
             {
-                var clubCardType = request.ClubCardType;
-                if (clubCardType is not ClubCardType type)
-                {
-                    return BadRequest(new { error = "Kart növü seçin." });
-                }
+                return NotFound(new { error = "Sessiya tapılmadı." });
+            }
 
-                var sessionForCard = await repository.GetSessionByIdAsync(id, cancellationToken);
-                if (sessionForCard is null)
-                {
-                    return NotFound(new { error = "Sessiya tapılmadı." });
-                }
+            var cardErr = await TryAssignClubCardAsync(
+                sessionForCard.AthleteId,
+                request.ClubCardNumber,
+                request.ClubCardType,
+                cancellationToken);
+            if (cardErr is not null)
+            {
+                return cardErr;
+            }
 
-                var athlete = await repository.GetAthleteByIdAsync(sessionForCard.AthleteId, cancellationToken);
-                if (athlete is null)
+            if (request.LaneNumber > 0 || request.FacilityUsage == FacilityUsage.Gym)
+            {
+                var sessionForUsage = await repository.GetSessionByIdAsync(id, cancellationToken);
+                if (sessionForUsage is not null)
                 {
-                    return BadRequest(new { error = "Müştəri tapılmadı." });
-                }
-
-                var prevCard = athlete.ClubCardNumber;
-                var prevType = athlete.ClubCardType;
-                var prevNorm = AthleteRegistrationRules.NormalizeText(prevCard);
-                var cardChanged =
-                    !string.Equals(prevNorm, clubCard, StringComparison.OrdinalIgnoreCase)
-                    || prevType != type;
-
-                if (cardChanged)
-                {
-                    await ClubCardAssignmentService.EnsureCardAvailableAsync(
-                        repository,
-                        type,
-                        clubCard,
-                        athlete.Id,
+                    await ResolveFacilityUsageAsync(
+                        sessionForUsage.AthleteId,
+                        servicePackageId: null,
+                        request.FacilityUsage,
+                        request.LaneNumber,
                         cancellationToken);
-
-                    await ClubCardAssignmentService.SyncAthleteCardAsync(
-                        repository,
-                        athlete.Id,
-                        prevCard,
-                        prevType,
-                        clubCard,
-                        type,
-                        User.GetStaffMemberId(),
-                        cancellationToken);
-
-                    athlete.ClubCardNumber = clubCard;
-                    athlete.ClubCardType = type;
-                    await repository.UpdateAthleteAsync(athlete, cancellationToken);
                 }
             }
 
-            var laneNumber = await mediator.Send(new ActivateSessionCommand(id, request.LaneNumber), cancellationToken);
+            var laneNumber = await mediator.Send(
+                new ActivateSessionCommand(id, request.LaneNumber, request.FacilityUsage, User.GetStaffMemberId()),
+                cancellationToken);
             return Ok(new { sessionId = id, laneNumber });
         }
         catch (ClubCardHeldException ex)
@@ -988,21 +996,12 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
                 var lanes = await repository.GetLanesAsync(cancellationToken);
                 var allSessions = await repository.GetSessionsLightAsync(cancellationToken);
-                var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
                 var athletes = await repository.GetAthletesAsync(cancellationToken);
                 var athlete = athletes.FirstOrDefault(a => a.Id == session.AthleteId);
-
-                var plannedStart = DateTimeAssumedUtc.AsUtc(session.StartTimeUtc);
-                var plannedEnd = DateTimeAssumedUtc.AsUtc(session.EndTimeUtc);
-                var duration = plannedEnd > plannedStart ? plannedEnd - plannedStart : TimeSpan.Zero;
                 var nowUtc = DateTime.UtcNow;
-                var reqStart = nowUtc;
-                var reqEnd = duration > TimeSpan.Zero ? nowUtc.Add(duration) : nowUtc;
 
                 static bool IsShortLane(int n) => n is >= 1 and <= 8;
                 static bool IsLongLane(int n) => n is >= 9 and <= 11;
-
-                var dayLocal = AzerbaijanTime.UtcToLocalDate(plannedStart);
 
                 // Aktiv et seçimi: hazırda boş (aktiv sessiya olmayan) bütün 1–11 zolaqlar.
                 // Paket PreferredLaneType ilə siyahını kəsmirik — resepsiya növə baxıb seçir.
@@ -1013,20 +1012,9 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                     .ToList();
 
                 var available = allowed
-                    .Where(l =>
-                    {
-                        if (duration > TimeSpan.Zero
-                            && LaneReservationRules.HasSubscriberConflictOnLane(schedules, l.Number, reqStart, reqEnd))
-                        {
-                            return false;
-                        }
-
-                        return allSessions
-                            .Where(s => s.Id != session.Id && s.LaneId == l.Id)
-                            // Pool «Seçiləcək» sessiyalar müvəqqəti park olunub — zolağı tutmur.
-                            .Where(s => !SubscriptionPoolCapacity.IsUnassignedPoolSession(s, schedules, dayLocal))
-                            .All(s => !LaneReservationRules.OverlapsSession(s, reqStart, reqEnd, nowUtc));
-                    })
+                    .Where(l => allSessions
+                        .Where(s => s.Id != session.Id && s.LaneId == l.Id)
+                        .All(s => !SessionHousekeeping.IsAthleteSessionCurrentlyActive(s, nowUtc)))
                     .Select(l => l.Number)
                     .ToList();
 
@@ -1082,6 +1070,83 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         return Ok(new { sessionId = id });
     }
+
+    private async Task<FacilityUsage> ResolveFacilityUsageAsync(
+        Guid athleteId,
+        Guid? servicePackageId,
+        FacilityUsage? requested,
+        int laneNumber,
+        CancellationToken cancellationToken)
+    {
+        var packages = await repository.GetServicePackagesAsync(activeOnly: false, cancellationToken);
+        var records = await repository.GetCustomerPackageRecordsAsync(cancellationToken);
+        var schedules = await repository.GetSubscriptionSchedulesAsync(cancellationToken);
+        PackageScope? scope = null;
+        if (servicePackageId is Guid pkgId && pkgId != Guid.Empty)
+        {
+            scope = packages.FirstOrDefault(p => p.Id == pkgId)?.Scope;
+        }
+
+        scope ??= FacilityUsageRules.CurrentPackageScope(athleteId, records, packages, schedules);
+        return FacilityUsageRules.ResolveForWrite(requested, laneNumber, scope);
+    }
+
+    private async Task<IActionResult?> TryAssignClubCardAsync(
+        Guid athleteId,
+        string? clubCardNumber,
+        ClubCardType? clubCardType,
+        CancellationToken cancellationToken)
+    {
+        var clubCard = ClubCardNumberRules.Normalize(clubCardNumber);
+        if (string.IsNullOrWhiteSpace(clubCard))
+        {
+            return null;
+        }
+
+        if (clubCardType is not ClubCardType type)
+        {
+            return BadRequest(new { error = "Kart növü seçin." });
+        }
+
+        var athlete = await repository.GetAthleteByIdAsync(athleteId, cancellationToken);
+        if (athlete is null)
+        {
+            return BadRequest(new { error = "Müştəri tapılmadı." });
+        }
+
+        var prevCard = athlete.ClubCardNumber;
+        var prevType = athlete.ClubCardType;
+        var cardChanged =
+            !ClubCardNumberRules.Same(prevCard, clubCard)
+            || prevType != type;
+
+        if (!cardChanged)
+        {
+            return null;
+        }
+
+        await ClubCardAssignmentService.EnsureCardAvailableAsync(
+            repository,
+            type,
+            clubCard,
+            athlete.Id,
+            cancellationToken);
+
+        await ClubCardAssignmentService.SyncAthleteCardAsync(
+            repository,
+            athlete.Id,
+            prevCard,
+            prevType,
+            clubCard,
+            type,
+            User.GetStaffMemberId(),
+            cancellationToken);
+
+        athlete.ClubCardNumber = clubCard;
+        athlete.ClubCardType = type;
+        await repository.UpdateAthleteAsync(athlete, cancellationToken);
+        return null;
+    }
 }
 
 public sealed class ActivateSessionRequest
@@ -1089,4 +1154,5 @@ public sealed class ActivateSessionRequest
     public int LaneNumber { get; set; } = 0;
     public string? ClubCardNumber { get; set; }
     public ClubCardType? ClubCardType { get; set; }
+    public FacilityUsage? FacilityUsage { get; set; }
 }

@@ -34,7 +34,7 @@ public sealed class ReceptionController(IMediator mediator) : Controller
 
   [HttpPost("giris")]
   [AllowAnonymous]
-  [ValidateAntiForgeryToken]
+  [IgnoreAntiforgeryToken]
   public async Task<IActionResult> Giris(string pin, CancellationToken cancellationToken)
   {
     var session = await mediator.Send(new GetStaffMemberByPinQuery(pin), cancellationToken);

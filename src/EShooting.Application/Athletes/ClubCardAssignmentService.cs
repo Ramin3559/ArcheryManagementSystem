@@ -23,14 +23,37 @@ public static class ClubCardAssignmentService
         Guid? excludeAthleteId,
         CancellationToken cancellationToken)
     {
+        var number = ClubCardNumberRules.Normalize(cardNumber)
+                     ?? AthleteRegistrationRules.NormalizeText(cardNumber);
+        if (string.IsNullOrWhiteSpace(number))
+        {
+            throw new InvalidOperationException("Kart nömrəsi daxil edin.");
+        }
+
+        if (await repository.HasAnyClubCardStockAsync(cancellationToken))
+        {
+            var stock = await repository.FindClubCardStockAsync(cardType, number, cancellationToken);
+            if (stock is null)
+            {
+                throw new InvalidOperationException(
+                    $"Kart «{ClubCardTypeLabels.FormatCard(cardType, number)}» stokda yoxdur. Admin əlavə etsin.");
+            }
+
+            if (stock.IsDeleted)
+            {
+                throw new InvalidOperationException(
+                    ClubCardTypeLabels.FormatUnavailable(cardType, number));
+            }
+        }
+
         var holder = await repository.FindAthleteByClubCardAsync(
             cardType,
-            cardNumber,
+            number,
             excludeAthleteId,
             cancellationToken);
         if (holder is not null)
         {
-            throw new ClubCardHeldException(cardType, cardNumber, holder);
+            throw new ClubCardHeldException(cardType, number, holder);
         }
     }
 
@@ -44,8 +67,10 @@ public static class ClubCardAssignmentService
         Guid? staffId,
         CancellationToken cancellationToken)
     {
-        var prev = AthleteRegistrationRules.NormalizeText(previousCardNumber);
-        var next = AthleteRegistrationRules.NormalizeText(nextCardNumber);
+        var prev = ClubCardNumberRules.Normalize(previousCardNumber)
+                   ?? AthleteRegistrationRules.NormalizeText(previousCardNumber);
+        var next = ClubCardNumberRules.Normalize(nextCardNumber)
+                   ?? AthleteRegistrationRules.NormalizeText(nextCardNumber);
 
         var same =
             string.Equals(prev, next, StringComparison.OrdinalIgnoreCase)
@@ -90,7 +115,8 @@ public static class ClubCardAssignmentService
         Guid? staffId,
         CancellationToken cancellationToken)
     {
-        var card = AthleteRegistrationRules.NormalizeText(athlete.ClubCardNumber);
+        var card = ClubCardNumberRules.Normalize(athlete.ClubCardNumber)
+                   ?? AthleteRegistrationRules.NormalizeText(athlete.ClubCardNumber);
         if (string.IsNullOrWhiteSpace(card) || athlete.ClubCardType is not ClubCardType type)
         {
             throw new InvalidOperationException("Bu müştəridə qaytarılacaq kart yoxdur.");

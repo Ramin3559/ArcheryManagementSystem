@@ -72,6 +72,7 @@ public sealed class GetReceptionDayStatsQueryHandler(ITrainingCenterRepository r
             .ToList();
 
         var incomingCustomers = todaySessions
+            .Where(SessionActivationRules.CountsAsAttendedVisit)
             .Select(s => s.AthleteId)
             .Distinct()
             .Count();

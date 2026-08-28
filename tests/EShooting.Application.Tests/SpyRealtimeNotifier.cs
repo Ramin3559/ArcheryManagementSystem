@@ -18,4 +18,7 @@ internal sealed class SpyRealtimeNotifier : IRealtimeNotifier
         ScoreUpdates.Add((sessionId, totalScore));
         return Task.CompletedTask;
     }
+
+    public Task PublishPackagesChangedAsync(CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

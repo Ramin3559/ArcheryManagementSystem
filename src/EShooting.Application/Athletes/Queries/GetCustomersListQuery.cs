@@ -32,6 +32,7 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         var issues = (await repository.GetSessionEquipmentIssuesAsync(cancellationToken)).ToList();
         var equipment = (await repository.GetEquipmentItemsAsync(activeOnly: false, cancellationToken)).ToList();
         var packageRecords = (await repository.GetCustomerPackageRecordsAsync(cancellationToken)).ToList();
+        var servicePackages = (await repository.GetServicePackagesAsync(activeOnly: false, cancellationToken)).ToList();
         var equipmentReceipts = (await repository.GetEquipmentSaleReceiptsAsync(cancellationToken)).ToList();
         var staff = (await repository.GetStaffMembersAsync(activeOnly: false, cancellationToken)).ToList();
         var lanes = (await repository.GetLanesAsync(cancellationToken)).ToList();
@@ -168,7 +169,9 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                             laneById,
                             nowUtc,
                             athleteSessions,
-                            hit.Session)));
+                            hit.Session,
+                            FacilityUsageRules.CurrentPackageName(
+                                athlete.Id, athleteRecords, servicePackages, athleteSchedules))));
                 }
 
                 continue;
@@ -195,7 +198,9 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
                 laneById,
                 nowUtc,
                 athleteSessions,
-                lastSession));
+                lastSession,
+                FacilityUsageRules.CurrentPackageName(
+                    athlete.Id, athleteRecords, servicePackages, athleteSchedules)));
         }
 
         if (expandVisitRows)
@@ -247,10 +252,12 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
         IReadOnlyDictionary<Guid, int> laneById,
         DateTime nowUtc,
         List<TrainingSession> athleteSessions,
-        TrainingSession? laneSession)
+        TrainingSession? laneSession,
+        string? currentPackageName)
     {
         string? lastLaneVisit = null;
         int? lastLaneNumber = null;
+        string? lastVisitPlace = null;
         if (laneSession is not null)
         {
             lastLaneVisit = DateDisplayFormats.FormatDateTime(
@@ -260,6 +267,8 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             {
                 lastLaneNumber = lastLn;
             }
+
+            lastVisitPlace = FacilityUsageRules.FormatVisitPlace(lastLaneNumber, laneSession.FacilityUsage);
         }
 
         var activeSession = athleteSessions
@@ -270,7 +279,6 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             activeLane = ln;
         }
 
-        var latestRecord = records.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
         var latestBilling = allActiveRecords.OrderByDescending(r => r.CreatedAtUtc).FirstOrDefault();
         var paymentLabel = "—";
         decimal? paid = null;
@@ -349,9 +357,10 @@ public sealed class GetCustomersListQueryHandler(ITrainingCenterRepository repos
             HasPendingEquipment = hasPendingRental,
             LastLaneVisitLocal = lastLaneVisit,
             LastLaneNumber = lastLaneNumber,
+            LastVisitPlaceLabel = lastVisitPlace,
             LastVisitLocal = lastLaneVisit,
             ActiveLaneNumber = activeLane,
-            CurrentPackageName = latestRecord?.PackageName ?? (activeSub is not null ? "Abunə" : null),
+            CurrentPackageName = currentPackageName ?? (activeSub is not null ? "Abunə" : null),
             LatestAmountPaid = paid,
             LatestAmountPaidCash = paidCash,
             LatestAmountPaidCard = paidCard,

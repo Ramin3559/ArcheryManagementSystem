@@ -21,6 +21,7 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CustomerPackageRecord> CustomerPackageRecords => Set<CustomerPackageRecord>();
     public DbSet<ClubCardAssignment> ClubCardAssignments => Set<ClubCardAssignment>();
+    public DbSet<ClubCardStock> ClubCardStock => Set<ClubCardStock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -91,6 +92,10 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.IsEquipmentIssued).HasDefaultValue(false);
             entity.Property(x => x.EquipmentReturnedAtUtc).IsRequired(false);
             entity.Property(x => x.ActivatedAtUtc).IsRequired(false);
+            entity.Property(x => x.FacilityUsage)
+                .HasConversion<int?>()
+                .IsRequired(false);
+            entity.Property(x => x.HandledByStaffId).IsRequired(false);
 
             entity.HasOne<Athlete>()
                 .WithMany()
@@ -308,6 +313,17 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
                 .WithMany()
                 .HasForeignKey(x => x.AthleteId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClubCardStock>(entity =>
+        {
+            entity.ToTable("ClubCardStock");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CardNumber).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.CardType).HasConversion<int>();
+            entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasIndex(x => new { x.CardType, x.CardNumber }).IsUnique();
         });
     }
 }

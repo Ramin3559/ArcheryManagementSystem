@@ -45,6 +45,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureBillingDiscountColumnsAsync(cancellationToken);
         await EnsureAthleteCreatedAtBackfillAsync(cancellationToken);
         await EnsureClubCardAssignmentsTableAsync(cancellationToken);
+        await EnsureClubCardStockTableAsync(cancellationToken);
 
         await EnsureShootingLanesSeedAsync(cancellationToken);
         await EnsureGymLaneAsync(cancellationToken);
@@ -225,7 +226,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                   AND [ClubCardType] IS NOT NULL;
             END
 
-            -- Eyni növ + nömrə dublikatı: birini saxla, digərlərini azad et.
+            -- Eyni növ + nömrə dublikatı: birini saxla, digərlərini sərbəst et.
             ;WITH dupCards AS (
                 SELECT [Id],
                        ROW_NUMBER() OVER (
@@ -356,6 +357,18 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                 BEGIN
                     ALTER TABLE [dbo].[TrainingSessions]
                     ADD [ActivatedAtUtc] DATETIME2 NULL;
+                END;
+
+                IF COL_LENGTH(N'[dbo].[TrainingSessions]', N'FacilityUsage') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[TrainingSessions]
+                    ADD [FacilityUsage] INT NULL;
+                END
+
+                IF COL_LENGTH(N'[dbo].[TrainingSessions]', N'HandledByStaffId') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[TrainingSessions]
+                    ADD [HandledByStaffId] UNIQUEIDENTIFIER NULL;
                 END;
 
                 -- Yeni sütuna eyni batch-də birbaşa UPDATE Msg 207 verir → dinamik SQL.
@@ -1682,5 +1695,38 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(backfillSql, cancellationToken);
+    }
+
+    private async Task EnsureClubCardStockTableAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'[dbo].[ClubCardStock]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [dbo].[ClubCardStock](
+                    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    [CardType] INT NOT NULL,
+                    [CardNumber] NVARCHAR(40) NOT NULL,
+                    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0),
+                    [DeletedAtUtc] DATETIME2 NULL,
+                    [CreatedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_ClubCardStock_CreatedAtUtc] DEFAULT (GETUTCDATE()),
+                    CONSTRAINT [UX_ClubCardStock_Type_Number] UNIQUE ([CardType], [CardNumber])
+                );
+                CREATE INDEX [IX_ClubCardStock_CardType]
+                    ON [dbo].[ClubCardStock]([CardType]);
+            END
+
+            IF COL_LENGTH(N'[dbo].[ClubCardStock]', N'IsDeleted') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[ClubCardStock]
+                    ADD [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0);
+            END
+
+            IF COL_LENGTH(N'[dbo].[ClubCardStock]', N'DeletedAtUtc') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[ClubCardStock]
+                    ADD [DeletedAtUtc] DATETIME2 NULL;
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 }

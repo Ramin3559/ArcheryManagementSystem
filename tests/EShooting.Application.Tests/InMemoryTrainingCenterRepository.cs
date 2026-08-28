@@ -197,6 +197,86 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         return Task.FromResult<IReadOnlyCollection<ClubCardAssignment>>(rows);
     }
 
+    private readonly List<ClubCardStock> _clubCardStock = [];
+
+    public Task<bool> HasAnyClubCardStockAsync(CancellationToken cancellationToken)
+        => Task.FromResult(_clubCardStock.Count > 0);
+
+    public Task<bool> ClubCardStockExistsAsync(
+        ClubCardType cardType,
+        string cardNumber,
+        CancellationToken cancellationToken)
+    {
+        var want = (cardNumber ?? "").Trim();
+        var exists = _clubCardStock.Any(s =>
+            s.CardType == cardType
+            && string.Equals(s.CardNumber.Trim(), want, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(exists);
+    }
+
+    public Task<IReadOnlyCollection<ClubCardStock>> GetClubCardStockAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyCollection<ClubCardStock>>(_clubCardStock.ToList());
+
+    public Task<IReadOnlyList<string>> GetClubCardStockNumbersAsync(
+        ClubCardType cardType,
+        CancellationToken cancellationToken)
+    {
+        var numbers = _clubCardStock
+            .Where(s => s.CardType == cardType)
+            .Select(s => s.CardNumber)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(numbers);
+    }
+
+    public Task AddClubCardStockRangeAsync(
+        IReadOnlyCollection<ClubCardStock> cards,
+        CancellationToken cancellationToken)
+    {
+        _clubCardStock.AddRange(cards);
+        return Task.CompletedTask;
+    }
+
+    public Task<ClubCardStock?> FindClubCardStockAsync(
+        ClubCardType cardType,
+        string cardNumber,
+        CancellationToken cancellationToken)
+    {
+        var want = (cardNumber ?? "").Trim();
+        var found = _clubCardStock.FirstOrDefault(s =>
+            s.CardType == cardType
+            && string.Equals(s.CardNumber.Trim(), want, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(found);
+    }
+
+    public Task UpdateClubCardStockAsync(ClubCardStock card, CancellationToken cancellationToken)
+    {
+        var existing = _clubCardStock.FirstOrDefault(x => x.Id == card.Id);
+        if (existing is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        existing.CardType = card.CardType;
+        existing.CardNumber = card.CardNumber;
+        existing.IsDeleted = card.IsDeleted;
+        existing.DeletedAtUtc = card.DeletedAtUtc;
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteClubCardStockAsync(Guid id, CancellationToken cancellationToken)
+    {
+        _clubCardStock.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyCollection<Athlete>> GetAthletesWithClubCardAsync(CancellationToken cancellationToken)
+    {
+        var held = _athletes
+            .Where(a => !string.IsNullOrWhiteSpace(a.ClubCardNumber))
+            .ToList();
+        return Task.FromResult<IReadOnlyCollection<Athlete>>(held);
+    }
+
     public Task<TrainingSession> AddSessionAsync(TrainingSession session, CancellationToken cancellationToken)
     {
         _sessions.Add(session);
@@ -221,7 +301,12 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         existing.LaneId = session.LaneId;
         existing.StartTimeUtc = session.StartTimeUtc;
         existing.EndTimeUtc = session.EndTimeUtc;
+        existing.ActivatedAtUtc = session.ActivatedAtUtc;
         existing.Status = session.Status;
+        existing.SubscriptionScheduleId = session.SubscriptionScheduleId;
+        existing.IsEquipmentIssued = session.IsEquipmentIssued;
+        existing.EquipmentReturnedAtUtc = session.EquipmentReturnedAtUtc;
+        existing.FacilityUsage = session.FacilityUsage;
         existing.Scores = session.Scores;
         return Task.CompletedTask;
     }

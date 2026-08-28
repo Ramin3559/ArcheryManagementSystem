@@ -705,16 +705,24 @@ public sealed class SubscriptionsController(
             return BadRequest(new { error = ex.Message });
         }
 
-        var excluded = OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson);
-        var list = OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson);
-        var isNaturalSourceDay = (int)sourceDate.DayOfWeek == schedule.DayOfWeek;
-        if (isNaturalSourceDay)
+        HideOccurrenceDate(schedule, sourceKey);
+        foreach (var other in schedules.Where(s =>
+            s.Id != schedule.Id
+            && s.IsEnabled
+            && !s.IsFullPackage
+            && s.AthleteId == schedule.AthleteId))
         {
-            excluded.Add(sourceKey);
-            schedule.ExcludedOccurrenceDatesJson = OccurrenceJson.SerializeExcluded(excluded);
+            if (!SubscriptionOccurrenceJson.TryResolveOccurrence(other, sourceDate, out _, out _, out _))
+            {
+                continue;
+            }
+
+            HideOccurrenceDate(other, sourceKey);
+            await repository.UpdateSubscriptionScheduleAsync(other, cancellationToken);
         }
 
-        list.RemoveAll(o => string.Equals(o.DateLocal?.Trim(), sourceKey, StringComparison.Ordinal));
+        var excluded = OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson);
+        var list = OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson);
 
         var existingTarget = list.FirstOrDefault(o => string.Equals(o.DateLocal?.Trim(), targetKey, StringComparison.Ordinal));
         if (existingTarget is null)
@@ -796,6 +804,16 @@ public sealed class SubscriptionsController(
 
     private static bool IsValidTimeOfDay(TimeSpan time) =>
         time >= TimeSpan.Zero && time.TotalDays < 1 && time.Hours <= 23;
+
+    private static void HideOccurrenceDate(SubscriptionSchedule schedule, string sourceKey)
+    {
+        var excluded = OccurrenceJson.DeserializeExcluded(schedule.ExcludedOccurrenceDatesJson);
+        excluded.Add(sourceKey);
+        var list = OccurrenceJson.DeserializeOverrides(schedule.OccurrenceOverridesJson);
+        list.RemoveAll(o => string.Equals(o.DateLocal?.Trim(), sourceKey, StringComparison.Ordinal));
+        schedule.ExcludedOccurrenceDatesJson = excluded.Count > 0 ? OccurrenceJson.SerializeExcluded(excluded) : null;
+        schedule.OccurrenceOverridesJson = list.Count > 0 ? OccurrenceJson.SerializeOverrides(list) : null;
+    }
 
     private static string? ValidateOccurrenceDateInPeriod(SubscriptionSchedule schedule, DateTime date)
     {

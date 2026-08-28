@@ -1,0 +1,413 @@
+@using EShooting.Application.Athletes
+@using EShooting.Application.Athletes.Queries
+@using EShooting.Domain.Enums
+@model IReadOnlyList<ClubCardStockTypeSummary>
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Kartlar";
+    var catalog = ViewBag.Catalog as IReadOnlyList<ClubCardCatalogItem> ?? [];
+    var lookups = ViewBag.Lookups as IReadOnlyList<ClubCardLookupItem> ?? [];
+    var lookupType = ViewBag.LookupType as ClubCardType?;
+    var lookupNumbers = ViewBag.LookupNumbers as string;
+    var filterType = ViewBag.FilterType as ClubCardType?;
+    var status = (ViewBag.Status as string) ?? "held";
+    var notice = TempData["ClubCardNotice"] as string;
+    var error = TempData["ClubCardError"] as string;
+    var typeOptions = new (ClubCardType Type, string Label)[]
+    {
+        (ClubCardType.Boz, "Boz"),
+        (ClubCardType.Qirmizi, "Qırmızı"),
+        (ClubCardType.Qara, "Qara"),
+        (ClubCardType.VipQizili, "VIP-Qızılı")
+    };
+    var catalogExportHref = "/admin/club-cards/catalog/export.xlsx"
+                            + (filterType is ClubCardType ft ? "?filterType=" + (int)ft : "?filterType=")
+                            + "&status=" + Uri.EscapeDataString(status);
+}
+
+<style>
+    .notice { padding:10px 12px; border-radius:12px; margin-bottom:12px; font-weight:700; }
+    .notice--ok { background:#ecfdf5; color:#166534; border:1px solid rgba(22,163,74,0.25); }
+    .notice--err { background:#fef2f2; color:#991b1b; border:1px solid rgba(220,38,38,0.25); }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    .field span { font-size:12px; color:var(--muted); font-weight:700; }
+    .mode-chip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .mode-chip label { display:flex; gap:6px; align-items:center; font-weight:700; font-size:13px; }
+    .catalog-scroll { max-height: 420px; overflow: auto; }
+    .btn-row { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+</style>
+
+<div class="topbar">
+    <h1>Kartlar</h1>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn-excel" href="/admin/club-cards/export.xlsx">Excel</a>
+        <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə">Yenilə</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(notice))
+{
+    <div class="notice notice--ok">@notice</div>
+}
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="notice notice--err">@error</div>
+}
+
+<div class="grid4" style="margin-bottom:14px;">
+    @foreach (var s in Model)
+    {
+        <div class="card">
+            <div class="statLabel">@s.TypeLabel</div>
+            <div class="statValue">@s.Available <span style="font-size:14px;font-weight:700;color:var(--muted);">/ @s.Total</span></div>
+            <div class="statLabel" style="margin-top:8px;">Verilib: @s.Issued</div>
+            <div class="statLabel">Mövcud deyil: @s.Deleted</div>
+        </div>
+    }
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+    <div style="font-weight:900; margin-bottom:10px;">Kart əlavə et</div>
+    <form method="post" action="/admin/club-cards/add" class="row" id="addCardForm">
+        @Html.AntiForgeryToken()
+        <div class="mode-chip" style="flex:1 1 100%;">
+            <label><input type="radio" name="mode" value="bulk" checked /> Toplu</label>
+            <label><input type="radio" name="mode" value="one" /> Tək-tək</label>
+        </div>
+        <label class="field">
+            <span>Kart növü</span>
+            <select name="cardType" required data-az-msg="Kart növü seçin.">
+                <option value="" selected>Kart növü seçin</option>
+                @foreach (var t in typeOptions)
+                {
+                    <option value="@((int)t.Type)">@t.Label</option>
+                }
+            </select>
+        </label>
+        <label class="field" data-add-bulk>
+            <span>Başlanğıc nömrəsi</span>
+            <input name="fromNumber" type="number" min="1" step="1" data-az-msg="Başlanğıc nömrəsini daxil edin." />
+        </label>
+        <label class="field" data-add-bulk>
+            <span>Bitmə nömrəsi</span>
+            <input name="toNumber" type="number" min="1" step="1" data-az-msg="Bitmə nömrəsini daxil edin." />
+        </label>
+        <label class="field" data-add-one style="display:none;">
+            <span>Kart nömrəsi</span>
+            <input name="cardNumber" maxlength="40" data-az-msg="Kart nömrəsi daxil edin." />
+        </label>
+        <button class="btn btn-primary" type="submit">Əlavə et</button>
+    </form>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+    <div style="font-weight:900; margin-bottom:10px;">Kart sil</div>
+    <form method="post" action="/admin/club-cards/find" class="row" id="cardSilForm">
+        @Html.AntiForgeryToken()
+        <label class="field">
+            <span>Kart növü</span>
+            <select name="cardType" required id="silCardType" data-az-msg="Kart növü seçin.">
+                <option value="">Kart növü seçin</option>
+                @foreach (var t in typeOptions)
+                {
+                    if (lookupType == t.Type)
+                    {
+                        <option value="@((int)t.Type)" selected>@t.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@((int)t.Type)">@t.Label</option>
+                    }
+                }
+            </select>
+        </label>
+        <label class="field" style="flex:1 1 280px;">
+            <span>Kart nömrəsi</span>
+            <input name="cardNumbers" id="silCardNumbers" value="@lookupNumbers" maxlength="400" placeholder="005 və ya 5, 10, 25, 100" />
+        </label>
+        <button class="btn btn-primary" type="submit">Tap</button>
+        <button class="btn" type="submit" form="cardDeleteForm" id="silBtn" style="color:#991b1b;">Sil</button>
+        <button class="btn" type="submit" form="cardRestoreForm">Bərpa et</button>
+    </form>
+
+    <form method="post" action="/admin/club-cards/delete" id="cardDeleteForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cardType" id="deleteCardType" />
+        <input type="hidden" name="cardNumbers" id="deleteCardNumbers" />
+        <input type="hidden" name="confirmHeld" id="deleteConfirmHeld" value="false" />
+    </form>
+    <form method="post" action="/admin/club-cards/restore" id="cardRestoreForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cardType" id="restoreCardType" />
+        <input type="hidden" name="cardNumbers" id="restoreCardNumbers" />
+    </form>
+
+    @if (lookups.Count > 0)
+    {
+        <div class="tableWrap" style="margin-top:12px;">
+            <table>
+                <thead>
+                <tr>
+                    <th>Növ</th>
+                    <th>Nömrə</th>
+                    <th>Status</th>
+                    <th>Müştəri</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in lookups)
+                {
+                    var statusText = row.Missing
+                        ? "Stokda yoxdur"
+                        : row.IsDeleted
+                            ? "Mövcud deyil"
+                            : row.IsHeld
+                                ? "Müştəridə olan"
+                                : "Müştəridə olmayan";
+                    var holderText = row.IsHeld
+                        ? row.HolderName + (string.IsNullOrWhiteSpace(row.HolderPhone) ? "" : $" ({row.HolderPhone})")
+                        : "";
+                    if (row.IsHeld)
+                    {
+                        <tr data-held-card="@($"{row.TypeLabel} · {row.CardNumber}")" data-held-name="@row.HolderName" data-held-phone="@row.HolderPhone">
+                            <td>@row.TypeLabel</td>
+                            <td>@row.CardNumber</td>
+                            <td>@statusText</td>
+                            <td>@holderText</td>
+                            <td>
+                                <button type="button" class="btn btn-row" style="color:#991b1b;"
+                                        data-row-sil="@row.CardNumber"
+                                        data-row-type="@((int)row.CardType)"
+                                        data-row-held="1"
+                                        data-row-card="@($"{row.TypeLabel} · {row.CardNumber}")"
+                                        data-row-name="@row.HolderName"
+                                        data-row-phone="@row.HolderPhone">Sil</button>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td>@row.TypeLabel</td>
+                            <td>@row.CardNumber</td>
+                            <td>@statusText</td>
+                            <td>@holderText</td>
+                            <td>
+                                @if (row.IsDeleted)
+                                {
+                                    <button type="button" class="btn btn-row" data-row-restore="@row.CardNumber" data-row-type="@((int)row.CardType)">Bərpa et</button>
+                                }
+                                else if (!row.Missing)
+                                {
+                                    <button type="button" class="btn btn-row" style="color:#991b1b;"
+                                            data-row-sil="@row.CardNumber"
+                                            data-row-type="@((int)row.CardType)"
+                                            data-row-held="0">Sil</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div style="font-weight:900; margin-bottom:10px;">Kart məlumatları</div>
+    <form method="get" action="/admin/club-cards" class="row" style="margin-bottom:12px;">
+        <label class="field">
+            <span>Kart növü</span>
+            <select name="filterType">
+                <option value="">Hamısı</option>
+                @foreach (var t in typeOptions)
+                {
+                    if (filterType == t.Type)
+                    {
+                        <option value="@((int)t.Type)" selected>@t.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@((int)t.Type)">@t.Label</option>
+                    }
+                }
+            </select>
+        </label>
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                @if (status == "all") { <option value="all" selected>Hamısı</option> } else { <option value="all">Hamısı</option> }
+                @if (status == "held") { <option value="held" selected>Müştəridə olan</option> } else { <option value="held">Müştəridə olan</option> }
+                @if (status == "free") { <option value="free" selected>Müştəridə olmayan</option> } else { <option value="free">Müştəridə olmayan</option> }
+                @if (status == "deleted") { <option value="deleted" selected>Mövcud deyil</option> } else { <option value="deleted">Mövcud deyil</option> }
+            </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Göstər</button>
+        <a class="btn btn-excel" href="@catalogExportHref">Excel-ə çıxart</a>
+        @if (lookupType is ClubCardType keepType)
+        {
+            <input type="hidden" name="lookupType" value="@((int)keepType)" />
+            <input type="hidden" name="lookupNumbers" value="@lookupNumbers" />
+        }
+    </form>
+    <div class="tableWrap catalog-scroll">
+        <table>
+            <thead>
+            <tr>
+                <th>Növ</th>
+                <th>Nömrə</th>
+                <th>Status</th>
+                <th>Müştəri</th>
+                <th>Telefon</th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (catalog.Count == 0)
+            {
+                <tr><td colspan="5">Bu filterə uyğun kart yoxdur.</td></tr>
+            }
+            else
+            {
+                foreach (var row in catalog)
+                {
+                    <tr>
+                        <td>@row.TypeLabel</td>
+                        <td>@row.CardNumber</td>
+                        <td>@row.StatusLabel</td>
+                        <td>@row.HolderName</td>
+                        <td>@row.PhoneNumber</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    (function () {
+        document.getElementById("adminRefreshBtn")?.addEventListener("click", () => location.href = "/admin/club-cards");
+
+        document.querySelectorAll("[data-az-msg]").forEach(function (el) {
+            var msg = el.getAttribute("data-az-msg") || "Bu xananı doldurun.";
+            el.addEventListener("invalid", function () {
+                el.setCustomValidity(el.value ? "" : msg);
+            });
+            el.addEventListener("input", function () { el.setCustomValidity(""); });
+            el.addEventListener("change", function () { el.setCustomValidity(""); });
+        });
+
+        function syncAddMode() {
+            var one = document.querySelector('#addCardForm input[name="mode"]:checked')?.value === "one";
+            document.querySelectorAll("[data-add-bulk]").forEach(function (el) {
+                el.style.display = one ? "none" : "";
+                el.querySelectorAll("input").forEach(function (inp) { inp.required = !one; });
+            });
+            document.querySelectorAll("[data-add-one]").forEach(function (el) {
+                el.style.display = one ? "" : "none";
+                el.querySelectorAll("input").forEach(function (inp) { inp.required = one; });
+            });
+        }
+        document.querySelectorAll('#addCardForm input[name="mode"]').forEach(function (el) {
+            el.addEventListener("change", syncAddMode);
+        });
+        syncAddMode();
+
+        function copySilFields(typeId, numbersId) {
+            var type = document.getElementById("silCardType")?.value || "";
+            var numbers = document.getElementById("silCardNumbers")?.value || "";
+            var t = document.getElementById(typeId);
+            var n = document.getElementById(numbersId);
+            if (t) t.value = type;
+            if (n) n.value = numbers;
+            return type && numbers.trim();
+        }
+
+        var skipDeleteConfirm = false;
+        var skipRestoreConfirm = false;
+
+        document.getElementById("cardDeleteForm")?.addEventListener("submit", function (e) {
+            if (skipDeleteConfirm) {
+                skipDeleteConfirm = false;
+                return;
+            }
+            if (!copySilFields("deleteCardType", "deleteCardNumbers")) {
+                e.preventDefault();
+                alert("Kart növü və nömrə daxil edin.");
+                return;
+            }
+            if (!window.confirm("Silmək istəyirsinizmi?")) {
+                e.preventDefault();
+                return;
+            }
+            var held = [];
+            document.querySelectorAll("[data-held-card]").forEach(function (row) {
+                var card = row.getAttribute("data-held-card") || "";
+                var name = row.getAttribute("data-held-name") || "";
+                var phone = row.getAttribute("data-held-phone") || "";
+                var who = name + (phone ? " (" + phone + ")" : "");
+                held.push("Kart «" + card + "» hazırda " + who + " adlı müştəridədir.");
+            });
+            if (held.length) {
+                var msg = held.join("\n") + "\n\nMüştəridən qaytarılıb silinsin?\nKart işləmirsə Ləğv et, resepsiyada başqa nömrə ver.";
+                if (!window.confirm(msg)) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            var flag = document.getElementById("deleteConfirmHeld");
+            if (flag) flag.value = held.length ? "true" : "false";
+        });
+
+        document.getElementById("cardRestoreForm")?.addEventListener("submit", function (e) {
+            if (skipRestoreConfirm) {
+                skipRestoreConfirm = false;
+                return;
+            }
+            if (!copySilFields("restoreCardType", "restoreCardNumbers")) {
+                e.preventDefault();
+                alert("Kart növü və nömrə daxil edin.");
+                return;
+            }
+            if (!window.confirm("Bərpa etmək istəyirsinizmi?")) {
+                e.preventDefault();
+            }
+        });
+
+        document.querySelectorAll("[data-row-sil]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                if (!window.confirm("Silmək istəyirsinizmi?")) return;
+                var held = btn.getAttribute("data-row-held") === "1";
+                if (held) {
+                    var card = btn.getAttribute("data-row-card") || "";
+                    var name = btn.getAttribute("data-row-name") || "";
+                    var phone = btn.getAttribute("data-row-phone") || "";
+                    var who = name + (phone ? " (" + phone + ")" : "");
+                    var msg = "Kart «" + card + "» hazırda " + who + " adlı müştəridədir.\n\nMüştəridən qaytarılıb silinsin?\nKart işləmirsə Ləğv et, resepsiyada başqa nömrə ver.";
+                    if (!window.confirm(msg)) return;
+                }
+                var typeEl = document.getElementById("deleteCardType");
+                var numEl = document.getElementById("deleteCardNumbers");
+                var flag = document.getElementById("deleteConfirmHeld");
+                if (typeEl) typeEl.value = btn.getAttribute("data-row-type") || document.getElementById("silCardType")?.value || "";
+                if (numEl) numEl.value = btn.getAttribute("data-row-sil") || "";
+                if (flag) flag.value = held ? "true" : "false";
+                skipDeleteConfirm = true;
+                document.getElementById("cardDeleteForm")?.requestSubmit();
+            });
+        });
+
+        document.querySelectorAll("[data-row-restore]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                if (!window.confirm("Bərpa etmək istəyirsinizmi?")) return;
+                var typeEl = document.getElementById("restoreCardType");
+                var numEl = document.getElementById("restoreCardNumbers");
+                if (typeEl) typeEl.value = btn.getAttribute("data-row-type") || document.getElementById("silCardType")?.value || "";
+                if (numEl) numEl.value = btn.getAttribute("data-row-restore") || "";
+                skipRestoreConfirm = true;
+                document.getElementById("cardRestoreForm")?.requestSubmit();
+            });
+        });
+    })();
+</script>

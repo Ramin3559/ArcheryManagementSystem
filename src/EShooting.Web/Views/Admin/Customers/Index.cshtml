@@ -175,7 +175,8 @@
                 <th>Ad Soyad</th>
                 <th>Telefon</th>
                 <th>VIP</th>
-                <th>Paket</th>
+                <th>Paket növü</th>
+                <th>Paket adı</th>
                 <th>Ödəniş</th>
                 <th>Abunə müddəti</th>
                 <th>Qeydiyyata alınma</th>
@@ -187,7 +188,7 @@
             </tr>
             </thead>
             <tbody id="customersTableBody">
-            <tr><td colspan="12" style="color:var(--muted);">Yüklənir…</td></tr>
+            <tr><td colspan="13" style="color:var(--muted);">Yüklənir…</td></tr>
             </tbody>
         </table>
     </div>
@@ -455,13 +456,13 @@
         function renderRows(items) {
             if (!tbody) return;
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Bu filtrə uyğun qeyd tapılmadı.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" style="color:var(--muted);">Bu filtrə uyğun qeyd tapılmadı.</td></tr>';
                 return;
             }
             tbody.innerHTML = items.map(function (x) {
                 var sub = x.subscriptionFromLocal ? (AFS.escapeHtml(x.subscriptionFromLocal) + " — " + AFS.escapeHtml(x.subscriptionToLocal)) : "—";
                 var lastLane = x.lastLaneVisitLocal
-                    ? AFS.escapeHtml(x.lastLaneVisitLocal + (x.lastLaneNumber ? " · Zolaq " + x.lastLaneNumber : ""))
+                    ? AFS.escapeHtml(x.lastLaneVisitLocal + (x.lastVisitPlaceLabel ? " · " + x.lastVisitPlaceLabel : (x.lastLaneNumber ? " · Zolaq " + x.lastLaneNumber : "")))
                     : "—";
                 var name = AFS.escapeHtml(x.fullName) + (x.isVip ? " · VIP" : "");
                 if (!x.isActive) name += ' <span style="color:#b91c1c;font-size:11px;">(silinmiş)</span>';
@@ -473,6 +474,7 @@
                     + "<td>" + AFS.escapeHtml(x.phoneNumber) + "</td>"
                     + "<td>" + (x.isVip ? "Bəli" : "—") + "</td>"
                     + "<td>" + AFS.escapeHtml(x.packageTypeLabel) + "</td>"
+                    + "<td>" + AFS.escapeHtml(x.currentPackageName || "—") + "</td>"
                     + "<td>" + payment + "</td>"
                     + "<td>" + sub + "</td>"
                     + "<td>" + AFS.escapeHtml(x.registeredAtLocal) + "</td>"
@@ -1178,7 +1180,7 @@
                     }
                 }
             } catch (e) {
-                if (tbody) tbody.innerHTML = '<tr><td colspan="12" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="13" style="color:#b91c1c;">Siyahı yüklənmədi.</td></tr>';
             } finally {
                 if (tableCard) tableCard.classList.remove("loading");
             }
