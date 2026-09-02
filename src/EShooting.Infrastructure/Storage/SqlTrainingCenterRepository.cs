@@ -63,7 +63,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
         if (sessionIds.Count > 0)
         {
             await dbContext.SessionEquipmentIssues
-                .Where(x => sessionIds.Contains(x.SessionId))
+                .Where(x => x.SessionId != null && sessionIds.Contains(x.SessionId.Value))
                 .ExecuteDeleteAsync(cancellationToken);
 
             await dbContext.Scores
@@ -636,6 +636,7 @@ public sealed class SqlTrainingCenterRepository(EShootingDbContext dbContext) : 
 
         existing.ReturnedAtUtc = issue.ReturnedAtUtc;
         existing.ReturnedByStaffId = issue.ReturnedByStaffId;
+        existing.DamagedQuantity = issue.DamagedQuantity;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

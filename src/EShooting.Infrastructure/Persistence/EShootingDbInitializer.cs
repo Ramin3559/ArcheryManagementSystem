@@ -30,6 +30,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
         await EnsureSessionEquipmentIssuesTableAsync(cancellationToken);
         await EnsureEquipmentSplitStockBackfillAsync(cancellationToken);
         await EnsureSessionEquipmentIssueJournalColumnsAsync(cancellationToken);
+        await BackfillCatalogDamageIntoJournalAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptsTablesAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptLineDiscountColumnAsync(cancellationToken);
         await EnsureEquipmentSaleReceiptIssuedColumnAsync(cancellationToken);
@@ -810,7 +811,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             BEGIN
                 CREATE TABLE [dbo].[SessionEquipmentIssues](
                     [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-                    [SessionId] UNIQUEIDENTIFIER NOT NULL,
+                    [SessionId] UNIQUEIDENTIFIER NULL,
                     [EquipmentItemId] UNIQUEIDENTIFIER NOT NULL,
                     [IssueType] NVARCHAR(20) NOT NULL,
                     [Quantity] INT NOT NULL CONSTRAINT [DF_SessionEquipmentIssues_Quantity] DEFAULT (1),
@@ -818,6 +819,7 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
                     [IssuedByStaffId] UNIQUEIDENTIFIER NULL,
                     [ReturnedByStaffId] UNIQUEIDENTIFIER NULL,
                     [ReturnedAtUtc] DATETIME2 NULL,
+                    [DamagedQuantity] INT NULL,
                     [CreatedAtUtc] DATETIME2 NOT NULL,
                     CONSTRAINT [FK_SessionEquipmentIssues_Sessions] FOREIGN KEY ([SessionId])
                         REFERENCES [dbo].[TrainingSessions]([Id]) ON DELETE CASCADE,
@@ -975,6 +977,35 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             """;
         await dbContext.Database.ExecuteSqlRawAsync(addReturnedBySql, cancellationToken);
 
+        const string addDamagedQtySql = """
+            IF OBJECT_ID(N'[dbo].[SessionEquipmentIssues]', N'U') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[SessionEquipmentIssues]', N'DamagedQuantity') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[SessionEquipmentIssues] ADD [DamagedQuantity] INT NULL;
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(addDamagedQtySql, cancellationToken);
+
+        const string nullableSessionIdSql = """
+            IF OBJECT_ID(N'[dbo].[SessionEquipmentIssues]', N'U') IS NOT NULL
+               AND EXISTS (
+                    SELECT 1 FROM sys.columns
+                    WHERE object_id = OBJECT_ID(N'[dbo].[SessionEquipmentIssues]')
+                      AND name = N'SessionId'
+                      AND is_nullable = 0)
+            BEGIN
+                IF OBJECT_ID(N'[dbo].[FK_SessionEquipmentIssues_Sessions]', N'F') IS NOT NULL
+                    ALTER TABLE [dbo].[SessionEquipmentIssues] DROP CONSTRAINT [FK_SessionEquipmentIssues_Sessions];
+
+                ALTER TABLE [dbo].[SessionEquipmentIssues] ALTER COLUMN [SessionId] UNIQUEIDENTIFIER NULL;
+
+                ALTER TABLE [dbo].[SessionEquipmentIssues]
+                    ADD CONSTRAINT [FK_SessionEquipmentIssues_Sessions]
+                    FOREIGN KEY ([SessionId]) REFERENCES [dbo].[TrainingSessions]([Id]) ON DELETE CASCADE;
+            END
+            """;
+        await dbContext.Database.ExecuteSqlRawAsync(nullableSessionIdSql, cancellationToken);
+
         const string backfillUnitPriceSql = """
             IF OBJECT_ID(N'[dbo].[SessionEquipmentIssues]', N'U') IS NOT NULL
                AND COL_LENGTH(N'[dbo].[SessionEquipmentIssues]', N'UnitPrice') IS NOT NULL
@@ -987,6 +1018,63 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(backfillUnitPriceSql, cancellationToken);
+    }
+
+    /// <summary>
+    /// Kataloqda əl ilə yazılmış, jurnala düşməmiş xarabı bir dəfəlik gətirir.
+    /// Artıq jurnalda olan (icarə təhvili / admin) çıxılır — təkrarlanmır.
+    /// </summary>
+    private async Task BackfillCatalogDamageIntoJournalAsync(CancellationToken cancellationToken)
+    {
+        var items = await dbContext.EquipmentItems
+            .AsNoTracking()
+            .Where(x => x.DamagedQuantity > 0)
+            .Select(x => new { x.Id, x.DamagedQuantity })
+            .ToListAsync(cancellationToken);
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var itemIds = items.Select(x => x.Id).ToList();
+        var journaledByItem = await dbContext.SessionEquipmentIssues
+            .AsNoTracking()
+            .Where(x => itemIds.Contains(x.EquipmentItemId) && x.DamagedQuantity > 0)
+            .GroupBy(x => x.EquipmentItemId)
+            .Select(g => new { EquipmentItemId = g.Key, Total = g.Sum(x => x.DamagedQuantity ?? 0) })
+            .ToDictionaryAsync(x => x.EquipmentItemId, x => x.Total, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var toAdd = new List<SessionEquipmentIssue>();
+        foreach (var item in items)
+        {
+            var already = journaledByItem.GetValueOrDefault(item.Id);
+            var delta = item.DamagedQuantity - already;
+            if (delta <= 0)
+            {
+                continue;
+            }
+
+            toAdd.Add(new SessionEquipmentIssue
+            {
+                EquipmentItemId = item.Id,
+                SessionId = null,
+                IssueType = EquipmentIssueType.AdminDamage,
+                Quantity = delta,
+                UnitPrice = 0,
+                DamagedQuantity = delta,
+                ReturnedAtUtc = null,
+                CreatedAtUtc = now
+            });
+        }
+
+        if (toAdd.Count == 0)
+        {
+            return;
+        }
+
+        await dbContext.SessionEquipmentIssues.AddRangeAsync(toAdd, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task EnsureEquipmentSaleReceiptsTablesAsync(CancellationToken cancellationToken)

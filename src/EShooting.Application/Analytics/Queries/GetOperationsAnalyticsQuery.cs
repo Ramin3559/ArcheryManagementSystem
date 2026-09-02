@@ -453,7 +453,7 @@ public sealed class GetOperationsAnalyticsQueryHandler(ITrainingCenterRepository
                 continue;
             }
 
-            sessionsById.TryGetValue(issue.SessionId, out var session);
+            sessionsById.TryGetValue(issue.SessionId ?? Guid.Empty, out var session);
             Athlete? athlete = session is not null && athletesById.TryGetValue(session.AthleteId, out var a)
                 ? a
                 : null;

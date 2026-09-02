@@ -13,7 +13,8 @@ public sealed record GetEquipmentIssueHistoryQuery(
     DateTime ToLocalDate,
     Guid? EquipmentItemId = null,
     EquipmentIssueType? IssueType = null,
-    Guid? IssuedByStaffId = null) : IRequest<EquipmentIssueHistoryResult>;
+    Guid? IssuedByStaffId = null,
+    string? RentalStatus = null) : IRequest<EquipmentIssueHistoryResult>;
 
 public sealed class GetEquipmentIssueHistoryQueryHandler(ITrainingCenterRepository repository)
     : IRequestHandler<GetEquipmentIssueHistoryQuery, EquipmentIssueHistoryResult>
@@ -74,7 +75,27 @@ public sealed class GetEquipmentIssueHistoryQueryHandler(ITrainingCenterReposito
                 continue;
             }
 
-            sessions.TryGetValue(issue.SessionId, out var session);
+            var rentalStatus = (request.RentalStatus ?? "").Trim().ToLowerInvariant();
+            if (rentalStatus == "pending")
+            {
+                if (issue.IssueType != EquipmentIssueType.Rental || issue.ReturnedAtUtc is not null)
+                {
+                    continue;
+                }
+            }
+            else if (rentalStatus == "damaged")
+            {
+                if (issue.DamagedQuantity is null or <= 0)
+                {
+                    continue;
+                }
+            }
+
+            EShooting.Domain.Entities.TrainingSession? session = null;
+            if (issue.SessionId is Guid sid)
+            {
+                sessions.TryGetValue(sid, out session);
+            }
             var athleteName = session is not null && athletes.TryGetValue(session.AthleteId, out var athlete)
                 ? athlete.FullName
                 : "—";
@@ -91,12 +112,13 @@ public sealed class GetEquipmentIssueHistoryQueryHandler(ITrainingCenterReposito
 
             var qty = Math.Max(1, issue.Quantity);
             var isRental = issue.IssueType == EquipmentIssueType.Rental;
-            var unitPrice = isRental
+            var isAdminDamage = issue.IssueType == EquipmentIssueType.AdminDamage;
+            var unitPrice = isRental || isAdminDamage
                 ? 0m
                 : issue.UnitPrice > 0
                     ? issue.UnitPrice
                     : EquipmentIssuanceRules.ResolveUnitPrice(item, issue.IssueType);
-            var lineTotal = isRental ? 0m : unitPrice * qty;
+            var lineTotal = isRental || isAdminDamage ? 0m : unitPrice * qty;
 
             rows.Add(new EquipmentIssueHistoryRow
             {
@@ -115,18 +137,22 @@ public sealed class GetEquipmentIssueHistoryQueryHandler(ITrainingCenterReposito
                 ReturnedAtLocal = issue.ReturnedAtUtc is null
                     ? null
                     : AzerbaijanTime.UtcToLocalDateTime(issue.ReturnedAtUtc.Value).ToString("yyyy-MM-dd HH:mm"),
-                ReturnedByStaffName = returnedBy
+                ReturnedByStaffName = returnedBy,
+                DamagedQuantity = isRental || isAdminDamage ? issue.DamagedQuantity : null
             });
         }
 
         var sales = rows.Where(x => x.IssueType == EquipmentIssueType.Sale).ToList();
         var rentals = rows.Where(x => x.IssueType == EquipmentIssueType.Rental).ToList();
+        var adminDamage = rows.Where(x => x.IssueType == EquipmentIssueType.AdminDamage).ToList();
 
         return new EquipmentIssueHistoryResult
         {
             Items = rows,
             SaleQuantityTotal = sales.Sum(x => x.Quantity),
             RentalQuantityTotal = rentals.Sum(x => x.Quantity),
+            DamagedQuantityTotal = rentals.Sum(x => x.DamagedQuantity ?? 0)
+                + adminDamage.Sum(x => x.DamagedQuantity ?? x.Quantity),
             SaleRevenueTotal = sales.Sum(x => x.LineTotal),
             RentalRevenueTotal = 0m,
             GrandTotal = sales.Sum(x => x.LineTotal)
@@ -137,6 +163,7 @@ public sealed class GetEquipmentIssueHistoryQueryHandler(ITrainingCenterReposito
     {
         EquipmentIssueType.Sale => "Satış",
         EquipmentIssueType.Rental => "İcarə (zal)",
+        EquipmentIssueType.AdminDamage => "Xarab",
         _ => type.ToString()
     };
 

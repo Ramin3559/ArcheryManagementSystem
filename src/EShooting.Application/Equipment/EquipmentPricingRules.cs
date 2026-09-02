@@ -8,7 +8,7 @@ public static class EquipmentPricingRules
 {
     public static decimal ResolveUnitPrice(EquipmentItem item, EquipmentIssueType issueType = EquipmentIssueType.Sale)
     {
-        if (issueType == EquipmentIssueType.Rental)
+        if (issueType is EquipmentIssueType.Rental or EquipmentIssueType.AdminDamage)
         {
             return 0m;
         }

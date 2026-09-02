@@ -196,11 +196,13 @@ public sealed class EShootingDbContext(DbContextOptions<EShootingDbContext> opti
             entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
             entity.Property(x => x.Quantity).HasDefaultValue(1);
             entity.Property(x => x.ReturnedAtUtc).IsRequired(false);
+            entity.Property(x => x.DamagedQuantity).IsRequired(false);
             entity.HasIndex(x => x.SessionId);
             entity.HasIndex(x => x.EquipmentItemId);
             entity.HasOne<TrainingSession>()
                 .WithMany()
                 .HasForeignKey(x => x.SessionId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<EquipmentItem>()
                 .WithMany()

@@ -80,7 +80,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
     public Task HardDeleteAthleteAsync(Guid athleteId, CancellationToken cancellationToken)
     {
         var sessionIds = _sessions.Where(x => x.AthleteId == athleteId).Select(x => x.Id).ToHashSet();
-        _sessionEquipmentIssues.RemoveAll(x => sessionIds.Contains(x.SessionId));
+        _sessionEquipmentIssues.RemoveAll(x => x.SessionId is Guid sid && sessionIds.Contains(sid));
         _sessions.RemoveAll(x => x.AthleteId == athleteId);
         _subscriptionSchedules.RemoveAll(x => x.AthleteId == athleteId);
 
@@ -612,6 +612,7 @@ internal sealed class InMemoryTrainingCenterRepository : ITrainingCenterReposito
         {
             existing.ReturnedAtUtc = issue.ReturnedAtUtc;
             existing.ReturnedByStaffId = issue.ReturnedByStaffId;
+            existing.DamagedQuantity = issue.DamagedQuantity;
         }
 
         return Task.CompletedTask;

@@ -6,7 +6,7 @@ namespace EShooting.Domain.Entities;
 public sealed class SessionEquipmentIssue
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid SessionId { get; set; }
+    public Guid? SessionId { get; set; }
     public Guid EquipmentItemId { get; set; }
     public EquipmentIssueType IssueType { get; set; }
     public int Quantity { get; set; } = 1;
@@ -14,6 +14,8 @@ public sealed class SessionEquipmentIssue
     public Guid? IssuedByStaffId { get; set; }
     public Guid? ReturnedByStaffId { get; set; }
     public DateTime? ReturnedAtUtc { get; set; }
+    /// <summary>Təhvil anında xarab ədəd. Köhnə sətirlərdə null — bilinmir.</summary>
+    public int? DamagedQuantity { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public decimal LineTotal => UnitPrice * Quantity;

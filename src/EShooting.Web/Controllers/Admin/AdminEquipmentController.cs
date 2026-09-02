@@ -57,7 +57,7 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
     {
         ApplyDefaultTodayFilter(filter);
         var result = await LoadHistoryAsync(filter, cancellationToken);
-        var bytes = AdminEquipmentHistoryExcelExporter.Export(result);
+        var bytes = AdminEquipmentHistoryExcelExporter.Export(result, filter.IssueType);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"avadanliq-jurnal-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
     }
@@ -196,7 +196,8 @@ public sealed class AdminEquipmentController(IMediator mediator) : Controller
                 to,
                 filter.EquipmentItemId,
                 filter.IssueType,
-                filter.IssuedByStaffId),
+                filter.IssuedByStaffId,
+                filter.RentalStatus),
             cancellationToken);
     }
 

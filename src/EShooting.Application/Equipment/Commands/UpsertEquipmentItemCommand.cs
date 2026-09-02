@@ -1,5 +1,6 @@
 using EShooting.Application.Common.Interfaces;
 using EShooting.Domain.Entities;
+using EShooting.Domain.Enums;
 using MediatR;
 
 namespace EShooting.Application.Equipment.Commands;
@@ -47,6 +48,10 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
             };
             EquipmentIssuanceRules.SyncDerivedFields(created);
             created = await repository.AddEquipmentItemAsync(created, cancellationToken);
+            if (damaged > 0)
+            {
+                await AddAdminDamageJournalAsync(created.Id, damaged, cancellationToken);
+            }
             return created.Id;
         }
 
@@ -71,7 +76,31 @@ public sealed class UpsertEquipmentItemCommandHandler(ITrainingCenterRepository 
         EquipmentIssuanceRules.SyncDerivedFields(existing);
 
         await repository.UpdateEquipmentItemAsync(existing, cancellationToken);
+        if (damagedDelta > 0)
+        {
+            await AddAdminDamageJournalAsync(existing.Id, damagedDelta, cancellationToken);
+        }
         return existing.Id;
+    }
+
+    private async Task AddAdminDamageJournalAsync(Guid equipmentItemId, int quantity, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        await repository.AddSessionEquipmentIssuesAsync(
+            [
+                new SessionEquipmentIssue
+                {
+                    EquipmentItemId = equipmentItemId,
+                    SessionId = null,
+                    IssueType = EquipmentIssueType.AdminDamage,
+                    Quantity = quantity,
+                    UnitPrice = 0,
+                    DamagedQuantity = quantity,
+                    ReturnedAtUtc = null,
+                    CreatedAtUtc = now
+                }
+            ],
+            cancellationToken);
     }
 
     private static void Validate(UpsertEquipmentItemCommand request)

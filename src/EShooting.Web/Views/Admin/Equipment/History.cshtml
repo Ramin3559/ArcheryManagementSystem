@@ -17,6 +17,18 @@
     .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-weight: 700; }
     .summary span { color: var(--muted); font-weight: 600; }
     .card.loading { opacity: 0.65; pointer-events: none; }
+    #equipmentHistoryTableCard .tableWrap {
+        overflow: auto;
+        max-height: 70vh;
+        max-width: 100%;
+    }
+    #equipmentHistoryTableCard .tableWrap thead th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #fff;
+        box-shadow: 0 1px 0 rgba(17, 24, 39, 0.12);
+    }
 </style>
 
 <div class="topbar">
@@ -66,6 +78,14 @@
                     }
                 </select>
             </label>
+            <label class="field" id="rentalStatusField">
+                <span>İcarə statusu</span>
+                <select name="rentalStatus">
+                    <option value="">Hamısı</option>
+                    <option value="pending">İcarədə</option>
+                    <option value="damaged">Xarab</option>
+                </select>
+            </label>
         </div>
         <div class="filter-actions">
             <button type="submit" class="btn btn-primary">Filtrlə</button>
@@ -74,26 +94,28 @@
 </div>
 
 <div class="summary card" id="equipmentHistorySummary">
-    <div>Satış: <span id="summarySale">—</span></div>
-    <div>İcarə: <span id="summaryRental">—</span></div>
-    <div>Cəmi: <span id="summaryGrand">—</span></div>
+    <div id="summarySaleWrap">Satış: <span id="summarySale">—</span></div>
+    <div id="summaryRentalWrap">İcarə: <span id="summaryRental">—</span></div>
+    <div id="summaryDamagedWrap">Xarab: <span id="summaryDamaged">—</span></div>
+    <div id="summaryGrandWrap">Cəmi: <span id="summaryGrand">—</span></div>
 </div>
 
 <div class="card" id="equipmentHistoryTableCard">
     <div class="tableWrap">
         <table>
             <thead>
-            <tr>
+            <tr id="equipmentHistoryHeadRow">
                 <th>Tarix</th>
                 <th>Avadanlıq</th>
                 <th>Növ</th>
                 <th>Say</th>
-                <th>Qiymət</th>
-                <th>Cəm</th>
+                <th data-col="price">Qiymət</th>
+                <th data-col="price">Cəm</th>
                 <th>Müştəri</th>
                 <th>Zolaq</th>
                 <th>Verən</th>
                 <th>Təhvil</th>
+                <th data-col="damaged">Xarab</th>
             </tr>
             </thead>
             <tbody id="equipmentHistoryTableBody">
@@ -102,10 +124,7 @@
             <tfoot id="equipmentHistoryTableFoot" style="display:none;">
             <tr style="font-weight:700; background:var(--surface-2, #f8fafc);">
                 <td colspan="3">Cəmi</td>
-                <td id="footQuantities">—</td>
-                <td></td>
-                <td id="footGrand">—</td>
-                <td colspan="4"></td>
+                <td id="footQuantities" colspan="8">—</td>
             </tr>
             </tfoot>
         </table>
@@ -127,8 +146,41 @@
             return v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " AZN";
         }
 
+        function selectedMode() {
+            var v = String(form?.querySelector('[name="issueType"]')?.value ?? "");
+            if (v === "0" || v === "Sale") return "sale";
+            if (v === "1" || v === "Rental") return "rental";
+            return "all";
+        }
+
+        function colCount() {
+            var mode = selectedMode();
+            if (mode === "sale") return 10;
+            if (mode === "rental") return 9;
+            return 11;
+        }
+
+        function applyColumnVisibility() {
+            var mode = selectedMode();
+            var showPrice = mode === "all" || mode === "sale";
+            var showDamaged = mode === "all" || mode === "rental";
+            document.querySelectorAll('#equipmentHistoryTableCard [data-col="price"]').forEach(function (el) {
+                el.style.display = showPrice ? "" : "none";
+            });
+            document.querySelectorAll('#equipmentHistoryTableCard [data-col="damaged"]').forEach(function (el) {
+                el.style.display = showDamaged ? "" : "none";
+            });
+            var statusField = document.getElementById("rentalStatusField");
+            if (statusField) statusField.style.display = mode === "sale" ? "none" : "";
+            var statusSel = form?.querySelector('[name="rentalStatus"]');
+            if (mode === "sale" && statusSel) statusSel.value = "";
+        }
+
         function qsFromForm() {
-            return new URLSearchParams(new FormData(form));
+            applyColumnVisibility();
+            var qs = new URLSearchParams(new FormData(form));
+            if (selectedMode() === "sale") qs.delete("rentalStatus");
+            return qs;
         }
 
         function syncExportUrl() {
@@ -138,6 +190,9 @@
         }
 
         function renderReturnCell(row) {
+            if (row.issueType === 2 || row.issueType === "AdminDamage") {
+                return "—";
+            }
             if (row.returnedAtLocal) {
                 var html = AFS.escapeHtml(row.returnedAtLocal);
                 if (row.returnedByStaffName) {
@@ -145,47 +200,84 @@
                 }
                 return html;
             }
-            if (row.issueType === 1) {
-                return '<span style="color:#b45309;">Gözləyir</span>';
+            if (row.issueType === 1 || row.issueType === "Rental") {
+                return '<span style="color:#b45309;">İcarədə</span>';
             }
             return "—";
         }
 
+        function renderDamagedCell(row) {
+            var isDamageRow = row.issueType === 1 || row.issueType === "Rental"
+                || row.issueType === 2 || row.issueType === "AdminDamage";
+            if (!isDamageRow) return "—";
+            if (row.damagedQuantity == null || row.damagedQuantity === "") return "—";
+            var n = Number(row.damagedQuantity);
+            if (!Number.isFinite(n)) return "—";
+            return n > 0
+                ? '<span style="color:#b91c1c;font-weight:800;">' + n + "</span>"
+                : "0";
+        }
+
         function updateSummary(result) {
+            var mode = selectedMode();
+            var saleWrap = document.getElementById("summarySaleWrap");
+            var rentalWrap = document.getElementById("summaryRentalWrap");
+            var damagedWrap = document.getElementById("summaryDamagedWrap");
+            var grandWrap = document.getElementById("summaryGrandWrap");
             var saleEl = document.getElementById("summarySale");
             var rentalEl = document.getElementById("summaryRental");
+            var damagedEl = document.getElementById("summaryDamaged");
             var grandEl = document.getElementById("summaryGrand");
             if (saleEl) saleEl.textContent = (result.saleQuantityTotal ?? 0) + " ədəd · " + formatPrice(result.saleRevenueTotal);
             if (rentalEl) rentalEl.textContent = (result.rentalQuantityTotal ?? 0) + " ədəd";
+            if (damagedEl) damagedEl.textContent = (result.damagedQuantityTotal ?? 0) + " ədəd";
             if (grandEl) grandEl.textContent = formatPrice(result.grandTotal);
+            if (saleWrap) saleWrap.style.display = mode === "rental" ? "none" : "";
+            if (rentalWrap) rentalWrap.style.display = mode === "sale" ? "none" : "";
+            if (damagedWrap) damagedWrap.style.display = mode === "sale" ? "none" : "";
+            if (grandWrap) grandWrap.style.display = mode === "rental" ? "none" : "";
             var footQuantities = document.getElementById("footQuantities");
-            var footGrand = document.getElementById("footGrand");
-            if (footQuantities) footQuantities.textContent = (result.saleQuantityTotal ?? 0) + " satış · " + (result.rentalQuantityTotal ?? 0) + " icarə";
-            if (footGrand) footGrand.textContent = formatPrice(result.grandTotal);
+            if (footQuantities) {
+                if (mode === "sale") footQuantities.textContent = (result.saleQuantityTotal ?? 0) + " satış · " + formatPrice(result.grandTotal);
+                else if (mode === "rental") footQuantities.textContent = (result.rentalQuantityTotal ?? 0) + " icarə · " + (result.damagedQuantityTotal ?? 0) + " xarab";
+                else footQuantities.textContent = (result.saleQuantityTotal ?? 0) + " satış · " + formatPrice(result.grandTotal) + " · " + (result.rentalQuantityTotal ?? 0) + " icarə · " + (result.damagedQuantityTotal ?? 0) + " xarab";
+            }
         }
 
         function renderRows(result) {
             var items = Array.isArray(result.items) ? result.items : [];
+            var mode = selectedMode();
+            var showPrice = mode === "all" || mode === "sale";
+            var showDamaged = mode === "all" || mode === "rental";
+            applyColumnVisibility();
             if (!tbody) return;
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="10">Seçilmiş filtr üzrə əməliyyat yoxdur.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="' + colCount() + '">Seçilmiş filtr üzrə əməliyyat yoxdur.</td></tr>';
                 if (tfoot) tfoot.style.display = "none";
                 return;
             }
             tbody.innerHTML = items.map(function (row) {
                 var lane = row.laneNumber != null ? String(row.laneNumber) : "—";
                 var cat = row.category ? '<br /><small style="color:var(--muted);">' + AFS.escapeHtml(row.category) + "</small>" : "";
+                var isUnpriced = row.issueType === 1 || row.issueType === "Rental"
+                    || row.issueType === 2 || row.issueType === "AdminDamage";
+                var priceHtml = showPrice
+                    ? (isUnpriced
+                        ? "<td data-col=\"price\">—</td><td data-col=\"price\">—</td>"
+                        : "<td data-col=\"price\">" + formatPrice(row.unitPrice) + "</td><td data-col=\"price\">" + formatPrice(row.lineTotal) + "</td>")
+                    : "";
+                var damagedHtml = showDamaged ? "<td data-col=\"damaged\">" + renderDamagedCell(row) + "</td>" : "";
                 return "<tr>"
                     + "<td>" + AFS.escapeHtml(row.issuedAtLocal) + "</td>"
                     + "<td><strong>" + AFS.escapeHtml(row.equipmentName) + "</strong>" + cat + "</td>"
                     + "<td>" + AFS.escapeHtml(row.issueTypeLabel) + "</td>"
                     + "<td>" + (row.quantity ?? 0) + "</td>"
-                    + "<td>" + formatPrice(row.unitPrice) + "</td>"
-                    + "<td>" + formatPrice(row.lineTotal) + "</td>"
+                    + priceHtml
                     + "<td>" + AFS.escapeHtml(row.customerName) + "</td>"
                     + "<td>" + lane + "</td>"
                     + "<td>" + AFS.escapeHtml(row.issuedByStaffName) + "</td>"
                     + "<td>" + renderReturnCell(row) + "</td>"
+                    + damagedHtml
                     + "</tr>";
             }).join("");
             if (tfoot) tfoot.style.display = "";
@@ -194,6 +286,7 @@
         async function loadHistory() {
             if (!form) return;
             AFS.save(STORAGE_KEY, form);
+            applyColumnVisibility();
             syncExportUrl();
             if (tableCard) tableCard.classList.add("loading");
             try {
@@ -203,7 +296,7 @@
                 updateSummary(data);
                 renderRows(data);
             } catch (e) {
-                if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="color:#b91c1c;">Jurnal yüklənmədi.</td></tr>';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="' + colCount() + '" style="color:#b91c1c;">Jurnal yüklənmədi.</td></tr>';
             } finally {
                 if (tableCard) tableCard.classList.remove("loading");
             }

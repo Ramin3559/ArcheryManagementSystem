@@ -20,4 +20,5 @@ public sealed class EquipmentHistoryFilter
     public Guid? EquipmentItemId { get; set; }
     public EShooting.Domain.Enums.EquipmentIssueType? IssueType { get; set; }
     public Guid? IssuedByStaffId { get; set; }
+    public string? RentalStatus { get; set; }
 }

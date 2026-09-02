@@ -229,7 +229,7 @@ public static class CustomerBillingService
             x => x.Id,
             x => EquipmentIssuanceRules.ResolveUnitPrice(x));
         return issues
-            .Where(i => sessionIds.Contains(i.SessionId))
+            .Where(i => i.SessionId is Guid sid && sessionIds.Contains(sid))
             .Sum(i => priceById.GetValueOrDefault(i.EquipmentItemId));
     }
 }

@@ -758,9 +758,14 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
                 continue;
             }
 
-            var damagedQty = ResolveDamagedQuantity(damagedLines, issue.SessionId, issue.EquipmentItemId, issue.Quantity);
+            if (issue.SessionId is not Guid issueSessionId)
+            {
+                continue;
+            }
+
+            var damagedQty = ResolveDamagedQuantity(damagedLines, issueSessionId, issue.EquipmentItemId, issue.Quantity);
             await ReturnRentalIssueAsync(issue, staffId, damagedQty, cancellationToken);
-            touchedSessionIds.Add(issue.SessionId);
+            touchedSessionIds.Add(issueSessionId);
         }
 
         foreach (var sessionId in sessionIds.Distinct())
@@ -776,7 +781,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
             {
                 foreach (var issue in issues)
                 {
-                    var damagedQty = ResolveDamagedQuantity(damagedLines, issue.SessionId, issue.EquipmentItemId, issue.Quantity);
+                    var damagedQty = ResolveDamagedQuantity(damagedLines, sessionId, issue.EquipmentItemId, issue.Quantity);
                     await ReturnRentalIssueAsync(issue, staffId, damagedQty, cancellationToken);
                 }
 
@@ -899,6 +904,7 @@ public sealed class SessionsController(IMediator mediator, ITrainingCenterReposi
 
         issue.ReturnedAtUtc = DateTime.UtcNow;
         issue.ReturnedByStaffId = returnedByStaffId;
+        issue.DamagedQuantity = damaged;
         await repository.UpdateSessionEquipmentIssueAsync(issue, cancellationToken);
     }
 

@@ -18,6 +18,8 @@ public sealed class EquipmentIssueHistoryRow
     public string IssuedByStaffName { get; init; } = string.Empty;
     public string? ReturnedAtLocal { get; init; }
     public string? ReturnedByStaffName { get; init; }
+    /// <summary>Təhvil anında yazılan xarab ədəd. Köhnə sətir / hələ qayıtmayıb: null.</summary>
+    public int? DamagedQuantity { get; init; }
 }
 
 public sealed class EquipmentIssueHistoryResult
@@ -25,6 +27,7 @@ public sealed class EquipmentIssueHistoryResult
     public IReadOnlyCollection<EquipmentIssueHistoryRow> Items { get; init; } = [];
     public int SaleQuantityTotal { get; init; }
     public int RentalQuantityTotal { get; init; }
+    public int DamagedQuantityTotal { get; init; }
     public decimal SaleRevenueTotal { get; init; }
     public decimal RentalRevenueTotal { get; init; }
     public decimal GrandTotal { get; init; }
