@@ -242,7 +242,7 @@ public sealed class AdminClubCardsController(IMediator mediator) : Controller
             $"{restored} kart bərpa olundu"
             + (skipped > 0 ? $", {skipped} keçildi" : "")
             + ".";
-        return RedirectToIndex(type, string.Join(", ", numbers));
+        return RedirectToIndex(type, ClubCardNumberRules.Compact(numbers));
     }
 
     private void ApplyAddResult(
@@ -271,21 +271,53 @@ public sealed class AdminClubCardsController(IMediator mediator) : Controller
 
         if (result.AlreadyExists.Count > 0)
         {
-            var labels = string.Join(", ", result.AlreadyExists.Select(n => $"«{ClubCardTypeLabels.FormatCard(type, n)}»"));
-            TempData["ClubCardError"] = result.AlreadyExists.Count == 1
-                ? $"Kart {labels} artıq bazada mövcuddur."
-                : $"Bu kartlar artıq bazada mövcuddur: {labels}.";
+            TempData["ClubCardError"] = FormatStockListMessage(
+                type,
+                result.AlreadyExists,
+                one: n => $"Kart {n} artıq bazada mövcuddur.",
+                few: list => $"Bu kartlar artıq bazada mövcuddur: {list}.",
+                many: (typeLabel, count, span) =>
+                    $"{typeLabel}: {count} kart artıq bazada mövcuddur ({span}).");
         }
 
         if (result.Deleted.Count > 0)
         {
-            var labels = string.Join(", ", result.Deleted.Select(n => $"«{ClubCardTypeLabels.FormatCard(type, n)}»"));
             TempData["ClubCardRestoreAskType"] = ((int)type).ToString();
-            TempData["ClubCardRestoreAskNumbers"] = string.Join(", ", result.Deleted);
-            TempData["ClubCardRestoreAskMsg"] = result.Deleted.Count == 1
-                ? $"Kart {labels} bazada var, amma mövcud deyil. Bərpa etmək istəyirsiniz?"
-                : $"Bu kartlar bazada var, amma mövcud deyil: {labels}. Bərpa etmək istəyirsiniz?";
+            TempData["ClubCardRestoreAskNumbers"] = ClubCardNumberRules.Compact(result.Deleted);
+            TempData["ClubCardRestoreAskMsg"] = FormatStockListMessage(
+                type,
+                result.Deleted,
+                one: n => $"Kart {n} bazada var, amma mövcud deyil. Bərpa etmək istəyirsiniz?",
+                few: list => $"Bu kartlar bazada var, amma mövcud deyil: {list}. Bərpa etmək istəyirsiniz?",
+                many: (typeLabel, count, span) =>
+                    $"{typeLabel}: {count} kart mövcud deyil ({span}). Bərpa etmək istəyirsiniz?");
         }
+    }
+
+    private const int NamedCardListLimit = 12;
+
+    private static string FormatStockListMessage(
+        ClubCardType type,
+        IReadOnlyList<string> numbers,
+        Func<string, string> one,
+        Func<string, string> few,
+        Func<string, int, string, string> many)
+    {
+        if (numbers.Count == 1)
+        {
+            return one($"«{ClubCardTypeLabels.FormatCard(type, numbers[0])}»");
+        }
+
+        if (numbers.Count <= NamedCardListLimit)
+        {
+            var labels = string.Join(", ", numbers.Select(n => $"«{ClubCardTypeLabels.FormatCard(type, n)}»"));
+            return few(labels);
+        }
+
+        return many(
+            ClubCardTypeLabels.Get(type),
+            numbers.Count,
+            ClubCardNumberRules.CompactForDisplay(numbers));
     }
 
     private RedirectToActionResult RedirectToIndex(ClubCardType? lookupType = null, string? lookupNumbers = null) =>

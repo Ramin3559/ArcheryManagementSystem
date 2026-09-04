@@ -1787,32 +1787,42 @@ public sealed class EShootingDbInitializer(EShootingDbContext dbContext)
 
     private async Task EnsureClubCardStockTableAsync(CancellationToken cancellationToken)
     {
+        // CREATE TABLE eyni batch-də compile olunur — cədvəl artıq varsa 2714 verir.
+        // Ona görə yaratma EXEC(...) ilə runtime-a keçirilir (ClubCardAssignments kimi).
         const string sql = """
-            IF OBJECT_ID(N'[dbo].[ClubCardStock]', N'U') IS NULL
+            IF OBJECT_ID(N'[dbo].[ClubCardStock]') IS NULL
             BEGIN
-                CREATE TABLE [dbo].[ClubCardStock](
-                    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-                    [CardType] INT NOT NULL,
-                    [CardNumber] NVARCHAR(40) NOT NULL,
-                    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0),
-                    [DeletedAtUtc] DATETIME2 NULL,
-                    [CreatedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_ClubCardStock_CreatedAtUtc] DEFAULT (GETUTCDATE()),
-                    CONSTRAINT [UX_ClubCardStock_Type_Number] UNIQUE ([CardType], [CardNumber])
-                );
-                CREATE INDEX [IX_ClubCardStock_CardType]
-                    ON [dbo].[ClubCardStock]([CardType]);
+                EXEC(N'
+                    CREATE TABLE [dbo].[ClubCardStock](
+                        [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        [CardType] INT NOT NULL,
+                        [CardNumber] NVARCHAR(40) NOT NULL,
+                        [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0),
+                        [DeletedAtUtc] DATETIME2 NULL,
+                        [CreatedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_ClubCardStock_CreatedAtUtc] DEFAULT (GETUTCDATE()),
+                        CONSTRAINT [UX_ClubCardStock_Type_Number] UNIQUE ([CardType], [CardNumber])
+                    );
+                    CREATE INDEX [IX_ClubCardStock_CardType]
+                        ON [dbo].[ClubCardStock]([CardType]);
+                ');
             END
 
-            IF COL_LENGTH(N'[dbo].[ClubCardStock]', N'IsDeleted') IS NULL
+            IF OBJECT_ID(N'[dbo].[ClubCardStock]') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ClubCardStock]', N'IsDeleted') IS NULL
             BEGIN
-                ALTER TABLE [dbo].[ClubCardStock]
-                    ADD [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0);
+                EXEC(N'
+                    ALTER TABLE [dbo].[ClubCardStock]
+                        ADD [IsDeleted] BIT NOT NULL CONSTRAINT [DF_ClubCardStock_IsDeleted] DEFAULT (0);
+                ');
             END
 
-            IF COL_LENGTH(N'[dbo].[ClubCardStock]', N'DeletedAtUtc') IS NULL
+            IF OBJECT_ID(N'[dbo].[ClubCardStock]') IS NOT NULL
+               AND COL_LENGTH(N'[dbo].[ClubCardStock]', N'DeletedAtUtc') IS NULL
             BEGIN
-                ALTER TABLE [dbo].[ClubCardStock]
-                    ADD [DeletedAtUtc] DATETIME2 NULL;
+                EXEC(N'
+                    ALTER TABLE [dbo].[ClubCardStock]
+                        ADD [DeletedAtUtc] DATETIME2 NULL;
+                ');
             END
             """;
         await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
