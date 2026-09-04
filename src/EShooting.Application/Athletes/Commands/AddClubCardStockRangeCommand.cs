@@ -11,7 +11,10 @@ public sealed record AddClubCardStockRangeCommand(
     int FromNumber,
     int ToNumber) : IRequest<AddClubCardStockRangeResult>;
 
-public sealed record AddClubCardStockRangeResult(int Added, int Skipped);
+public sealed record AddClubCardStockRangeResult(
+    int Added,
+    IReadOnlyList<string> AlreadyExists,
+    IReadOnlyList<string> Deleted);
 
 public sealed class AddClubCardStockRangeCommandHandler(ITrainingCenterRepository repository)
     : IRequestHandler<AddClubCardStockRangeCommand, AddClubCardStockRangeResult>
@@ -25,27 +28,52 @@ public sealed class AddClubCardStockRangeCommandHandler(ITrainingCenterRepositor
             throw new InvalidOperationException(error);
         }
 
-        var existing = (await repository.GetClubCardStockNumbersAsync(request.CardType, cancellationToken))
-            .Select(n => ClubCardNumberRules.Normalize(n) ?? n.Trim())
-            .ToHashSet(StringComparer.Ordinal);
-        var toAdd = new List<ClubCardStock>();
-        var skipped = 0;
-        for (var n = request.FromNumber; n <= request.ToNumber; n++)
+        var byNumber = new Dictionary<string, ClubCardStock>(StringComparer.Ordinal);
+        foreach (var row in await repository.GetClubCardStockAsync(cancellationToken))
         {
-            var num = ClubCardNumberRules.Format(n);
-            if (existing.Contains(num))
+            if (row.CardType != request.CardType)
             {
-                skipped++;
                 continue;
             }
 
-            toAdd.Add(new ClubCardStock
+            var key = ClubCardNumberRules.Normalize(row.CardNumber) ?? row.CardNumber.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            byNumber[key] = row;
+        }
+
+        var toAdd = new List<ClubCardStock>();
+        var alreadyExists = new List<string>();
+        var deleted = new List<string>();
+        for (var n = request.FromNumber; n <= request.ToNumber; n++)
+        {
+            var num = ClubCardNumberRules.Format(n);
+            var key = ClubCardNumberRules.Normalize(num) ?? num;
+            if (byNumber.TryGetValue(key, out var existing))
+            {
+                if (existing.IsDeleted)
+                {
+                    deleted.Add(num);
+                }
+                else
+                {
+                    alreadyExists.Add(num);
+                }
+
+                continue;
+            }
+
+            var stock = new ClubCardStock
             {
                 CardType = request.CardType,
                 CardNumber = num,
                 CreatedAtUtc = DateTime.UtcNow
-            });
-            existing.Add(num);
+            };
+            toAdd.Add(stock);
+            byNumber[key] = stock;
         }
 
         if (toAdd.Count > 0)
@@ -53,6 +81,6 @@ public sealed class AddClubCardStockRangeCommandHandler(ITrainingCenterRepositor
             await repository.AddClubCardStockRangeAsync(toAdd, cancellationToken);
         }
 
-        return new AddClubCardStockRangeResult(toAdd.Count, skipped);
+        return new AddClubCardStockRangeResult(toAdd.Count, alreadyExists, deleted);
     }
 }

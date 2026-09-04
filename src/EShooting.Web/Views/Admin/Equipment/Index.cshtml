@@ -12,16 +12,16 @@
     .notice { padding: 10px 12px; border-radius: 12px; margin-bottom: 12px; font-weight: 700; }
     .notice--ok { background: #ecfdf5; color: #166534; border: 1px solid rgba(22,163,74,0.25); }
     .notice--err { background: #fef2f2; color: #991b1b; border: 1px solid rgba(220,38,38,0.25); }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .actions { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
 </style>
 
 <div class="topbar">
     <h1>Avadanlıqlar</h1>
     <div style="display:flex; align-items:center; gap:10px;">
-        <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə">Yenilə</button>
-        <a class="btn btn-excel" href="/admin/equipment/export.xlsx">Excel-ə çıxart</a>
-        <a class="btn" href="/admin/equipment/history">Jurnal / hesabat</a>
-        <a class="btn btn-primary" href="/admin/equipment/new">+ Yeni avadanlıq</a>
+        <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə"><svg class="btn-ico" aria-hidden="true"><use href="#ai-refresh"/></svg><span class="btn-label">Yenilə</span></button>
+        <a class="btn btn-excel" href="/admin/equipment/export.xlsx"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
+        <a class="btn" href="/admin/equipment/history"><svg class="btn-ico" aria-hidden="true"><use href="#ai-journal"/></svg><span class="btn-label">Jurnal / hesabat</span></a>
+        <a class="btn btn-primary" href="/admin/equipment/new"><svg class="btn-ico" aria-hidden="true"><use href="#ai-plus"/></svg><span class="btn-label">Yeni avadanlıq</span></a>
     </div>
 </div>
 
@@ -72,10 +72,10 @@
                         <td>@EquipmentDisplayHelper.FormatUnitPrice(item)</td>
                         <td>
                             <div class="actions">
-                                <a class="btn btn-primary" href="/admin/equipment/@item.Id/edit">Dəyişdir</a>
+                                <a class="btn btn-primary" href="/admin/equipment/@item.Id/edit"><svg class="btn-ico" aria-hidden="true"><use href="#ai-edit"/></svg><span class="btn-label">Dəyişdir</span></a>
                                 <form method="post" action="/admin/equipment/@item.Id/delete" style="margin:0;" onsubmit="return confirm('Silinsin?');">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-danger">Sil</button>
+                                    <button type="submit" class="btn btn-danger"><svg class="btn-ico" aria-hidden="true"><use href="#ai-trash"/></svg><span class="btn-label">Sil</span></button>
                                 </form>
                             </div>
                         </td>

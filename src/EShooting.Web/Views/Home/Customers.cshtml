@@ -126,6 +126,12 @@
             transition: transform .15s ease, box-shadow .15s ease;
         }
         .btn:hover { transform: translateY(-1px); }
+        .btn-ico {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            display: block;
+        }
         .btn-primary {
             border: none;
             color: #fff;
@@ -227,8 +233,8 @@
             <p class="header__sub">@staffName</p>
         </div>
         <div class="header__actions">
-            <a href="/qeydiyyat" class="btn btn-ghost">Geri qayıt</a>
-            <button type="button" class="btn btn-excel" id="exportBtn">Excel</button>
+            <a href="/qeydiyyat" class="btn btn-ghost"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span class="btn-label">Geri qayıt</span></a>
+            <button type="button" class="btn btn-excel" id="exportBtn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span class="btn-label">Excel</span></button>
         </div>
     </header>
 

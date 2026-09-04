@@ -97,10 +97,7 @@ public sealed class AdminClubCardsController(IMediator mediator) : Controller
                 }
 
                 var result = await mediator.Send(new AddClubCardStockRangeCommand(type, n, n), cancellationToken);
-                var label = ClubCardTypeLabels.FormatCard(type, ClubCardNumberRules.Format(n));
-                TempData["ClubCardNotice"] = result.Added > 0
-                    ? $"Əlavə olundu: {label}."
-                    : $"Kart «{label}» artıq var (keçildi).";
+                ApplyAddResult(type, result, singleLabel: ClubCardTypeLabels.FormatCard(type, ClubCardNumberRules.Format(n)));
             }
             else
             {
@@ -111,10 +108,7 @@ public sealed class AdminClubCardsController(IMediator mediator) : Controller
                 }
 
                 var result = await mediator.Send(new AddClubCardStockRangeCommand(type, from, to), cancellationToken);
-                var typeLabel = ClubCardTypeLabels.Get(type);
-                TempData["ClubCardNotice"] =
-                    $"{typeLabel}: {ClubCardNumberRules.Format(from)}–{ClubCardNumberRules.Format(to)} → {result.Added} əlavə olundu"
-                    + (result.Skipped > 0 ? $", {result.Skipped} artıq var idi (keçildi)." : ".");
+                ApplyAddResult(type, result, rangeFrom: from, rangeTo: to);
             }
         }
         catch (InvalidOperationException ex)
@@ -249,6 +243,49 @@ public sealed class AdminClubCardsController(IMediator mediator) : Controller
             + (skipped > 0 ? $", {skipped} keçildi" : "")
             + ".";
         return RedirectToIndex(type, string.Join(", ", numbers));
+    }
+
+    private void ApplyAddResult(
+        ClubCardType type,
+        AddClubCardStockRangeResult result,
+        string? singleLabel = null,
+        int? rangeFrom = null,
+        int? rangeTo = null)
+    {
+        if (result.Added > 0)
+        {
+            if (!string.IsNullOrWhiteSpace(singleLabel))
+            {
+                TempData["ClubCardNotice"] = $"Əlavə olundu: {singleLabel}.";
+            }
+            else if (rangeFrom is int from && rangeTo is int to)
+            {
+                TempData["ClubCardNotice"] =
+                    $"{ClubCardTypeLabels.Get(type)}: {ClubCardNumberRules.Format(from)}–{ClubCardNumberRules.Format(to)} → {result.Added} əlavə olundu.";
+            }
+            else
+            {
+                TempData["ClubCardNotice"] = $"{result.Added} kart əlavə olundu.";
+            }
+        }
+
+        if (result.AlreadyExists.Count > 0)
+        {
+            var labels = string.Join(", ", result.AlreadyExists.Select(n => $"«{ClubCardTypeLabels.FormatCard(type, n)}»"));
+            TempData["ClubCardError"] = result.AlreadyExists.Count == 1
+                ? $"Kart {labels} artıq bazada mövcuddur."
+                : $"Bu kartlar artıq bazada mövcuddur: {labels}.";
+        }
+
+        if (result.Deleted.Count > 0)
+        {
+            var labels = string.Join(", ", result.Deleted.Select(n => $"«{ClubCardTypeLabels.FormatCard(type, n)}»"));
+            TempData["ClubCardRestoreAskType"] = ((int)type).ToString();
+            TempData["ClubCardRestoreAskNumbers"] = string.Join(", ", result.Deleted);
+            TempData["ClubCardRestoreAskMsg"] = result.Deleted.Count == 1
+                ? $"Kart {labels} bazada var, amma mövcud deyil. Bərpa etmək istəyirsiniz?"
+                : $"Bu kartlar bazada var, amma mövcud deyil: {labels}. Bərpa etmək istəyirsiniz?";
+        }
     }
 
     private RedirectToActionResult RedirectToIndex(ClubCardType? lookupType = null, string? lookupNumbers = null) =>

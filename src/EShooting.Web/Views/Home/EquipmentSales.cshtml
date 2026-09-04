@@ -66,6 +66,13 @@
             cursor: pointer;
             box-shadow: 0 6px 14px rgba(13, 24, 48, 0.06);
             text-decoration: none;
+            gap: 8px;
+        }
+        .btn-ico {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            display: block;
         }
         .btn-primary { background: var(--primary); border-color: rgba(0,0,0,0); color: #fff; }
         .btn-danger { background: rgba(182,56,82,0.12); border-color: rgba(182,56,82,0.35); color: var(--danger); }
@@ -182,7 +189,7 @@
             <div class="header__sub">İşçi: @staffName</div>
         </div>
         <div class="header__actions">
-            <a class="btn" href="/qeydiyyat">← Qeydiyyat</a>
+            <a class="btn" href="/qeydiyyat"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span class="btn-label">Qeydiyyat</span></a>
         </div>
     </div>
 
@@ -231,7 +238,7 @@
 
         <div class="totals" style="margin-top:12px;">
             <div class="big" id="saleTotalLabel">Cəm: 0.00 AZN</div>
-            <button type="button" class="btn btn-primary" id="saleSubmitBtn">Sat</button>
+            <button type="button" class="btn btn-primary" id="saleSubmitBtn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span class="btn-label">Sat</span></button>
         </div>
     </section>
 

@@ -8,7 +8,7 @@
 
 <div class="topbar">
     <h1>@ViewData["Title"]</h1>
-    <a class="btn" href="/admin/positions">← Siyahı</a>
+    <a class="btn" href="/admin/positions"><svg class="btn-ico" aria-hidden="true"><use href="#ai-back"/></svg><span class="btn-label">Siyahı</span></a>
 </div>
 
 <div class="card">
@@ -30,7 +30,7 @@
             </div>
         </div>
         <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
-            <button type="submit" class="btn btn-primary">@(isEdit ? "Yadda saxla" : "Yarat")</button>
+            <button type="submit" class="btn btn-primary"><svg class="btn-ico" aria-hidden="true"><use href="#@(isEdit ? "ai-check" : "ai-plus")"/></svg><span class="btn-label">@(isEdit ? "Yadda saxla" : "Yarat")</span></button>
         </div>
     </form>
 </div>

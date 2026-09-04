@@ -109,6 +109,9 @@
     }
     .panel-head .section-title { margin: 0; }
     .btn-excel-sm {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         border-radius: 10px;
         border: 1px solid rgba(22,163,74,0.35);
         background: var(--green);
@@ -120,6 +123,7 @@
         text-decoration: none;
         white-space: nowrap;
     }
+    .btn-excel-sm .btn-ico { width: 13px; height: 13px; }
     .tableWrap.tableWrap--compact {
         overflow: auto;
         max-height: 70vh;
@@ -194,7 +198,7 @@
     <div class="topbar">
         <h1>Hesabat</h1>
         <div class="top-actions">
-            <button type="button" class="btn" id="analyticsRefreshBtn">Yenilə</button>
+            <button type="button" class="btn" id="analyticsRefreshBtn"><svg class="btn-ico" aria-hidden="true"><use href="#ai-refresh"/></svg><span class="btn-label">Yenilə</span></button>
         </div>
     </div>
 
@@ -220,14 +224,14 @@
             <label>Bitmə tarixi
                 <input type="date" id="analyticsToDate" />
             </label>
-            <button type="button" class="btn btn-primary" id="analyticsRangeApply">Tətbiq et</button>
+            <button type="button" class="btn btn-primary" id="analyticsRangeApply"><svg class="btn-ico" aria-hidden="true"><use href="#ai-check"/></svg><span class="btn-label">Tətbiq et</span></button>
         </div>
 
         <div class="range-controls" id="analyticsMonthRow" style="display:none;">
             <label>Ay seç
                 <input type="month" id="analyticsMonthPicker" />
             </label>
-            <button type="button" class="btn btn-primary" id="analyticsMonthApply">Tətbiq et</button>
+            <button type="button" class="btn btn-primary" id="analyticsMonthApply"><svg class="btn-ico" aria-hidden="true"><use href="#ai-check"/></svg><span class="btn-label">Tətbiq et</span></button>
         </div>
     </div>
 </div>
@@ -235,7 +239,7 @@
 <div class="card hesabat-panel">
     <div class="panel-head">
         <div class="section-title">Maliyyə icmalı</div>
-        <a class="btn-excel-sm panel-export" data-section="finance" href="/admin/analytics/export.xlsx?mode=today&amp;section=finance">Excel-ə çıxart</a>
+        <a class="btn-excel-sm panel-export" data-section="finance" href="/admin/analytics/export.xlsx?mode=today&amp;section=finance"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
     </div>
     <div class="tableWrap tableWrap--compact">
         <table class="hesabat-daily finance-compare-table">
@@ -294,7 +298,7 @@
 <div class="card hesabat-panel">
     <div class="panel-head">
         <div class="section-title">Müştəri detalları (ödəniş üzrə)</div>
-        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="customerDetailsBody" data-sheet-name="Müştəri detalları">Excel-ə çıxart</a>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="customerDetailsBody" data-sheet-name="Müştəri detalları"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
     </div>
     <div class="tableWrap tableWrap--compact">
         <table class="hesabat-daily hesabat-filter-table">
@@ -361,7 +365,7 @@
 <div class="card hesabat-panel">
     <div class="panel-head">
         <div class="section-title">Günlük icmal</div>
-        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="dailyBreakdownBody" data-sheet-name="Günlük icmal">Excel-ə çıxart</a>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="dailyBreakdownBody" data-sheet-name="Günlük icmal"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
     </div>
     <div class="tableWrap tableWrap--compact">
         <table class="hesabat-daily hesabat-filter-table">
@@ -453,7 +457,7 @@
             <div class="section-title">Avadanlıq hesabatı (satış üzrə)</div>
             <p class="hesabat-sub">Hər satış sətir üzrə: cari stok, zaldə, satışda, ödəniş və satıcı.</p>
         </div>
-        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="equipmentBreakdownBody" data-sheet-name="Avadanlıq hesabatı">Excel-ə çıxart</a>
+        <a class="btn-excel-sm panel-export-table" href="#" data-export-tbody="equipmentBreakdownBody" data-sheet-name="Avadanlıq hesabatı"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
     </div>
     <div class="tableWrap tableWrap--compact tableWrap--wide">
         <table class="hesabat-daily hesabat-filter-table">
@@ -767,7 +771,7 @@
             const refreshBtn = document.getElementById("analyticsRefreshBtn");
             if (refreshBtn) {
                 refreshBtn.disabled = true;
-                refreshBtn.textContent = "Yenilənir...";
+                window.setAdminButtonLabel(refreshBtn, "Yenilənir...");
             }
 
             const params = buildQueryParams();
@@ -792,7 +796,7 @@
                     analyticsLoading = false;
                     if (refreshBtn) {
                         refreshBtn.disabled = false;
-                        refreshBtn.textContent = "Yenilə";
+                        window.setAdminButtonLabel(refreshBtn, "Yenilə");
                     }
                 });
         }

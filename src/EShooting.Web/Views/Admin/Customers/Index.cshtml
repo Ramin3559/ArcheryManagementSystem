@@ -30,7 +30,7 @@
     }
     .card.loading { opacity: 0.65; pointer-events: none; }
     .cust-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-    .cust-actions .btn { padding: 4px 10px; font-size: 12px; }
+    .cust-actions .btn { padding: 4px 10px; font-size: 12px; min-height: 32px; }
     .row-deleted td { opacity: 0.78; }
     #customersTableCard .tableWrap {
         overflow: auto;
@@ -88,7 +88,7 @@
 
 <div class="topbar">
     <h1>Müştərilər</h1>
-    <a class="btn btn-excel" id="customersExportBtn" href="/admin/customers/export.xlsx">Excel-ə çıxart</a>
+    <a class="btn btn-excel" id="customersExportBtn" href="/admin/customers/export.xlsx"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
 </div>
 
 <form id="customersAntiForgery" style="display:none;">@Html.AntiForgeryToken()</form>
@@ -162,7 +162,7 @@
             </div>
         </div>
         <div class="filter-actions">
-            <button class="btn btn-primary" type="submit">Axtar</button>
+            <button class="btn btn-primary" type="submit"><svg class="btn-ico" aria-hidden="true"><use href="#ai-search"/></svg><span class="btn-label">Axtar</span></button>
         </div>
     </form>
 </div>
@@ -203,7 +203,7 @@
                 <div style="font-weight:900; color:#1a2650; font-size:18px;">Paket ödənişləri</div>
                 <div id="packagePaymentsAthlete" style="color:var(--muted); font-size:13px; margin-top:4px;"></div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="packagePaymentsCloseBtn">Bağla</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="packagePaymentsCloseBtn"><svg class="btn-ico" aria-hidden="true"><use href="#ai-x"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div class="tableWrap" style="margin-top:12px;">
             <table>
@@ -251,8 +251,8 @@
             </div>
             <p id="editPaymentHint" class="statLabel" style="margin-top:8px;">Ödəniləcək = qiymət − endirim. Nağd və ya karta yazın — digəri avtomatik dolacaq.</p>
             <div class="filter-actions">
-                <button type="button" class="btn btn-primary" id="editPaymentSaveBtn">Yadda saxla</button>
-                <button type="button" class="btn btn-ghost" id="editPaymentDeleteBtn" style="color:#b91c1c;">Sil</button>
+                <button type="button" class="btn btn-primary" id="editPaymentSaveBtn"><svg class="btn-ico" aria-hidden="true"><use href="#ai-check"/></svg><span class="btn-label">Yadda saxla</span></button>
+                <button type="button" class="btn btn-ghost" id="editPaymentDeleteBtn" style="color:#b91c1c;"><svg class="btn-ico" aria-hidden="true"><use href="#ai-trash"/></svg><span class="btn-label">Sil</span></button>
             </div>
         </div>
         <div id="packageChangePanel" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
@@ -314,8 +314,8 @@
             </div>
             <p id="changePackagePreviewHint" class="statLabel" style="margin-top:8px;">Yeni paket seçin — ödəniş fərqi burada görünəcək.</p>
             <div class="filter-actions" style="margin-top:10px;">
-                <button type="button" class="btn btn-primary" id="changePackageSaveBtn">Paketi dəyiş</button>
-                <button type="button" class="btn btn-ghost" id="changePackagePreviewBtn">Fərqi hesabla</button>
+                <button type="button" class="btn btn-primary" id="changePackageSaveBtn"><svg class="btn-ico" aria-hidden="true"><use href="#ai-package"/></svg><span class="btn-label">Paketi dəyiş</span></button>
+                <button type="button" class="btn btn-ghost" id="changePackagePreviewBtn"><svg class="btn-ico" aria-hidden="true"><use href="#ai-calc"/></svg><span class="btn-label">Fərqi hesabla</span></button>
             </div>
         </div>
     </div>
@@ -439,17 +439,21 @@
             return "—";
         }
 
+        function adminBtnIco(id) {
+            return '<svg class="btn-ico" aria-hidden="true"><use href="#' + id + '"></use></svg>';
+        }
+
         function actionCell(x) {
             if (x.isActive) {
                 return '<div class="cust-actions"><button type="button" class="btn btn-danger" data-action="delete" data-id="'
-                    + AFS.escapeHtml(x.id) + '">Sil</button></div>';
+                    + AFS.escapeHtml(x.id) + '">' + adminBtnIco("ai-trash") + '<span class="btn-label">Sil</span></button></div>';
             }
             return '<div class="cust-actions">'
                 + '<button type="button" class="btn btn-primary" data-action="restore" data-id="'
-                + AFS.escapeHtml(x.id) + '">Bərpa</button>'
+                + AFS.escapeHtml(x.id) + '">' + adminBtnIco("ai-undo") + '<span class="btn-label">Bərpa</span></button>'
                 + '<button type="button" class="btn btn-danger" data-action="hard-delete" data-id="'
                 + AFS.escapeHtml(x.id) + '" data-name="' + AFS.escapeHtml(x.fullName || "")
-                + '">Birdəfəlik sil</button>'
+                + '">' + adminBtnIco("ai-trash") + '<span class="btn-label">Birdəfəlik sil</span></button>'
                 + '</div>';
         }
 

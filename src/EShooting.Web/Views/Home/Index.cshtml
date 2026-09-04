@@ -219,7 +219,7 @@
 
         .reception-search-block {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) max-content;
+            grid-template-columns: minmax(0, 1fr) auto;
             grid-template-rows: auto auto;
             gap: 10px;
             align-items: stretch;
@@ -230,27 +230,36 @@
             grid-column: 1;
             grid-row: 1;
             display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
+            align-items: stretch;
             min-width: 0;
         }
 
         .reception-search-main .input-search {
-            flex: 1 1 220px;
+            flex: 1 1 auto;
+            width: 100%;
+            min-width: 0;
+            height: 42px;
+            box-sizing: border-box;
+            padding: 8px 14px;
         }
 
-        .reception-side-actions {
+        .reception-action-grid {
             grid-column: 2;
             grid-row: 1 / span 2;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
             gap: 10px;
             width: max-content;
             min-width: 0;
         }
 
-        .reception-side-actions .btn {
+        .reception-action-add { grid-column: 1; grid-row: 1; }
+        .reception-action-customers { grid-column: 2; grid-row: 1; }
+        .reception-action-sale { grid-column: 1; grid-row: 2; }
+        .reception-action-cards { grid-column: 2; grid-row: 2; }
+
+        .reception-action-grid .btn {
             width: 100%;
             min-height: 42px;
             height: 42px;
@@ -258,8 +267,15 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 10px 12px;
+            padding: 10px 14px;
             white-space: nowrap;
+            gap: 8px;
+        }
+
+        .reception-action-grid .btn[hidden] {
+            visibility: hidden;
+            display: inline-flex;
+            pointer-events: none;
         }
 
         .reception-search-second {
@@ -269,6 +285,18 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: center;
+        }
+
+        @@media (max-width: 700px) {
+            .reception-search-block {
+                grid-template-columns: 1fr;
+            }
+
+            .reception-action-grid {
+                grid-column: 1;
+                grid-row: 3;
+                width: 100%;
+            }
         }
 
         input,
@@ -310,6 +338,26 @@
             min-height: 42px;
             border-radius: 12px;
             letter-spacing: 0.01em;
+        }
+
+        .btn:has(.btn-ico) {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-ico {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            display: block;
+        }
+
+        .btn-sm .btn-ico,
+        .btn-planned .btn-ico {
+            width: 15px;
+            height: 15px;
         }
 
         a.btn {
@@ -396,6 +444,40 @@
         .btn-success:hover {
             border-color: rgba(18, 153, 104, 0.72);
             background: rgba(18, 153, 104, 0.24);
+        }
+
+        button.btn.btn-return {
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #f59e0b, #d97706);
+            box-shadow: 0 8px 18px rgba(217, 119, 6, 0.28);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        button.btn.btn-return:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+
+        button.btn.btn-keep {
+            border: none;
+            color: #fff;
+            background: linear-gradient(125deg, #16a34a, #15803d);
+            box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        button.btn.btn-keep:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
         }
 
         .btn-sm {
@@ -491,13 +573,6 @@
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 12px;
-        }
-
-        @@media (min-width: 1101px) {
-            .lane-grid > .lane-card[data-lane-number="6"],
-            .lane-grid > .lane-card[data-lane-number="9"] {
-                grid-column-start: 1;
-            }
         }
 
         @@media (max-width: 1100px) {
@@ -1132,6 +1207,19 @@
             color: #3a4668;
         }
 
+        .staff-badge__icon {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            color: #4f46e5;
+        }
+
+        .staff-badge__icon svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
         .staff-badge__name {
             color: #2d3260;
         }
@@ -1461,16 +1549,24 @@
         </div>
         <div class="header-actions">
             <div class="staff-badge" title="Daxil olan işçi">
+                <span class="staff-badge__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z" />
+                        <path d="M3 11a9 9 0 0 1 18 0" />
+                        <path d="M21 11v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z" />
+                        <path d="M21 16v2a4 4 0 0 1-4 4h-5" />
+                    </svg>
+                </span>
                 <span class="staff-badge__name">@staffName</span>
             </div>
-            <button id="refreshReceptionBtn" type="button" class="btn btn-ghost btn-sm" title="Qeydiyyat səhifəsini yenilə">Yenilə</button>
+            <button id="refreshReceptionBtn" type="button" class="btn btn-ghost btn-sm" title="Qeydiyyat səhifəsini yenilə"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span class="btn-label">Yenilə</span></button>
             <div class="header-clock" title="Cari tarix və saat">
                 <span class="header-clock__label" id="wallDate">--.--.----</span>
                 <span class="header-clock__value" id="wallClock">--:--:--</span>
             </div>
             <form method="post" action="/resepsiya/cixis" class="logout-form">
                 @Html.AntiForgeryToken()
-                <button type="submit" class="btn btn-ghost btn-sm">Çıxış</button>
+                <button type="submit" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg><span class="btn-label">Çıxış</span></button>
             </form>
         </div>
     </header>
@@ -1513,7 +1609,7 @@
                     Zolaq @i
                 </span>
             }
-            <button id="plannedSessionsBtn" type="button" class="btn btn-sm btn-planned tv-links__planned" title="Bu gün üçün planlaşdırılan sessiyalar">Planlaşdırılanlar</button>
+            <button id="plannedSessionsBtn" type="button" class="btn btn-sm btn-planned tv-links__planned" title="Bu gün üçün planlaşdırılan sessiyalar"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><span class="btn-label">Planlaşdırılanlar</span></button>
         </div>
     </section>
 
@@ -1527,16 +1623,6 @@
                            type="search"
                            placeholder="Ad, telefon, email və ya Ş/V ilə axtarın…"
                            autocomplete="off" />
-                    <button id="addCustomerBtn" type="button" class="btn btn-primary" @(canRegisterCustomers ? "" : "disabled hidden")>Müştəri əlavə et</button>
-                    @if (canViewCustomers) {
-                        <a href="/qeydiyyat/musteriler" class="btn btn-secondary">Müştərilər</a>
-                    }
-                </div>
-                <div class="reception-side-actions">
-                    @if (canSellEquipment) {
-                        <a href="/qeydiyyat/avadanliq-satis" class="btn btn-secondary">Avadanlıq satışı</a>
-                    }
-                    <button id="clubCardsListBtn" type="button" class="btn btn-secondary">Müştəridə olan kartlar</button>
                 </div>
                 <div class="reception-search-second" id="groupModeRow">
                     <label class="checkbox-chip" title="Eyni zolaqda bir neçə nəfər">
@@ -1547,6 +1633,16 @@
                         <input type="checkbox" id="bookingComplimentary" />
                         Ödənişsiz
                     </label>
+                </div>
+                <div class="reception-action-grid">
+                    <button id="addCustomerBtn" type="button" class="btn btn-primary reception-action-add" @(canRegisterCustomers ? "" : "disabled hidden")><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg><span class="btn-label">Müştəri əlavə et</span></button>
+                    @if (canViewCustomers) {
+                        <a href="/qeydiyyat/musteriler" class="btn btn-secondary reception-action-customers"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="btn-label">Müştərilər</span></a>
+                    }
+                    @if (canSellEquipment) {
+                        <a href="/qeydiyyat/avadanliq-satis" class="btn btn-secondary reception-action-sale"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span class="btn-label">Avadanlıq satışı</span></a>
+                    }
+                    <button id="clubCardsListBtn" type="button" class="btn btn-secondary reception-action-cards"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg><span class="btn-label">Müştəridə olan kartlar</span></button>
                 </div>
             </div>
             <div class="notice" id="receptionLookupHint" style="display:none;"></div>
@@ -1563,7 +1659,7 @@
             <div id="groupBookingPanel" class="group-booking-panel" style="display:none;">
                 <div class="group-booking-panel__head">
                     <h3 class="group-booking-panel__title">Qrup siyahısı</h3>
-                    <button id="clearGroupMembersBtn" type="button" class="btn btn-ghost btn-sm">Qrupu təmizlə</button>
+                    <button id="clearGroupMembersBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 2.5 9 13"/><path d="M6 16h7"/><path d="M9 13c-3 1-5 4-4 6 1.5 3 6 1.5 8-2"/></svg><span class="btn-label">Qrupu təmizlə</span></button>
                 </div>
                 <p class="section-hint" style="display:none;"></p>
                 <div id="groupAddRow" class="row" style="margin-top:8px; display:none;">
@@ -1718,7 +1814,7 @@
                 </select>
                 <input id="clubCardNumber" placeholder="Kart nömrəsi" maxlength="40" autocomplete="off" list="clubCardNumberSuggestions" />
                 <datalist id="clubCardNumberSuggestions"></datalist>
-                <button id="scheduleBtn" type="button" class="btn btn-primary">Zolağa yaz</button>
+                <button id="scheduleBtn" type="button" class="btn btn-primary"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="btn-label">Zolağa yaz</span></button>
             </div>
             <div id="receptionWalkInBanner" class="notice" style="display:none; margin-top:8px; border-color:rgba(15,157,119,0.35); background:rgba(15,157,119,0.08); color:#0b6b52;"></div>
             <p id="clubCardStockHint" class="section-hint" style="margin:6px 0 0; display:none;"></p>
@@ -1812,7 +1908,7 @@
     <div style="max-width:900px; margin:0 auto; background:rgba(255,255,255,0.92); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:14px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:800; color:#1a2650;">Abunəni ləğv et</div>
-            <button id="cancelSubscriptionCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="cancelSubscriptionCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
             <input id="cancelSubscriptionSearch" placeholder="Axtar: ad / telefon / email / Ş/V" style="flex:1; min-width:240px;" />
@@ -1827,14 +1923,14 @@
     <div style="max-width:980px; margin:0 auto; background:rgba(255,255,255,0.94); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:14px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650;">Konflikt redaktə paneli</div>
-            <button id="subscriptionConflictCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="subscriptionConflictCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div class="notice" id="subscriptionConflictInfo" style="margin-top:10px;">
             Bəzi tarixlər doludur. Yalnız qırmızı olanlar üçün alternativ vaxt və ya zolaq seçin.
         </div>
         <div id="subscriptionConflictList" style="margin-top:10px; max-height:60vh; overflow:auto; border:1px solid rgba(41,55,89,0.15); border-radius:12px; background:#fff;"></div>
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
-            <button id="subscriptionConflictConfirmBtn" type="button" class="btn btn-primary" disabled>Təsdiqlə</button>
+            <button id="subscriptionConflictConfirmBtn" type="button" class="btn btn-primary" disabled><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Təsdiqlə</span></button>
         </div>
     </div>
 </div>
@@ -1844,7 +1940,7 @@
     <div class="customer-modal-panel" style="max-width:820px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
             <h3 class="customer-modal-title">Müştəridə olan kartlar</h3>
-            <button id="clubCardsModalCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="clubCardsModalCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <p id="clubCardsModalSummary" class="section-hint" style="margin-top:0;"></p>
         <div class="row" style="margin-bottom:10px;">
@@ -1886,7 +1982,7 @@
     <div class="customer-modal-panel">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
             <h3 class="customer-modal-title" id="customerModalTitle">Müştəri əlavə et</h3>
-            <button id="customerModalCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="customerModalCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <p class="section-hint" style="margin-top:0;">Məlumatları doldurun və təsdiqləyin. Sonra zolağa yazmaq üçün əsas ekrana qayıdın.</p>
         <div class="row">
@@ -1911,8 +2007,8 @@
             </label>
         </div>
         <div class="customer-modal-actions">
-            <button id="customerModalCancelBtn" type="button" class="btn btn-ghost">Ləğv et</button>
-            <button id="customerModalSaveBtn" type="button" class="btn btn-primary">Təsdiqlə və saxla</button>
+            <button id="customerModalCancelBtn" type="button" class="btn btn-ghost"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span class="btn-label">Ləğv et</span></button>
+            <button id="customerModalSaveBtn" type="button" class="btn btn-primary"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Təsdiqlə və saxla</span></button>
         </div>
     </div>
 </div>
@@ -1923,7 +2019,7 @@
     <div id="infoModalPanel" style="max-width:920px; margin:12px auto 24px; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:16px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Müştəri məlumatları</div>
-            <button id="infoCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="infoCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <p class="section-hint" style="margin:8px 0 0;">Məlumatları dəyişin, abunəlik və seans vaxtlarını idarə edin.</p>
         <!-- Axtarış sahələri gizlidir — müştəri əsas axtarışdan gəlir; JS lookup üçün saxlanılır -->
@@ -1966,10 +2062,10 @@
                 </label>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button id="infoManageEditBtn" type="button" class="btn btn-primary btn-sm">Dəyişdir</button>
+                <button id="infoManageEditBtn" type="button" class="btn btn-primary btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span class="btn-label">Dəyişdir</span></button>
                 <button id="infoChangePackageBtn" type="button" class="btn btn-ghost btn-sm" style="display:none;">Paketi dəyiş</button>
-                <button id="infoReturnClubCardBtn" type="button" class="btn btn-ghost btn-sm" style="display:none;">Kartı qaytar</button>
-                <button id="infoManageCancelSubBtn" type="button" class="btn btn-danger btn-sm">Abunəni ləğv et</button>
+                <button id="infoReturnClubCardBtn" type="button" class="btn btn-return btn-sm" style="display:none;"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg><span class="btn-label">Kartı qaytar</span></button>
+                <button id="infoManageCancelSubBtn" type="button" class="btn btn-danger btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg><span class="btn-label">Abunəni ləğv et</span></button>
                                 <button id="infoManageDeactivateBtn" type="button" class="btn btn-danger btn-sm" style="display:none;">Sil</button>
                 <button id="infoManageReactivateBtn" type="button" class="btn btn-primary btn-sm" style="display:none;">Bərpa</button>
             </div>
@@ -1981,7 +2077,7 @@
         <div id="infoPackagesSummary" style="margin-top:10px; display:none; font-size:13px; color:#4a5a78; line-height:1.45;"></div>
         <div id="infoDaysToolbar" style="display:none; margin-top:12px; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
             <span id="infoDaysTitle" style="font-weight:900; color:#1a2650; font-size:14px;">Planlaşdırılan Günlər</span>
-            <button type="button" id="infoDaysToggleBtn" class="btn btn-sm btn-info-days-toggle">Gəldiyi günlər</button>
+            <button type="button" id="infoDaysToggleBtn" class="btn btn-sm btn-info-days-toggle"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><span class="btn-label">Gəldiyi günlər</span></button>
         </div>
         <div class="table-wrap" style="margin-top:8px; max-height:280px; overflow-y:auto; display:none;" id="infoTableWrap">
             <table class="subscription-table">
@@ -2006,7 +2102,7 @@
     <div style="max-width:560px; margin:24px auto; background:#fff; border-radius:16px; padding:16px; border:1px solid rgba(41,55,89,0.22);">
         <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Paketi dəyiş</div>
-            <button type="button" class="btn btn-ghost btn-sm" id="changePackageModalCloseBtn">Bağla</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="changePackageModalCloseBtn"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <p id="changePackageModalAthlete" class="section-hint" style="margin:8px 0 12px;"></p>
         <div class="row" style="flex-direction:column; align-items:stretch; gap:10px;">
@@ -2057,7 +2153,7 @@
     <div style="max-width:980px; margin:12px auto 24px; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:16px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Planlaşdırılanlar (bu gün)</div>
-            <button id="plannedSessionsCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="plannedSessionsCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div id="plannedSessionsHint" class="notice" style="display:none; margin-top:12px;"></div>
         <div style="margin-top:12px; overflow: visible;">
@@ -2087,14 +2183,14 @@
     <div style="max-width:720px; margin:8vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:16px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Avadanlıq seçimi</div>
-            <button id="equipmentPickerCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="equipmentPickerCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <p class="section-hint" style="display:none;"></p>
         <div id="equipmentPickerList" style="margin-top:12px; max-height:50vh; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
         <div class="notice" id="equipmentPickerHint" style="margin-top:10px; display:none;"></div>
         <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
             <button id="equipmentPickerClearBtn" type="button" class="btn btn-ghost btn-sm">Təmizlə</button>
-            <button id="equipmentPickerSaveBtn" type="button" class="btn btn-primary btn-sm">Təsdiqlə</button>
+            <button id="equipmentPickerSaveBtn" type="button" class="btn btn-primary btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Təsdiqlə</span></button>
         </div>
     </div>
 </div>
@@ -2106,7 +2202,7 @@
     <div style="max-width:680px; margin:6vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Abunə qrafikini dəyiş</div>
-            <button id="scheduleEditCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="scheduleEditCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div id="scheduleEditAthlete" style="margin-top:6px; color:#7a86a8; font-size:13px;"></div>
 
@@ -2174,8 +2270,8 @@
         <div id="scheduleEditHint" class="notice" style="margin-top:10px; display:none;"></div>
 
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap;">
-            <button id="scheduleEditCancelBtn" type="button" class="btn btn-ghost">Ləğv et</button>
-            <button id="scheduleEditSaveBtn" type="button" class="btn btn-primary">Yadda saxla</button>
+            <button id="scheduleEditCancelBtn" type="button" class="btn btn-ghost"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span class="btn-label">Ləğv et</span></button>
+            <button id="scheduleEditSaveBtn" type="button" class="btn btn-primary"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Yadda saxla</span></button>
         </div>
     </div>
 </div>
@@ -2186,7 +2282,7 @@
     <div style="max-width:560px; margin:6vh auto 0; background:rgba(255,255,255,0.98); border:1px solid rgba(41,55,89,0.22); border-radius:14px; padding:16px;">
         <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div style="font-weight:900; color:#1a2650; font-size:18px;">Seansı dəyiş</div>
-            <button id="occurrenceEditCloseBtn" type="button" class="btn btn-ghost btn-sm">Bağla</button>
+            <button id="occurrenceEditCloseBtn" type="button" class="btn btn-ghost btn-sm"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="btn-label">Bağla</span></button>
         </div>
         <div id="occurrenceEditAthlete" style="margin-top:6px; color:#7a86a8; font-size:13px;"></div>
         <div id="occurrenceEditPackageHint" class="section-hint" style="margin-top:8px;"></div>
@@ -2234,8 +2330,8 @@
         <div id="occurrenceEditHint" class="notice" style="margin-top:10px; display:none;"></div>
 
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap;">
-            <button id="occurrenceEditCancelBtn" type="button" class="btn btn-ghost">Ləğv et</button>
-            <button id="occurrenceEditSaveBtn" type="button" class="btn btn-primary">Yadda saxla</button>
+            <button id="occurrenceEditCancelBtn" type="button" class="btn btn-ghost"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span class="btn-label">Ləğv et</span></button>
+            <button id="occurrenceEditSaveBtn" type="button" class="btn btn-primary"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Yadda saxla</span></button>
         </div>
     </div>
 </div>
@@ -4952,8 +5048,8 @@
                     <td>${escapeHtml(h.athleteFullName || "")}</td>
                     <td>${escapeHtml(h.phoneNumber || "")}</td>
                     <td style="white-space:nowrap;">
-                        <button type="button" class="btn btn-ghost btn-sm" data-return-club-card="${escapeHtml(h.athleteId || "")}">Qaytar</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-keep-club-card>Qalsın</button>
+                        <button type="button" class="btn btn-return btn-sm" data-return-club-card="${escapeHtml(h.athleteId || "")}"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg><span class="btn-label">Qaytar</span></button>
+                        <button type="button" class="btn btn-keep btn-sm" data-keep-club-card><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="btn-label">Qalsın</span></button>
                     </td>
                 </tr>`).join("");
     }
@@ -5168,13 +5264,26 @@
         return (parseCashPaidInput() + parseCardPaidInput()) > 0.0001;
     }
 
+    function setButtonLabel(btn, text) {
+        if (!(btn instanceof HTMLElement)) return;
+        const label = btn.querySelector(".btn-label");
+        if (label) label.textContent = text;
+        else btn.textContent = text;
+    }
+
+    function getButtonLabel(btn) {
+        if (!(btn instanceof HTMLElement)) return "";
+        const label = btn.querySelector(".btn-label");
+        return (label?.textContent ?? btn.textContent ?? "").trim();
+    }
+
     function syncScheduleButtonLabel() {
         const btn = document.getElementById("scheduleBtn");
         if (!(btn instanceof HTMLButtonElement)) return;
-        if (btn.disabled && btn.textContent === "Gözləyin...") return;
-        btn.textContent = shouldShowSchedulePaymentLabel()
+        if (btn.disabled && getButtonLabel(btn) === "Gözləyin...") return;
+        setButtonLabel(btn, shouldShowSchedulePaymentLabel()
             ? getScheduleButtonPaymentLabel()
-            : getScheduleButtonBaseLabel();
+            : getScheduleButtonBaseLabel());
     }
 
     function updateScheduleButtonForGroup() {
@@ -6027,7 +6136,7 @@
 
         if (customerModalSaveBtn instanceof HTMLButtonElement) {
             customerModalSaveBtn.disabled = true;
-            customerModalSaveBtn.textContent = "Saxlanır…";
+            setButtonLabel(customerModalSaveBtn, "Saxlanır…");
         }
 
         try {
@@ -6112,7 +6221,7 @@
         } finally {
             if (customerModalSaveBtn instanceof HTMLButtonElement) {
                 customerModalSaveBtn.disabled = false;
-                customerModalSaveBtn.textContent = "Təsdiqlə və saxla";
+                setButtonLabel(customerModalSaveBtn, "Təsdiqlə və saxla");
             }
         }
     }
@@ -7617,7 +7726,7 @@
         const showLanes = !requiresUsage || usageVal === "0" || usageVal === "2";
         const gymFacility = usageVal === "2" ? "2" : "1";
         const gymBlock = showGym
-            ? `<button type="button" class="btn btn-primary btn-sm" data-activate-session="${escapeHtml2(sessionId)}" data-activate-lane="${GYM_LANE_NUMBER}" data-activate-facility="${gymFacility}" data-athlete-id="${escapeHtml2(athleteId || "")}" data-athlete-category="${escapeHtml2(categoryValue)}" data-needs-lane-pick="0">Trenajora yaz</button>`
+            ? `<button type="button" class="btn btn-primary btn-sm" data-activate-session="${escapeHtml2(sessionId)}" data-activate-lane="${GYM_LANE_NUMBER}" data-activate-facility="${gymFacility}" data-athlete-id="${escapeHtml2(athleteId || "")}" data-athlete-category="${escapeHtml2(categoryValue)}" data-needs-lane-pick="0"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="btn-label">Trenajora yaz</span></button>`
             : "";
         const laneFacilityAttr = usageVal === "0" || usageVal === "2"
             ? ` data-activate-facility="${usageVal}"`
@@ -7731,8 +7840,8 @@
                         <td style="white-space:nowrap;">${escapeHtml2(x.statusLabel)}</td>
                         <td class="planned-session-actions">
                             <div class="planned-session-actions__inner">
-                                <button type="button" class="btn btn-primary btn-sm" data-activate-session="${escapeHtml2(x.sessionId)}" data-athlete-id="${escapeHtml2(athleteId)}" data-athlete-category="${escapeHtml2(x.athleteCategory ?? "")}" data-needs-lane-pick="${needsLanePick ? "1" : "0"}">Aktiv et</button>
-                                <button type="button" class="btn btn-danger btn-sm" data-cancel-session="${escapeHtml2(x.sessionId)}">Ləğv et</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-activate-session="${escapeHtml2(x.sessionId)}" data-athlete-id="${escapeHtml2(athleteId)}" data-athlete-category="${escapeHtml2(x.athleteCategory ?? "")}" data-needs-lane-pick="${needsLanePick ? "1" : "0"}"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><span class="btn-label">Aktiv et</span></button>
+                                <button type="button" class="btn btn-danger btn-sm" data-cancel-session="${escapeHtml2(x.sessionId)}"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span class="btn-label">Ləğv et</span></button>
                                 <div class="planned-lane-popover" data-planned-lane-pick-for="${escapeHtml2(x.sessionId)}"></div>
                             </div>
                         </td>
@@ -8115,9 +8224,9 @@
                 : "Planlaşdırılan Günlər";
         }
         if (infoDaysToggleBtn instanceof HTMLButtonElement) {
-            infoDaysToggleBtn.textContent = _infoDaysMode === "visited"
+            setButtonLabel(infoDaysToggleBtn, _infoDaysMode === "visited"
                 ? "Planlaşdırılan Günlər"
-                : "Gəldiyi günlər";
+                : "Gəldiyi günlər");
         }
     }
 
@@ -8198,8 +8307,8 @@
                 }
                 const actions = missed
                     ? `<span style="color:#b45309;font-weight:800;">Gəlməyib</span>`
-                    : `<button type="button" class="btn btn-ghost btn-sm" data-edit-occurrence-schedule="${sid}" data-edit-occurrence-date="${d}">Dəyişdir</button>
-                        <button type="button" class="btn btn-danger btn-sm" data-exclude-occurrence-schedule="${sid}" data-exclude-occurrence-date="${d}">Ləğv et</button>`;
+                    : `<button type="button" class="btn btn-ghost btn-sm" data-edit-occurrence-schedule="${sid}" data-edit-occurrence-date="${d}"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span class="btn-label">Dəyişdir</span></button>
+                        <button type="button" class="btn btn-danger btn-sm" data-exclude-occurrence-schedule="${sid}" data-exclude-occurrence-date="${d}"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span class="btn-label">Ləğv et</span></button>`;
                 tr.innerHTML = `
                     <td>${escapeHtml2(formatDateOnly(o?.dateLocal))}</td>
                     <td>${escapeHtml2(o?.dayLabel)}</td>
@@ -9411,7 +9520,7 @@
         const btn = document.getElementById("refreshReceptionBtn");
         if (btn instanceof HTMLButtonElement) {
             btn.disabled = true;
-            btn.textContent = "Yenilənir...";
+            setButtonLabel(btn, "Yenilənir...");
         }
         window.location.reload();
     }
@@ -10426,7 +10535,7 @@
             scheduleInFlight = true;
             if (scheduleBtn instanceof HTMLButtonElement) {
                 scheduleBtn.disabled = true;
-                scheduleBtn.textContent = "Gözləyin...";
+                setButtonLabel(scheduleBtn, "Gözləyin...");
             }
             try {
                 await registerGroupOnLane();
@@ -10449,7 +10558,7 @@
         scheduleInFlight = true;
         if (scheduleBtn instanceof HTMLButtonElement) {
             scheduleBtn.disabled = true;
-            scheduleBtn.textContent = "Gözləyin...";
+            setButtonLabel(scheduleBtn, "Gözləyin...");
         }
 
         try {
@@ -11176,14 +11285,14 @@
         infoManageEditBtn?.addEventListener("click", async () => {
             if (infoManageEditBtn instanceof HTMLButtonElement) {
                 infoManageEditBtn.disabled = true;
-                infoManageEditBtn.textContent = "Saxlanır…";
+                setButtonLabel(infoManageEditBtn, "Saxlanır…");
             }
             try {
                 await saveInfoProfile();
             } finally {
                 if (infoManageEditBtn instanceof HTMLButtonElement) {
                     infoManageEditBtn.disabled = false;
-                    infoManageEditBtn.textContent = "Dəyişdir";
+                    setButtonLabel(infoManageEditBtn, "Dəyişdir");
                 }
             }
         });
@@ -11205,7 +11314,7 @@
 
             if (infoReturnClubCardBtn instanceof HTMLButtonElement) {
                 infoReturnClubCardBtn.disabled = true;
-                infoReturnClubCardBtn.textContent = "Qaytarılır…";
+                setButtonLabel(infoReturnClubCardBtn, "Qaytarılır…");
             }
             try {
                 const response = await apiFetch(`/athletes/${encodeURIComponent(_currentInfoAthleteId)}/return-club-card`, {
@@ -11229,7 +11338,7 @@
             } finally {
                 if (infoReturnClubCardBtn instanceof HTMLButtonElement) {
                     infoReturnClubCardBtn.disabled = false;
-                    infoReturnClubCardBtn.textContent = "Kartı qaytar";
+                    setButtonLabel(infoReturnClubCardBtn, "Kartı qaytar");
                 }
             }
         });

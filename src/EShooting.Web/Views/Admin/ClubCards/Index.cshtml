@@ -13,6 +13,9 @@
     var status = (ViewBag.Status as string) ?? "held";
     var notice = TempData["ClubCardNotice"] as string;
     var error = TempData["ClubCardError"] as string;
+    var restoreAskType = TempData["ClubCardRestoreAskType"] as string;
+    var restoreAskNumbers = TempData["ClubCardRestoreAskNumbers"] as string;
+    var restoreAskMsg = TempData["ClubCardRestoreAskMsg"] as string;
     var typeOptions = new (ClubCardType Type, string Label)[]
     {
         (ClubCardType.Boz, "Boz"),
@@ -40,8 +43,8 @@
 <div class="topbar">
     <h1>Kartlar</h1>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a class="btn btn-excel" href="/admin/club-cards/export.xlsx">Excel</a>
-        <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə">Yenilə</button>
+        <a class="btn btn-excel" href="/admin/club-cards/export.xlsx"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel</span></a>
+        <button type="button" class="btn" id="adminRefreshBtn" title="Siyahını yenilə"><svg class="btn-ico" aria-hidden="true"><use href="#ai-refresh"/></svg><span class="btn-label">Yenilə</span></button>
     </div>
 </div>
 
@@ -96,7 +99,7 @@
             <span>Kart nömrəsi</span>
             <input name="cardNumber" maxlength="40" data-az-msg="Kart nömrəsi daxil edin." />
         </label>
-        <button class="btn btn-primary" type="submit">Əlavə et</button>
+        <button class="btn btn-primary" type="submit"><svg class="btn-ico" aria-hidden="true"><use href="#ai-plus"/></svg><span class="btn-label">Əlavə et</span></button>
     </form>
 </div>
 
@@ -125,9 +128,9 @@
             <span>Kart nömrəsi</span>
             <input name="cardNumbers" id="silCardNumbers" value="@lookupNumbers" maxlength="400" placeholder="005 və ya 5, 10, 25, 100" />
         </label>
-        <button class="btn btn-primary" type="submit">Tap</button>
-        <button class="btn" type="submit" form="cardDeleteForm" id="silBtn" style="color:#991b1b;">Sil</button>
-        <button class="btn" type="submit" form="cardRestoreForm">Bərpa et</button>
+        <button class="btn btn-primary" type="submit"><svg class="btn-ico" aria-hidden="true"><use href="#ai-search"/></svg><span class="btn-label">Tap</span></button>
+        <button class="btn" type="submit" form="cardDeleteForm" id="silBtn" style="color:#991b1b;"><svg class="btn-ico" aria-hidden="true"><use href="#ai-trash"/></svg><span class="btn-label">Sil</span></button>
+        <button class="btn" type="submit" form="cardRestoreForm"><svg class="btn-ico" aria-hidden="true"><use href="#ai-undo"/></svg><span class="btn-label">Bərpa et</span></button>
     </form>
 
     <form method="post" action="/admin/club-cards/delete" id="cardDeleteForm">
@@ -141,6 +144,13 @@
         <input type="hidden" name="cardType" id="restoreCardType" />
         <input type="hidden" name="cardNumbers" id="restoreCardNumbers" />
     </form>
+    @if (!string.IsNullOrWhiteSpace(restoreAskMsg) && !string.IsNullOrWhiteSpace(restoreAskType) && !string.IsNullOrWhiteSpace(restoreAskNumbers))
+    {
+        <div id="addRestoreAsk" hidden
+             data-type="@restoreAskType"
+             data-numbers="@restoreAskNumbers"
+             data-msg="@restoreAskMsg"></div>
+    }
 
     @if (lookups.Count > 0)
     {
@@ -182,7 +192,7 @@
                                         data-row-held="1"
                                         data-row-card="@($"{row.TypeLabel} · {row.CardNumber}")"
                                         data-row-name="@row.HolderName"
-                                        data-row-phone="@row.HolderPhone">Sil</button>
+                                        data-row-phone="@row.HolderPhone"><svg class="btn-ico" aria-hidden="true"><use href="#ai-trash"/></svg><span class="btn-label">Sil</span></button>
                             </td>
                         </tr>
                     }
@@ -196,14 +206,14 @@
                             <td>
                                 @if (row.IsDeleted)
                                 {
-                                    <button type="button" class="btn btn-row" data-row-restore="@row.CardNumber" data-row-type="@((int)row.CardType)">Bərpa et</button>
+                                    <button type="button" class="btn btn-row" data-row-restore="@row.CardNumber" data-row-type="@((int)row.CardType)"><svg class="btn-ico" aria-hidden="true"><use href="#ai-undo"/></svg><span class="btn-label">Bərpa et</span></button>
                                 }
                                 else if (!row.Missing)
                                 {
                                     <button type="button" class="btn btn-row" style="color:#991b1b;"
                                             data-row-sil="@row.CardNumber"
                                             data-row-type="@((int)row.CardType)"
-                                            data-row-held="0">Sil</button>
+                                            data-row-held="0"><svg class="btn-ico" aria-hidden="true"><use href="#ai-trash"/></svg><span class="btn-label">Sil</span></button>
                                 }
                             </td>
                         </tr>
@@ -244,8 +254,8 @@
                 @if (status == "deleted") { <option value="deleted" selected>Mövcud deyil</option> } else { <option value="deleted">Mövcud deyil</option> }
             </select>
         </label>
-        <button class="btn btn-primary" type="submit">Göstər</button>
-        <a class="btn btn-excel" href="@catalogExportHref">Excel-ə çıxart</a>
+        <button class="btn btn-primary" type="submit"><svg class="btn-ico" aria-hidden="true"><use href="#ai-search"/></svg><span class="btn-label">Göstər</span></button>
+        <a class="btn btn-excel" href="@catalogExportHref"><svg class="btn-ico" aria-hidden="true"><use href="#ai-excel"/></svg><span class="btn-label">Excel-ə çıxart</span></a>
         @if (lookupType is ClubCardType keepType)
         {
             <input type="hidden" name="lookupType" value="@((int)keepType)" />
@@ -409,5 +419,18 @@
                 document.getElementById("cardRestoreForm")?.requestSubmit();
             });
         });
+
+        var addRestoreAsk = document.getElementById("addRestoreAsk");
+        if (addRestoreAsk) {
+            var askMsg = addRestoreAsk.getAttribute("data-msg") || "";
+            if (askMsg && window.confirm(askMsg)) {
+                var typeEl = document.getElementById("restoreCardType");
+                var numEl = document.getElementById("restoreCardNumbers");
+                if (typeEl) typeEl.value = addRestoreAsk.getAttribute("data-type") || "";
+                if (numEl) numEl.value = addRestoreAsk.getAttribute("data-numbers") || "";
+                skipRestoreConfirm = true;
+                document.getElementById("cardRestoreForm")?.requestSubmit();
+            }
+        }
     })();
 </script>
